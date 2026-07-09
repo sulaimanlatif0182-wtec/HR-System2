@@ -1,14 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Users, UserCircle2, Mail, Lock, ArrowRight, Sparkles, Loader2 } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Sparkles, Loader2 } from 'lucide-react';
 import supabase from '../lib/supabase';
-
-const demoAccounts = [
-  { role: 'Admin', email: 'admin@hrsystem.com', password: 'admin123', icon: ShieldCheck, desc: 'Full access', grad: 'from-fuchsia-500 to-violet-600' },
-  { role: 'Manager', email: 'manager@hrsystem.com', password: 'manager123', icon: Users, desc: 'Team access', grad: 'from-cyan-400 to-blue-600' },
-  { role: 'Employee', email: 'employee@hrsystem.com', password: 'employee123', icon: UserCircle2, desc: 'Self service', grad: 'from-amber-400 to-orange-500' },
-];
 
 interface LiveStats {
   employees: number;
@@ -22,7 +16,6 @@ export default function Login() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [demoLoading, setDemoLoading] = useState<string | null>(null);
   const [stats, setStats] = useState<LiveStats>({ employees: 0, departments: 0, locations: 0 });
   const navigate = useNavigate();
 
@@ -75,18 +68,6 @@ export default function Login() {
     }
   };
 
-  const handleDemo = async (role: string, demoEmail: string, demoPassword: string) => {
-    setDemoLoading(role);
-    setError('');
-    try {
-      await doLogin(demoEmail, demoPassword);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Demo login failed.');
-    } finally {
-      setDemoLoading(null);
-    }
-  };
-
   const statItems: [string, string][] = [
     [stats.employees > 0 ? `${stats.employees}` : '—', 'Employees managed'],
     [stats.departments > 0 ? `${stats.departments}` : '—', 'Departments'],
@@ -121,7 +102,7 @@ export default function Login() {
             <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary to-accent grid place-items-center shadow-lg shadow-primary/30">
               <Sparkles size={22} className="text-white" />
             </div>
-            <span className="font-display text-2xl font-bold tracking-tight">Nimbus<span className="text-gradient">HR</span></span>
+            <span className="font-display text-2xl font-bold tracking-tight">Wtec<span className="text-gradient">HR</span></span>
           </div>
           <div>
             <h1 className="font-display text-5xl font-bold leading-[1.08] tracking-tight">
@@ -153,41 +134,10 @@ export default function Login() {
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center">
               <Sparkles size={18} className="text-white" />
             </div>
-            <span className="font-display text-xl font-bold">Nimbus<span className="text-gradient">HR</span></span>
+            <span className="font-display text-xl font-bold">Wtec<span className="text-gradient">HR</span></span>
           </div>
 
-          <h2 className="font-display text-2xl font-bold">Welcome back</h2>
-          <p className="text-muted text-sm mt-1">Sign in to your HR command center</p>
-
-          <div className="mt-6">
-            <p className="text-[11px] uppercase tracking-widest text-muted font-mono mb-3">Quick demo access</p>
-            <div className="grid grid-cols-3 gap-2.5">
-              {demoAccounts.map((d) => {
-                const Icon = d.icon;
-                const isLoadingThis = demoLoading === d.role;
-                return (
-                  <button
-                    key={d.role}
-                    onClick={() => handleDemo(d.role, d.email, d.password)}
-                    disabled={!!demoLoading}
-                    className="group relative flex flex-col items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] py-3 px-2 hover:bg-white/[0.07] hover:border-white/20 transition-all disabled:opacity-60"
-                  >
-                    <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${d.grad} grid place-items-center shadow-md group-hover:scale-110 transition-transform`}>
-                      {isLoadingThis ? <Loader2 size={16} className="text-white animate-spin" /> : <Icon size={16} className="text-white" />}
-                    </div>
-                    <span className="text-xs font-semibold">{d.role}</span>
-                    <span className="text-[10px] text-muted">{d.desc}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 my-6">
-            <div className="h-px flex-1 bg-white/10" />
-            <span className="text-[11px] text-muted font-mono uppercase tracking-widest">or login manually</span>
-            <div className="h-px flex-1 bg-white/10" />
-          </div>
+          <h2 className="font-display text-2xl font-bold mb-6">Welcome back</h2>
 
           <form onSubmit={handleEmailAuth} className="space-y-4">
             <div>
