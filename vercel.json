@@ -1,4 +1,14 @@
 {
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}
+If you also have buildCommand/outputDirectory/framework keys already in there, keep them and just add the rewrites array alongside:
+
+{
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite"
