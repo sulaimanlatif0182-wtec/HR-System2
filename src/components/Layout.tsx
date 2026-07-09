@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, CalendarCheck, PlaneTakeoff, Wallet, Network,
-  Sparkles, Bell, ChevronDown, Search, LogOut, Settings, Menu, X,
+  Sparkles, Bell, ChevronDown, Search, LogOut, Settings, Menu, X, Download,
 } from 'lucide-react';
 import supabase from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -65,7 +65,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }}
                 className="font-display font-bold text-lg tracking-tight whitespace-nowrap overflow-hidden"
               >
-                Nimbus<span className="text-gradient">HR</span>
+                Wtec<span className="text-gradient">HR</span>
               </motion.span>
             )}
           </AnimatePresence>
@@ -174,6 +174,13 @@ export default function Layout({ children }: { children: ReactNode }) {
                     <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted hover:text-ink hover:bg-white/5 transition-all">
                       <Settings size={15} /> Settings
                     </button>
+                    <a
+                      href="/downloads/wtec-hr-source.zip"
+                      download
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted hover:text-ink hover:bg-white/5 transition-all"
+                    >
+                      <Download size={15} /> Download Source
+                    </a>
                     <button
                       onClick={handleSignOut}
                       className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-rose hover:bg-rose/10 transition-all"
