@@ -1,15 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { ShieldCheck, Users, UserCircle2, Mail, Lock, ArrowRight, Sparkles, Loader2 } from 'lucide-react';
 import supabase from '../lib/supabase';
-import { signInWithGoogle } from '../lib/googleAuth';
 
 const demoAccounts = [
   { role: 'Admin', email: 'admin@hrsystem.com', password: 'admin123', icon: ShieldCheck, desc: 'Full access', grad: 'from-fuchsia-500 to-violet-600' },
   { role: 'Manager', email: 'manager@hrsystem.com', password: 'manager123', icon: Users, desc: 'Team access', grad: 'from-cyan-400 to-blue-600' },
   { role: 'Employee', email: 'employee@hrsystem.com', password: 'employee123', icon: UserCircle2, desc: 'Self service', grad: 'from-amber-400 to-orange-500' },
 ];
+
+interface LiveStats {
+  employees: number;
+  departments: number;
+  locations: number;
+}
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -18,7 +23,27 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState<string | null>(null);
+  const [stats, setStats] = useState<LiveStats>({ employees: 0, departments: 0, locations: 0 });
   const navigate = useNavigate();
+
+  useEffect(() => {
+    fetch('/api/employees')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const locations = new Set(data.map((e) => e.location).filter(Boolean));
+          setStats((s) => ({ ...s, employees: data.length, locations: locations.size }));
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/departments')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setStats((s) => ({ ...s, departments: data.length }));
+      })
+      .catch(() => {});
+  }, []);
 
   const doLogin = async (loginEmail: string, loginPassword: string) => {
     setError('');
@@ -62,6 +87,12 @@ export default function Login() {
     }
   };
 
+  const statItems: [string, string][] = [
+    [stats.employees > 0 ? `${stats.employees}` : '—', 'Employees managed'],
+    [stats.departments > 0 ? `${stats.departments}` : '—', 'Departments'],
+    [stats.locations > 0 ? `${stats.locations}` : '—', 'Locations'],
+  ];
+
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-bg text-ink flex items-center justify-center px-4 py-10">
       {/* Ambient background */}
@@ -102,7 +133,7 @@ export default function Login() {
             </p>
           </div>
           <div className="flex gap-6 pt-4">
-            {[['3.2k+', 'Employees managed'], ['99.9%', 'Uptime SLA'], ['48', 'Countries']].map(([n, l]) => (
+            {statItems.map(([n, l]) => (
               <div key={l}>
                 <div className="font-display text-2xl font-bold text-gradient">{n}</div>
                 <div className="text-xs text-muted mt-1">{l}</div>
@@ -216,14 +247,6 @@ export default function Login() {
             </button>
           </form>
 
-          <button
-            onClick={() => signInWithGoogle('NimbusHR')}
-            className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] py-3 text-sm font-medium hover:bg-white/[0.08] transition-all"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 10.2v3.9h5.5c-.24 1.3-.97 2.4-2.06 3.14v2.6h3.34c1.96-1.8 3.1-4.46 3.1-7.6 0-.74-.07-1.45-.19-2.14H12Z"/><path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.42l-3.34-2.6c-.93.62-2.12.98-3.28.98-2.52 0-4.66-1.7-5.42-4H3.13v2.56C4.78 19.6 8.13 22 12 22Z"/><path fill="#4A90E2" d="M6.58 13.96A5.9 5.9 0 0 1 6.26 12c0-.68.12-1.34.32-1.96V7.48H3.13A9.98 9.98 0 0 0 2 12c0 1.6.38 3.12 1.13 4.52l3.45-2.56Z"/><path fill="#FBBC05" d="M12 6.02c1.47 0 2.79.5 3.83 1.5l2.87-2.87C16.96 2.98 14.7 2 12 2 8.13 2 4.78 4.4 3.13 7.48l3.45 2.56c.76-2.3 2.9-4.02 5.42-4.02Z"/></svg>
-            Continue with Google
-          </button>
-
           <p className="text-center text-xs text-muted mt-6">
             {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
             <button onClick={() => setIsSignUp(!isSignUp)} className="text-ink font-medium hover:text-gradient underline underline-offset-2">
@@ -232,6 +255,11 @@ export default function Login() {
           </p>
           <p className="text-center text-[11px] text-muted/70 mt-3">
             Need help? <span className="text-muted">support@nimbushr.com</span>
+          </p>
+          <p className="text-center text-[11px] mt-2">
+            <Link to="/download" className="text-primary hover:underline underline-offset-2">
+              Download project source code
+            </Link>
           </p>
         </motion.div>
       </div>
