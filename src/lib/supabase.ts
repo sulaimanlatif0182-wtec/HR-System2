@@ -38,3 +38,5 @@ const supabase = createClient(
     },
   }
 );
+
+export default supabase;   // ← THIS LINE must be the last line

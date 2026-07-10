@@ -71,3 +71,5 @@ function App() {
     </AuthProvider>
   );
 }
+
+export default App;   // ← THIS LINE must be the last line
