@@ -10,6 +10,8 @@ import Leave from './pages/Leave';
 import Payroll from './pages/Payroll';
 import OrgChart from './pages/OrgChart';
 import ResetPassword from './pages/ResetPassword';
+import Profile from './pages/Profile';
+
 
 function App() {
   return (
@@ -23,6 +25,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Layout><Dashboard /></Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Layout><Profile /></Layout>
               </ProtectedRoute>
             }
           />
