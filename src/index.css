@@ -121,3 +121,64 @@ input:-webkit-autofill {
   background-size: 200% 100%;
   animation: shimmer 2s linear infinite;
 }
+
+/* ───────────────────────────────────────────────
+   Print styles — used by Dashboard "Print / PDF"
+   Hides app chrome and produces a clean white report
+   ─────────────────────────────────────────────── */
+@media print {
+  /* Clean white page */
+  body {
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #111111 !important;
+  }
+
+  /* Hide app chrome: sidebar, header, buttons */
+  aside,
+  header,
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Main content takes the full page */
+  main {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Cards: white with light borders instead of dark glass */
+  .glass,
+  .glass-solid {
+    background: #ffffff !important;
+    border: 1px solid #dddddd !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    break-inside: avoid;
+  }
+
+  /* Readable text colors on white */
+  .text-ink,
+  .text-muted,
+  h1, h2, h3, p, td, th, span, div {
+    color: #111111 !important;
+  }
+
+  .text-gradient {
+    background: none !important;
+    color: #111111 !important;
+    -webkit-background-clip: initial !important;
+    background-clip: initial !important;
+  }
+
+  /* Avoid cutting tables/charts across pages */
+  table, svg {
+    break-inside: avoid;
+  }
+
+  /* Hide interactive elements that make no sense on paper */
+  button, input, select, textarea {
+    display: none !important;
+  }
+}

@@ -77,3 +77,16 @@ export function InfoRow({ icon: Icon, label, value }: { icon: ComponentType<{ si
     </div>
   );
 }
+
+export function GlowCard({ children, className = '', glowColor = '139,92,246' }: { children: ReactNode; className?: string; glowColor?: string; intensity?: number }) {
+  return (
+    <div
+      className={`glass rounded-2xl transition-all duration-300 hover:-translate-y-0.5 ${className}`}
+      style={{ ['--glow' as string]: glowColor }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = `0 12px 40px -10px rgba(${glowColor},0.35)`; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = ''; }}
+    >
+      {children}
+    </div>
+  );
+}

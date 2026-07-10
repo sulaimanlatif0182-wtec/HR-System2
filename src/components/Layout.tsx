@@ -4,11 +4,13 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, LayoutDashboard, Users, CalendarCheck, CalendarDays, Wallet, Network,
-  Search, Bell, ChevronDown, Settings, UserCircle, LogOut, PanelLeftClose, PanelLeftOpen, Menu, X,
+  Search, ChevronDown, Settings, UserCircle, LogOut, PanelLeftClose, PanelLeftOpen, Menu, X,
   CornerDownLeft,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import supabase from '../lib/supabase';
+import NotificationsBell from './NotificationsBell';
+
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'manager', 'employee'] },
@@ -297,10 +299,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
           <div className="flex-1 md:hidden" />
           <div className="flex items-center gap-3 ml-auto">
-            <button className="relative w-10 h-10 rounded-xl grid place-items-center bg-white/5 hover:bg-white/10 transition-all">
-              <Bell size={18} />
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose animate-pulse-glow" />
-            </button>
+            <NotificationsBell />
             <div className="relative">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}

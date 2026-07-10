@@ -1,24 +1,24 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { Users, TrendingUp, CalendarDays, Wallet, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, BarChart, Bar,
 } from 'recharts';
-import { Users, TrendingUp, Briefcase, Wallet, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import TiltCard from '../components/TiltCard';
-import { PageHeader, LoadingState, ErrorState } from '../components/Shared';
 import { useAuth } from '../contexts/AuthContext';
-import type { Employee, AttendanceRecord, LeaveRequest, Department, PayrollRecord } from '../types';
+import { PageHeader, GlowCard, LoadingState, ErrorState } from '../components/ui';
 
-const COLORS = ['#8b5cf6', '#22d3ee', '#fbbf24', '#fb7185', '#34d399', '#6366f1'];
+const PIE_COLORS = ['#8b5cf6', '#22d3ee', '#fbbf24', '#fb7185', '#34d399', '#6366f1'];
+
+interface AnyRec { [k: string]: any }
 
 export default function Dashboard() {
   const { profile } = useAuth();
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [payroll, setPayroll] = useState<PayrollRecord[]>([]);
+  const [employees, setEmployees] = useState<AnyRec[]>([]);
+  const [attendance, setAttendance] = useState<AnyRec[]>([]);
+  const [leaves, setLeaves] = useState<AnyRec[]>([]);
+  const [, setDepartments] = useState<AnyRec[]>([]);
+  const [payroll, setPayroll] = useState<AnyRec[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -26,18 +26,18 @@ export default function Dashboard() {
     setLoading(true);
     setError('');
     try {
-      const [e, a, l, d, p] = await Promise.all([
+      const [emp, att, lv, dep, pay] = await Promise.all([
         fetch('/api/employees').then((r) => r.json()),
         fetch('/api/attendance').then((r) => r.json()),
         fetch('/api/leave').then((r) => r.json()),
         fetch('/api/departments').then((r) => r.json()),
         fetch('/api/payroll').then((r) => r.json()),
       ]);
-      setEmployees(Array.isArray(e) ? e : []);
-      setAttendance(Array.isArray(a) ? a : []);
-      setLeaves(Array.isArray(l) ? l : []);
-      setDepartments(Array.isArray(d) ? d : []);
-      setPayroll(Array.isArray(p) ? p : []);
+      setEmployees(Array.isArray(emp) ? emp : []);
+      setAttendance(Array.isArray(att) ? att : []);
+      setLeaves(Array.isArray(lv) ? lv : []);
+      setDepartments(Array.isArray(dep) ? dep : []);
+      setPayroll(Array.isArray(pay) ? pay : []);
     } catch {
       setError('Failed to load dashboard data.');
     } finally {
@@ -47,16 +47,19 @@ export default function Dashboard() {
 
   useEffect(() => { fetchAll(); }, []);
 
-  const stats = useMemo(() => {
+  const kpis = useMemo(() => {
     const headcount = employees.length;
-    const activeToday = attendance.filter((a) => a.date === new Date().toISOString().slice(0, 10) && a.status !== 'absent').length;
-    const attendanceRate = attendance.length ? Math.round((attendance.filter((a) => a.status === 'present' || a.status === 'remote').length / attendance.length) * 100) : 0;
+    const today = new Date().toISOString().slice(0, 10);
+    const activeToday = attendance.filter((a) => a.date === today && a.status !== 'absent').length;
+    const attendanceRate = attendance.length
+      ? Math.round((attendance.filter((a) => a.status === 'present' || a.status === 'remote').length / attendance.length) * 100)
+      : 0;
     const pendingLeaves = leaves.filter((l) => l.status === 'pending').length;
     const payrollCost = payroll.reduce((sum, p) => sum + Number(p.net_pay || 0), 0);
     return { headcount, activeToday, attendanceRate, pendingLeaves, payrollCost };
   }, [employees, attendance, leaves, payroll]);
 
-  const attendanceTrend = useMemo(() => {
+  const trendData = useMemo(() => {
     const byDate: Record<string, { present: number; absent: number; remote: number }> = {};
     attendance.forEach((a) => {
       if (!byDate[a.date]) byDate[a.date] = { present: 0, absent: 0, remote: 0 };
@@ -67,31 +70,31 @@ export default function Dashboard() {
     return Object.entries(byDate)
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-14)
-      .map(([date, v]) => ({ date: date.slice(5), present: v.present, remote: v.remote, absent: v.absent }));
+      .map(([date, v]) => ({ date: date.slice(5), ...v }));
   }, [attendance]);
 
-  const deptDistribution = useMemo(() => {
-    const counts: Record<string, number> = {};
+  const deptSplit = useMemo(() => {
+    const map: Record<string, number> = {};
     employees.forEach((e) => {
       const d = e.department || 'Unassigned';
-      counts[d] = (counts[d] || 0) + 1;
+      map[d] = (map[d] || 0) + 1;
     });
-    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+    return Object.entries(map).map(([name, value]) => ({ name, value }));
   }, [employees]);
 
-  const leaveBalance = useMemo(() => {
-    const types: Record<string, number> = {};
+  const leaveByType = useMemo(() => {
+    const map: Record<string, number> = {};
     leaves.forEach((l) => {
-      types[l.leave_type] = (types[l.leave_type] || 0) + l.days;
+      map[l.leave_type] = (map[l.leave_type] || 0) + l.days;
     });
-    return Object.entries(types).map(([name, days]) => ({ name, days }));
+    return Object.entries(map).map(([name, days]) => ({ name, days }));
   }, [leaves]);
 
-  const kpis = [
-    { label: 'Total Headcount', value: stats.headcount, icon: Users, grad: 'from-violet-500 to-fuchsia-500', delta: '+4.2%', up: true, glow: '139,92,246' },
-    { label: 'Attendance Rate', value: `${stats.attendanceRate}%`, icon: TrendingUp, grad: 'from-cyan-400 to-blue-500', delta: '+1.8%', up: true, glow: '34,211,238' },
-    { label: 'Pending Leave Requests', value: stats.pendingLeaves, icon: Briefcase, grad: 'from-amber-400 to-orange-500', delta: '-2', up: false, glow: '251,191,36' },
-    { label: 'Monthly Payroll Cost', value: `$${(stats.payrollCost / 1000).toFixed(1)}k`, icon: Wallet, grad: 'from-emerald-400 to-teal-500', delta: '+6.1%', up: true, glow: '52,211,153' },
+  const cards = [
+    { label: 'Total Headcount', value: kpis.headcount, icon: Users, grad: 'from-violet-500 to-fuchsia-500', delta: '+4.2%', up: true, glow: '139,92,246' },
+    { label: 'Attendance Rate', value: `${kpis.attendanceRate}%`, icon: TrendingUp, grad: 'from-cyan-400 to-blue-500', delta: '+1.8%', up: true, glow: '34,211,238' },
+    { label: 'Pending Leave Requests', value: kpis.pendingLeaves, icon: CalendarDays, grad: 'from-amber-400 to-orange-500', delta: '-2', up: false, glow: '251,191,36' },
+    { label: 'Monthly Payroll Cost', value: `$${(kpis.payrollCost / 1e3).toFixed(1)}k`, icon: Wallet, grad: 'from-emerald-400 to-teal-500', delta: '+6.1%', up: true, glow: '52,211,153' },
   ];
 
   if (loading) return <LoadingState label="Crunching HR metrics…" />;
@@ -104,38 +107,31 @@ export default function Dashboard() {
         subtitle="Here's what's happening across your organization today."
       />
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
-        {kpis.map((kpi, i) => {
-          const Icon = kpi.icon;
+        {cards.map((c, i) => {
+          const Icon = c.icon;
           return (
-            <motion.div
-              key={kpi.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: i * 0.08 }}
-            >
-              <TiltCard glowColor={kpi.glow} className="p-5">
+            <motion.div key={c.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: i * 0.08 }}>
+              <GlowCard glowColor={c.glow} className="p-5">
                 <div className="flex items-start justify-between">
-                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${kpi.grad} grid place-items-center shadow-lg`}>
+                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${c.grad} grid place-items-center shadow-lg`}>
                     <Icon size={20} className="text-white" />
                   </div>
-                  <div className={`flex items-center gap-1 text-xs font-medium ${kpi.up ? 'text-emerald' : 'text-rose'}`}>
-                    {kpi.up ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                    {kpi.delta}
+                  <div className={`flex items-center gap-1 text-xs font-medium ${c.up ? 'text-emerald' : 'text-rose'}`}>
+                    {c.up ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                    {c.delta}
                   </div>
                 </div>
                 <div className="mt-5">
-                  <div className="font-display text-3xl font-bold tracking-tight">{kpi.value}</div>
-                  <div className="text-xs text-muted mt-1">{kpi.label}</div>
+                  <div className="font-display text-3xl font-bold tracking-tight">{c.value}</div>
+                  <div className="text-xs text-muted mt-1">{c.label}</div>
                 </div>
-              </TiltCard>
+              </GlowCard>
             </motion.div>
           );
         })}
       </div>
 
-      {/* Charts row */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mb-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}
@@ -148,7 +144,7 @@ export default function Dashboard() {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={attendanceTrend}>
+            <AreaChart data={trendData}>
               <defs>
                 <linearGradient id="present" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.5} />
@@ -177,18 +173,18 @@ export default function Dashboard() {
           <p className="text-xs text-muted mb-2">Headcount distribution</p>
           <ResponsiveContainer width="100%" height={220}>
             <PieChart>
-              <Pie data={deptDistribution} dataKey="value" nameKey="name" innerRadius={55} outerRadius={80} paddingAngle={3}>
-                {deptDistribution.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />
+              <Pie data={deptSplit} dataKey="value" nameKey="name" innerRadius={55} outerRadius={80} paddingAngle={3}>
+                {deptSplit.map((_, i) => (
+                  <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} stroke="none" />
                 ))}
               </Pie>
               <Tooltip contentStyle={{ background: '#12131f', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2">
-            {deptDistribution.map((d, i) => (
+            {deptSplit.map((d, i) => (
               <div key={d.name} className="flex items-center gap-1.5 text-[11px] text-muted truncate">
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
                 {d.name} · {d.value}
               </div>
             ))}
@@ -203,11 +199,14 @@ export default function Dashboard() {
         <h3 className="font-display font-semibold mb-1">Leave Days Requested by Type</h3>
         <p className="text-xs text-muted mb-4">All-time distribution</p>
         <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={leaveBalance}>
+          <BarChart data={leaveByType}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
             <XAxis dataKey="name" stroke="#9391ab" fontSize={11} tickLine={false} axisLine={false} />
             <YAxis stroke="#9391ab" fontSize={11} tickLine={false} axisLine={false} />
-            <Tooltip contentStyle={{ background: '#12131f', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12 }} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+            <Tooltip
+              contentStyle={{ background: '#12131f', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12 }}
+              cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+            />
             <Bar dataKey="days" radius={[8, 8, 0, 0]} fill="#8b5cf6" />
           </BarChart>
         </ResponsiveContainer>
