@@ -1,43 +1,120 @@
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, Users, CalendarCheck, PlaneTakeoff, Wallet, Network,
-  Sparkles, Bell, ChevronDown, Search, LogOut, Settings, Menu, X, Download,
+  Sparkles, LayoutDashboard, Users, CalendarCheck, CalendarDays, Wallet, Network,
+  Search, Bell, ChevronDown, Settings, UserCircle, LogOut, PanelLeftClose, PanelLeftOpen, Menu, X,
+  CornerDownLeft,
 } from 'lucide-react';
-import supabase from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import supabase from '../lib/supabase';
 
-const navItems = [
+const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'manager', 'employee'] },
   { to: '/employees', label: 'Employees', icon: Users, roles: ['admin', 'manager'] },
   { to: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['admin', 'manager', 'employee'] },
-  { to: '/leave', label: 'Leave', icon: PlaneTakeoff, roles: ['admin', 'manager', 'employee'] },
+  { to: '/leave', label: 'Leave', icon: CalendarDays, roles: ['admin', 'manager', 'employee'] },
   { to: '/payroll', label: 'Payroll', icon: Wallet, roles: ['admin', 'manager', 'employee'] },
   { to: '/org-chart', label: 'Org Chart', icon: Network, roles: ['admin', 'manager', 'employee'] },
 ];
 
+interface EmpLite {
+  id: number;
+  name: string;
+  email: string;
+  title: string | null;
+  department: string | null;
+  location: string | null;
+}
+
+function initialsOf(name: string) {
+  return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+}
+
 export default function Layout({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const { profile, user } = useAuth();
   const navigate = useNavigate();
+
+  // ── Global search state ─────────────────────────
+  const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [allEmployees, setAllEmployees] = useState<EmpLite[]>([]);
+  const [empLoaded, setEmpLoaded] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   const role = profile?.role ?? 'employee';
   const displayName = profile?.name ?? user?.email?.split('@')[0] ?? 'User';
   const initials = displayName.slice(0, 2).toUpperCase();
+  const items = NAV.filter((n) => n.roles.includes(role));
 
-  const handleSignOut = async () => {
+  // Lazy-load the employee directory the first time the user types
+  useEffect(() => {
+    if (query.trim() && !empLoaded) {
+      fetch('/api/employees')
+        .then((r) => r.json())
+        .then((d) => { if (Array.isArray(d)) setAllEmployees(d); })
+        .catch(() => {})
+        .finally(() => setEmpLoaded(true));
+    }
+  }, [query, empLoaded]);
+
+  // Close search dropdown when clicking outside
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+
+  const q = query.trim().toLowerCase();
+
+  const employeeResults = useMemo(() => {
+    if (!q) return [];
+    return allEmployees
+      .filter((e) =>
+        e.name.toLowerCase().includes(q) ||
+        e.email.toLowerCase().includes(q) ||
+        (e.title ?? '').toLowerCase().includes(q) ||
+        (e.department ?? '').toLowerCase().includes(q) ||
+        (e.location ?? '').toLowerCase().includes(q)
+      )
+      .slice(0, 6);
+  }, [q, allEmployees]);
+
+  const pageResults = useMemo(() => {
+    if (!q) return [];
+    return items.filter((n) => n.label.toLowerCase().includes(q));
+  }, [q, items]);
+
+  const goToEmployee = (emp: EmpLite) => {
+    setSearchOpen(false);
+    setQuery('');
+    // Employees page reads ?q= to pre-filter the directory
+    navigate(`/employees?q=${encodeURIComponent(emp.name)}`);
+  };
+
+  const goToPage = (to: string) => {
+    setSearchOpen(false);
+    setQuery('');
+    navigate(to);
+  };
+
+  const signOut = async () => {
     await supabase.auth.signOut();
     navigate('/login');
   };
 
-  const visibleItems = navItems.filter((i) => i.roles.includes(role));
+  const canSeeEmployees = role === 'admin' || role === 'manager';
 
   return (
     <div className="min-h-screen bg-bg text-ink flex">
-      {/* Mobile overlay */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
@@ -48,7 +125,6 @@ export default function Layout({ children }: { children: ReactNode }) {
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
       <motion.aside
         animate={{ width: collapsed ? 84 : 260 }}
         transition={{ duration: 0.25, ease: 'easeInOut' }}
@@ -69,13 +145,19 @@ export default function Layout({ children }: { children: ReactNode }) {
               </motion.span>
             )}
           </AnimatePresence>
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="ml-auto hidden lg:grid w-8 h-8 place-items-center rounded-lg text-muted hover:text-ink hover:bg-white/5 transition-all"
+          >
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
           <button onClick={() => setMobileOpen(false)} className="ml-auto lg:hidden text-muted">
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto scrollbar-thin">
-          {visibleItems.map((item) => {
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
+          {items.map((item) => {
             const Icon = item.icon;
             return (
               <NavLink
@@ -84,68 +166,144 @@ export default function Layout({ children }: { children: ReactNode }) {
                 end={item.to === '/'}
                 onClick={() => setMobileOpen(false)}
                 className={({ isActive }) =>
-                  `relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all group ${
-                    isActive ? 'text-ink' : 'text-muted hover:text-ink hover:bg-white/5'
-                  }`
+                  `flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all
+                  ${isActive ? 'bg-primary/15 text-primary border border-primary/25 shadow-lg shadow-primary/10' : 'text-muted hover:text-ink hover:bg-white/5 border border-transparent'}`
                 }
               >
-                {({ isActive }) => (
-                  <>
-                    {isActive && (
-                      <motion.div
-                        layoutId="nav-active"
-                        className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/25 to-accent/10 border border-primary/30"
-                        transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-                      />
-                    )}
-                    <Icon size={18} className="relative shrink-0" />
-                    {!collapsed && <span className="relative whitespace-nowrap">{item.label}</span>}
-                  </>
-                )}
+                <Icon size={18} className="shrink-0" />
+                <AnimatePresence>
+                  {!collapsed && (
+                    <motion.span
+                      initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }}
+                      className="whitespace-nowrap overflow-hidden"
+                    >
+                      {item.label}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
               </NavLink>
             );
           })}
         </nav>
 
-        <div className="p-3 border-t border-white/5">
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="hidden lg:flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-muted hover:text-ink hover:bg-white/5 transition-all text-xs"
-          >
-            <Menu size={16} /> {!collapsed && 'Collapse'}
-          </button>
+        <div className="px-3 pb-5 shrink-0">
+          <div className={`glass rounded-xl p-3 flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center text-xs font-bold shrink-0">
+              {initials}
+            </div>
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className="text-xs font-medium truncate">{displayName}</p>
+                <p className="text-[10px] text-muted capitalize">{role}</p>
+              </div>
+            )}
+          </div>
         </div>
       </motion.aside>
 
-      {/* Main content */}
-      <div className="flex-1 min-w-0 flex flex-col">
-        {/* Topbar */}
-        <header className="sticky top-0 z-30 h-20 glass-solid border-b border-white/5 flex items-center gap-4 px-4 sm:px-8">
-          <button onClick={() => setMobileOpen(true)} className="lg:hidden text-muted">
-            <Menu size={22} />
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="sticky top-0 z-30 glass-solid border-b border-white/5 h-20 flex items-center gap-4 px-4 sm:px-8">
+          <button onClick={() => setMobileOpen(true)} className="lg:hidden w-10 h-10 grid place-items-center rounded-xl bg-white/5">
+            <Menu size={18} />
           </button>
 
-          <div className="hidden md:flex items-center gap-2 flex-1 max-w-md">
-            <div className="relative w-full">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+          {/* ── Global search ───────────────────── */}
+          <div ref={searchRef} className="hidden md:block flex-1 max-w-md relative">
+            <div className="relative">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
               <input
-                placeholder="Search employees, requests…"
-                className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); }}
+                onFocus={() => { if (query.trim()) setSearchOpen(true); }}
+                placeholder="Search employees, pages…"
+                className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-8 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
               />
+              {query && (
+                <button
+                  onClick={() => { setQuery(''); setSearchOpen(false); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
+
+            <AnimatePresence>
+              {searchOpen && q && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                  transition={{ duration: 0.12 }}
+                  className="absolute left-0 right-0 mt-2 glass-solid border border-white/10 rounded-xl shadow-2xl shadow-black/50 overflow-hidden max-h-[70vh] overflow-y-auto scrollbar-thin"
+                >
+                  {/* Pages */}
+                  {pageResults.length > 0 && (
+                    <div className="p-1.5">
+                      <p className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-muted font-medium">Pages</p>
+                      {pageResults.map((p) => {
+                        const Icon = p.icon;
+                        return (
+                          <button
+                            key={p.to}
+                            onClick={() => goToPage(p.to)}
+                            className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm text-muted hover:text-ink hover:bg-white/5 transition-all"
+                          >
+                            <Icon size={15} className="text-primary shrink-0" />
+                            {p.label}
+                            <CornerDownLeft size={12} className="ml-auto opacity-40" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Employees */}
+                  {employeeResults.length > 0 && (
+                    <div className="p-1.5 border-t border-white/5">
+                      <p className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-muted font-medium">Employees</p>
+                      {employeeResults.map((emp) => (
+                        <button
+                          key={emp.id}
+                          onClick={() => (canSeeEmployees ? goToEmployee(emp) : undefined)}
+                          className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-all ${canSeeEmployees ? 'text-muted hover:text-ink hover:bg-white/5 cursor-pointer' : 'text-muted cursor-default'}`}
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center text-[10px] font-bold shrink-0">
+                            {initialsOf(emp.name)}
+                          </div>
+                          <div className="min-w-0 text-left">
+                            <p className="text-sm text-ink truncate">{emp.name}</p>
+                            <p className="text-[11px] text-muted truncate">
+                              {[emp.title, emp.department].filter(Boolean).join(' · ') || emp.email}
+                            </p>
+                          </div>
+                          {canSeeEmployees && <CornerDownLeft size={12} className="ml-auto opacity-40 shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Empty state */}
+                  {pageResults.length === 0 && employeeResults.length === 0 && (
+                    <div className="px-4 py-6 text-center">
+                      <p className="text-sm text-muted">No results for “{query}”</p>
+                      <p className="text-[11px] text-muted/60 mt-1">Try an employee name, email, title, department or page name.</p>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <div className="flex-1 md:hidden" />
-
           <div className="flex items-center gap-3 ml-auto">
             <button className="relative w-10 h-10 rounded-xl grid place-items-center bg-white/5 hover:bg-white/10 transition-all">
               <Bell size={18} />
               <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose animate-pulse-glow" />
             </button>
-
             <div className="relative">
               <button
-                onClick={() => setProfileOpen(!profileOpen)}
+                onClick={() => setMenuOpen(!menuOpen)}
                 className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-white/5 transition-all"
               >
                 <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center text-xs font-bold shrink-0">
@@ -155,11 +313,10 @@ export default function Layout({ children }: { children: ReactNode }) {
                   <div className="text-sm font-medium leading-tight">{displayName}</div>
                   <div className="text-[11px] text-muted leading-tight capitalize">{role}</div>
                 </div>
-                <ChevronDown size={14} className={`text-muted transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown size={14} className={`text-muted transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
               </button>
-
               <AnimatePresence>
-                {profileOpen && (
+                {menuOpen && (
                   <motion.div
                     initial={{ opacity: 0, y: -8, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -171,18 +328,20 @@ export default function Layout({ children }: { children: ReactNode }) {
                       <p className="text-sm font-medium truncate">{user?.email}</p>
                       <p className="text-[11px] text-muted capitalize">{role} access</p>
                     </div>
-                    <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted hover:text-ink hover:bg-white/5 transition-all">
-                      <Settings size={15} /> Settings
-                    </button>
-                    <a
-                      href="/downloads/wtec-hr-source.zip"
-                      download
+                    <button
+                      onClick={() => { setMenuOpen(false); navigate('/profile'); }}
                       className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted hover:text-ink hover:bg-white/5 transition-all"
                     >
-                      <Download size={15} /> Download Source
-                    </a>
+                      <UserCircle size={15} /> My Profile
+                    </button>
                     <button
-                      onClick={handleSignOut}
+                      onClick={() => { setMenuOpen(false); navigate('/settings'); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted hover:text-ink hover:bg-white/5 transition-all"
+                    >
+                      <Settings size={15} /> Settings
+                    </button>
+                    <button
+                      onClick={signOut}
                       className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-rose hover:bg-rose/10 transition-all"
                     >
                       <LogOut size={15} /> Sign out
@@ -193,7 +352,6 @@ export default function Layout({ children }: { children: ReactNode }) {
             </div>
           </div>
         </header>
-
         <main className="flex-1 p-4 sm:p-8 max-w-[1600px] w-full mx-auto">{children}</main>
       </div>
     </div>

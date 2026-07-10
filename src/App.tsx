@@ -27,6 +27,14 @@ function App() {
             }
           />
           <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Layout><Profile /></Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/employees"
             element={
               <ProtectedRoute>

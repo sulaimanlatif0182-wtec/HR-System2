@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState,  } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Grid3x3, List, Mail, Phone, MapPin, X, Plus, Loader2, Briefcase, CalendarDays, DollarSign } from 'lucide-react';
 import { PageHeader, LoadingState, ErrorState, EmptyState, Badge } from '../components/Shared';
 import TiltCard from '../components/TiltCard';
 import type { Employee } from '../types';
+import { useSearchParams } from 'react-router-dom';
 
 const statusTone: Record<string, 'success' | 'warning' | 'default'> = {
   active: 'success',
@@ -20,7 +21,14 @@ export default function Employees() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [view, setView] = useState<'grid' | 'table'>('grid');
-  const [search, setSearch] = useState('');
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get('q') ?? '');
+
+  // Keep local search in sync when arriving via global header search
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q !== null) setSearch(q);
+  }, [searchParams]);
   const [deptFilter, setDeptFilter] = useState('all');
   const [selected, setSelected] = useState<Employee | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -52,7 +60,13 @@ export default function Employees() {
 
   const filtered = useMemo(() => {
     return employees.filter((e) => {
-      const matchesSearch = e.name.toLowerCase().includes(search.toLowerCase()) || e.title?.toLowerCase().includes(search.toLowerCase());
+      const s = search.toLowerCase();
+      const matchesSearch =
+        e.name.toLowerCase().includes(s) ||
+        e.email.toLowerCase().includes(s) ||
+        (e.title ?? '').toLowerCase().includes(s) ||
+        (e.department ?? '').toLowerCase().includes(s) ||
+        (e.location ?? '').toLowerCase().includes(s);
       const matchesDept = deptFilter === 'all' || e.department === deptFilter;
       return matchesSearch && matchesDept;
     });
