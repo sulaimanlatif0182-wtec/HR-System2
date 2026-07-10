@@ -91,6 +91,46 @@ export default function Login() {
       setError('Please fill in both fields.');
       return;
     }
+    if (mode === 'signup') {
+      const failed = PASSWORD_RULES.filter((r) => !r.test(password));
+      if (failed.length > 0) {
+        setError('Password does not meet the requirements below.');
+        return;
+      }
+    }
+    setBusy(true);
+    try {
+      persistRemembered();
+      if (mode === 'signup') {
+        // Secure registration: server verifies the email exists in the
+        // employee directory (added by admin) before creating the account.
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Registration failed.');
+        // Account created — sign them straight in
+        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+        if (err) throw err;
+        navigate('/');
+      } else {
+        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+        if (err) throw err;
+        navigate('/');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+    if (!email || !password) {
+      setError('Please fill in both fields.');
+      return;
+    }
     setBusy(true);
     try {
       persistRemembered();
