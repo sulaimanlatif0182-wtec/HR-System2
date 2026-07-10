@@ -35,6 +35,19 @@ export function Badge({ children, tone = 'default' }: { children: ReactNode; ton
   );
 }
 
+export function GlowCard({ children, className = '', glowColor = '139,92,246' }: { children: ReactNode; className?: string; glowColor?: string; intensity?: number }) {
+  return (
+    <div
+      className={`glass rounded-2xl transition-all duration-300 hover:-translate-y-0.5 ${className}`}
+      style={{ ['--glow' as string]: glowColor }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = `0 12px 40px -10px rgba(${glowColor},0.35)`; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = ''; }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function LoadingState({ label = 'Loading…' }: { label?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-32 gap-4">

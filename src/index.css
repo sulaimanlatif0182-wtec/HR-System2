@@ -182,3 +182,28 @@ input:-webkit-autofill {
     display: none !important;
   }
 }
+
+/* ── Print styles (Dashboard "Print / Save as PDF" export) ── */
+@media print {
+  body {
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #111 !important;
+  }
+  aside, header, button {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+  .glass, .glass-solid {
+    background: #f6f6fa !important;
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+  .text-muted { color: #555 !important; }
+  .text-ink { color: #111 !important; }
+  h1, h2, h3, p, span, div, td, th { color: #111; }
+}
