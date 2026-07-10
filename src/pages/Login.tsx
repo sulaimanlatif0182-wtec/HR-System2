@@ -2,10 +2,17 @@ import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Mail, Lock, ArrowRight, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Mail, Lock, ArrowRight, Loader2, ArrowLeft, CheckCircle2, Check, X, ShieldCheck } from 'lucide-react';
 import supabase, { REMEMBER_KEY, REMEMBERED_EMAIL_KEY } from '../lib/supabase';
 
 type Mode = 'signin' | 'signup' | 'forgot';
+
+const PASSWORD_RULES: Array<{ label: string; test: (p: string) => boolean }> = [
+  { label: 'At least 8 characters', test: (p) => p.length >= 8 },
+  { label: 'One uppercase letter (A–Z)', test: (p) => /[A-Z]/.test(p) },
+  { label: 'One lowercase letter (a–z)', test: (p) => /[a-z]/.test(p) },
+  { label: 'One number (0–9)', test: (p) => /[0-9]/.test(p) },
+];
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -87,14 +94,31 @@ export default function Login() {
     setBusy(true);
     try {
       persistRemembered();
+          if (mode === 'signup') {
+      const failed = PASSWORD_RULES.filter((r) => !r.test(password));
+      if (failed.length > 0) {
+        setError('Password does not meet the requirements below.');
+        return;
+      }
+    }
+    setBusy(true);
+    try {
+      persistRemembered();
       if (mode === 'signup') {
-        const { error: err } = await supabase.auth.signUp({ email, password });
-        if (err) throw err;
-        navigate('/');
-      } else {
+        // Secure registration: server verifies the email exists in the
+        // employee directory (added by admin) before creating the account.
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Registration failed.');
+        // Account created — sign them straight in
         const { error: err } = await supabase.auth.signInWithPassword({ email, password });
         if (err) throw err;
         navigate('/');
+      } else {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
@@ -220,7 +244,25 @@ export default function Login() {
                 </div>
               </div>
             )}
-
+            {mode === 'signup' && (
+              <div className="bg-white/[0.03] border border-white/10 rounded-xl px-3.5 py-3 space-y-1.5">
+                <p className="text-[11px] text-muted font-medium mb-1 flex items-center gap-1.5">
+                  <ShieldCheck size={12} className="text-primary" /> Password requirements
+                </p>
+                {PASSWORD_RULES.map((rule) => {
+                  const ok = rule.test(password);
+                  return (
+                    <div key={rule.label} className={`flex items-center gap-2 text-[11px] transition-colors ${ok ? 'text-emerald' : 'text-muted'}`}>
+                      {ok ? <Check size={12} className="shrink-0" /> : <X size={12} className="shrink-0 opacity-50" />}
+                      {rule.label}
+                    </div>
+                  );
+                })}
+                <p className="text-[10px] text-muted/70 pt-1 border-t border-white/5 mt-2">
+                  Note: sign-up is only available for email addresses registered in the employee directory by your administrator.
+                </p>
+              </div>
+            )}
             <AnimatePresence>
               {error && (
                 <motion.p
