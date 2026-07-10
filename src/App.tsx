@@ -9,6 +9,7 @@ import Attendance from './pages/Attendance';
 import Leave from './pages/Leave';
 import Payroll from './pages/Payroll';
 import OrgChart from './pages/OrgChart';
+import ResetPassword from './pages/ResetPassword';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route
             path="/"
             element={
@@ -69,5 +71,3 @@ function App() {
     </AuthProvider>
   );
 }
-
-export default App;

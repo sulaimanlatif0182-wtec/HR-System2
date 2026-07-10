@@ -1,8 +1,40 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+export const REMEMBER_KEY = 'wtec-remember';
+export const REMEMBERED_EMAIL_KEY = 'wtec-remembered-email';
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Storage adapter that respects the "Remember me" choice:
+// - Remember me ON  -> session persisted in localStorage (survives browser restart)
+// - Remember me OFF -> session kept in sessionStorage (cleared when the tab/browser closes)
+const rememberAwareStorage = {
+  getItem: (key: string): string | null => {
+    return window.localStorage.getItem(key) ?? window.sessionStorage.getItem(key);
+  },
+  setItem: (key: string, value: string): void => {
+    const remember = window.localStorage.getItem(REMEMBER_KEY);
+    if (remember === 'false') {
+      window.sessionStorage.setItem(key, value);
+      window.localStorage.removeItem(key);
+    } else {
+      window.localStorage.setItem(key, value);
+      window.sessionStorage.removeItem(key);
+    }
+  },
+  removeItem: (key: string): void => {
+    window.localStorage.removeItem(key);
+    window.sessionStorage.removeItem(key);
+  },
+};
 
-export default supabase;
+const supabase = createClient(
+  'https://zupgcikgkzahfdsznwae.supabase.co',
+  'sb_publishable_pR1eGP55DWPLURniEoq4og_b3W4rJBv',
+  {
+    auth: {
+      storage: rememberAwareStorage,
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  }
+);

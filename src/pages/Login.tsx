@@ -1,74 +1,109 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, Sparkles, Loader2 } from 'lucide-react';
-import supabase from '../lib/supabase';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Sparkles, Mail, Lock, ArrowRight, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import supabase, { REMEMBER_KEY, REMEMBERED_EMAIL_KEY } from '../lib/supabase';
 
-interface LiveStats {
-  employees: number;
-  departments: number;
-  locations: number;
-}
+type Mode = 'signin' | 'signup' | 'forgot';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [mode, setMode] = useState<Mode>('signin');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState<LiveStats>({ employees: 0, departments: 0, locations: 0 });
+  const [notice, setNotice] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [remember, setRemember] = useState(true);
+  const [stats, setStats] = useState({ employees: 0, departments: 0, locations: 0 });
   const navigate = useNavigate();
+
+  // Restore "remember me" preference + remembered email
+  useEffect(() => {
+    const pref = localStorage.getItem(REMEMBER_KEY);
+    if (pref === 'false') setRemember(false);
+    const savedEmail = localStorage.getItem(REMEMBERED_EMAIL_KEY);
+    if (savedEmail) setEmail(savedEmail);
+  }, []);
 
   useEffect(() => {
     fetch('/api/employees')
       .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          const locations = new Set(data.map((e) => e.location).filter(Boolean));
-          setStats((s) => ({ ...s, employees: data.length, locations: locations.size }));
+      .then((d) => {
+        if (Array.isArray(d)) {
+          const locs = new Set(d.map((e) => e.location).filter(Boolean));
+          setStats((s) => ({ ...s, employees: d.length, locations: locs.size }));
         }
       })
       .catch(() => {});
-
     fetch('/api/departments')
       .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) setStats((s) => ({ ...s, departments: data.length }));
+      .then((d) => {
+        if (Array.isArray(d)) setStats((s) => ({ ...s, departments: d.length }));
       })
       .catch(() => {});
   }, []);
 
-  const doLogin = async (loginEmail: string, loginPassword: string) => {
-    setError('');
-    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
-    if (error) throw error;
-    navigate('/');
+  const applyRememberChoice = (value: boolean) => {
+    setRemember(value);
+    localStorage.setItem(REMEMBER_KEY, String(value));
   };
 
-  const handleEmailAuth = async (e: React.FormEvent) => {
+  const persistRemembered = () => {
+    localStorage.setItem(REMEMBER_KEY, String(remember));
+    if (remember) localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
+    else localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    setNotice('');
+
+    if (mode === 'forgot') {
+      if (!email) {
+        setError('Please enter your email address.');
+        return;
+      }
+      setBusy(true);
+      try {
+        const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (err) throw err;
+        setNotice(`Password reset link sent to ${email}. Check your inbox (and spam folder), then follow the link to set a new password.`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not send reset email.');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     if (!email || !password) {
       setError('Please fill in both fields.');
       return;
     }
-    setLoading(true);
+    setBusy(true);
     try {
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
+      persistRemembered();
+      if (mode === 'signup') {
+        const { error: err } = await supabase.auth.signUp({ email, password });
+        if (err) throw err;
         navigate('/');
       } else {
-        await doLogin(email, password);
+        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+        if (err) throw err;
+        navigate('/');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
-  const statItems: [string, string][] = [
+  const statItems: Array<[string, string]> = [
     [stats.employees > 0 ? `${stats.employees}` : '—', 'Employees managed'],
     [stats.departments > 0 ? `${stats.departments}` : '—', 'Departments'],
     [stats.locations > 0 ? `${stats.locations}` : '—', 'Locations'],
@@ -76,7 +111,6 @@ export default function Login() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-bg text-ink flex items-center justify-center px-4 py-10">
-      {/* Ambient background */}
       <div className="absolute inset-0 grid-noise opacity-40" />
       <div className="absolute -top-40 -left-40 w-[520px] h-[520px] rounded-full bg-primary/30 blur-[140px]" />
       <div className="absolute -bottom-40 -right-20 w-[480px] h-[480px] rounded-full bg-accent/20 blur-[140px]" />
@@ -91,10 +125,8 @@ export default function Login() {
       />
 
       <div className="relative z-10 w-full max-w-5xl grid lg:grid-cols-[1.05fr_1fr] gap-10 items-center">
-        {/* Left brand panel */}
         <motion.div
-          initial={{ opacity: 0, x: -30 }}
-          animate={{ opacity: 1, x: 0 }}
+          initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.7, ease: 'easeOut' }}
           className="hidden lg:flex flex-col gap-8 pr-6"
         >
@@ -102,7 +134,9 @@ export default function Login() {
             <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary to-accent grid place-items-center shadow-lg shadow-primary/30">
               <Sparkles size={22} className="text-white" />
             </div>
-            <span className="font-display text-2xl font-bold tracking-tight">Wtec<span className="text-gradient">HR</span></span>
+            <span className="font-display text-2xl font-bold tracking-tight">
+              Wtec<span className="text-gradient">HR</span>
+            </span>
           </div>
           <div>
             <h1 className="font-display text-5xl font-bold leading-[1.08] tracking-tight">
@@ -110,23 +144,21 @@ export default function Login() {
               <span className="text-gradient">reimagined.</span>
             </h1>
             <p className="mt-5 text-muted text-lg max-w-md leading-relaxed">
-              A unified command center for headcount, attendance, payroll &amp; performance — built for teams that move fast.
+              A unified command center for headcount, attendance, payroll & performance — built for teams that move fast.
             </p>
           </div>
           <div className="flex gap-6 pt-4">
-            {statItems.map(([n, l]) => (
-              <div key={l}>
-                <div className="font-display text-2xl font-bold text-gradient">{n}</div>
-                <div className="text-xs text-muted mt-1">{l}</div>
+            {statItems.map(([value, label]) => (
+              <div key={label}>
+                <div className="font-display text-2xl font-bold text-gradient">{value}</div>
+                <div className="text-xs text-muted mt-1">{label}</div>
               </div>
             ))}
           </div>
         </motion.div>
 
-        {/* Right auth card */}
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: 'easeOut', delay: 0.1 }}
           className="glass rounded-3xl p-7 sm:p-9 shadow-2xl shadow-black/40"
         >
@@ -134,12 +166,31 @@ export default function Login() {
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center">
               <Sparkles size={18} className="text-white" />
             </div>
-            <span className="font-display text-xl font-bold">Wtec<span className="text-gradient">HR</span></span>
+            <span className="font-display text-xl font-bold">
+              Wtec<span className="text-gradient">HR</span>
+            </span>
           </div>
 
-          <h2 className="font-display text-2xl font-bold mb-6">Welcome back</h2>
+          {mode === 'forgot' ? (
+            <>
+              <button
+                onClick={() => { setMode('signin'); setError(''); setNotice(''); }}
+                className="flex items-center gap-1.5 text-xs text-muted hover:text-ink transition-colors mb-4"
+              >
+                <ArrowLeft size={13} /> Back to sign in
+              </button>
+              <h2 className="font-display text-2xl font-bold mb-2">Reset your password</h2>
+              <p className="text-muted text-sm mb-6">
+                Enter the email linked to your account and we'll send you a secure link to set a new password.
+              </p>
+            </>
+          ) : (
+            <h2 className="font-display text-2xl font-bold mb-6">
+              {mode === 'signup' ? 'Create your account' : 'Welcome back'}
+            </h2>
+          )}
 
-          <form onSubmit={handleEmailAuth} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="text-xs text-muted mb-1.5 block">Email address</label>
               <div className="relative">
@@ -153,56 +204,91 @@ export default function Login() {
                 />
               </div>
             </div>
-            <div>
-              <label className="text-xs text-muted mb-1.5 block">Password</label>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-3 py-3 text-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all"
-                />
+
+            {mode !== 'forgot' && (
+              <div>
+                <label className="text-xs text-muted mb-1.5 block">Password</label>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-3 py-3 text-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all"
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             <AnimatePresence>
               {error && (
                 <motion.p
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
+                  initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                   className="text-rose text-xs bg-rose/10 border border-rose/20 rounded-lg px-3 py-2"
                 >
                   {error}
                 </motion.p>
               )}
+              {notice && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                  className="flex items-start gap-2 text-emerald text-xs bg-emerald/10 border border-emerald/20 rounded-lg px-3 py-2"
+                >
+                  <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
+                  <span>{notice}</span>
+                </motion.div>
+              )}
             </AnimatePresence>
 
-            <div className="flex items-center justify-between text-xs text-muted">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input type="checkbox" className="accent-[#8b5cf6]" />
-                Remember me
-              </label>
-              <button type="button" className="hover:text-ink transition-colors">Forgot password?</button>
-            </div>
+            {mode === 'signin' && (
+              <div className="flex items-center justify-between text-xs text-muted">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => applyRememberChoice(e.target.checked)}
+                    className="accent-[#8b5cf6]"
+                  />
+                  Remember me
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { setMode('forgot'); setError(''); setNotice(''); }}
+                  className="hover:text-ink transition-colors"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={busy}
               className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-3 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-60"
             >
-              {loading ? <Loader2 size={16} className="animate-spin" /> : <>{isSignUp ? 'Create account' : 'Sign in'} <ArrowRight size={16} /></>}
+              {busy ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <>
+                  {mode === 'signup' ? 'Create account' : mode === 'forgot' ? 'Send reset link' : 'Sign in'}{' '}
+                  <ArrowRight size={16} />
+                </>
+              )}
             </button>
           </form>
 
-          <p className="text-center text-xs text-muted mt-6">
-            {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-            <button onClick={() => setIsSignUp(!isSignUp)} className="text-ink font-medium hover:text-gradient underline underline-offset-2">
-              {isSignUp ? 'Sign in' : 'Sign up'}
-            </button>
-          </p>
+          {mode !== 'forgot' && (
+            <p className="text-center text-xs text-muted mt-6">
+              {mode === 'signup' ? 'Already have an account?' : "Don't have an account?"}{' '}
+              <button
+                onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setError(''); setNotice(''); }}
+                className="text-ink font-medium hover:text-gradient underline underline-offset-2"
+              >
+                {mode === 'signup' ? 'Sign in' : 'Sign up'}
+              </button>
+            </p>
+          )}
           <p className="text-center text-[11px] text-muted/70 mt-3">
             Need help? <span className="text-muted">it1@wtecgroup.com.my</span>
           </p>
