@@ -11,7 +11,7 @@ import Payroll from './pages/Payroll';
 import OrgChart from './pages/OrgChart';
 import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
-
+import Settings from './pages/Settings';
 
 function App() {
   return (
@@ -37,10 +37,10 @@ function App() {
             }
           />
           <Route
-            path="/profile"
+            path="/settings"
             element={
               <ProtectedRoute>
-                <Layout><Profile /></Layout>
+                <Layout><Settings /></Layout>
               </ProtectedRoute>
             }
           />
@@ -89,5 +89,3 @@ function App() {
     </AuthProvider>
   );
 }
-
-export default App;   // ← THIS LINE must be the last line
