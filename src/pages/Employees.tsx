@@ -34,6 +34,33 @@ const STATUS_TONE: Record<string, string> = {
   inactive: 'default',
 };
 
+const DEPARTMENT_OPTIONS = [
+  'Engineering',
+  'QA',
+  'Managing Director',
+  'Sales',
+  'Human Resource',
+  'Finance',
+  'Executive Director',
+  'Administration',
+  'Shipping',
+  'Maintenance',
+  'QC',
+  'Store',
+  'Planner',
+  'IT',
+  'Purchasing',
+  'Marketing',
+];
+
+const LOCATION_OPTIONS = [
+  'Factory 1',
+  'Factory 2',
+  'Factory 3',
+  'Factory 4',
+  'Factory 5',
+];
+
 function initials(name: string) {
   return name
     .split(' ')
@@ -199,8 +226,8 @@ export default function Employees() {
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!form.name || !form.email) {
-      setFormError('Name and email are required.');
+    if (!form.name || !form.email || !form.department || !form.location) {
+      setFormError('Name, email, department and location are required.');
       return;
     }
 
@@ -252,8 +279,8 @@ export default function Employees() {
           departments.length - 1
         } departments`}
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            {isManager && (
+          isManager ? (
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={handleExportCsv}
@@ -263,17 +290,17 @@ export default function Employees() {
                 <Download size={16} />
                 Export CSV
               </button>
-            )}
 
-            <button
-              type="button"
-              onClick={() => setShowAdd(true)}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] transition-all"
-            >
-              <UserPlus size={16} />
-              Add Employee
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => setShowAdd(true)}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] transition-all"
+              >
+                <UserPlus size={16} />
+                Add Employee
+              </button>
+            </div>
+          ) : undefined
         }
       />
 
@@ -415,7 +442,9 @@ export default function Employees() {
                     {emp.department}
                   </td>
 
-                  <td className="px-5 py-3.5 text-muted">{emp.title}</td>
+                  <td className="px-5 py-3.5 text-muted">
+                    {emp.title}
+                  </td>
 
                   <td className="px-5 py-3.5">
                     <Badge tone={STATUS_TONE[emp.status] ?? 'default'}>
@@ -423,7 +452,9 @@ export default function Employees() {
                     </Badge>
                   </td>
 
-                  <td className="px-5 py-3.5 text-muted">{emp.location}</td>
+                  <td className="px-5 py-3.5 text-muted">
+                    {emp.location}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -595,7 +626,7 @@ export default function Employees() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showAdd && (
+        {showAdd && isManager && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
@@ -660,14 +691,24 @@ export default function Employees() {
                     className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                   />
 
-                  <input
-                    placeholder="Department"
+                  <select
+                    required
                     value={form.department}
                     onChange={(e) =>
                       setForm({ ...form, department: e.target.value })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-                  />
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+                  >
+                    <option value="" disabled>
+                      Select Department
+                    </option>
+
+                    {DEPARTMENT_OPTIONS.map((department) => (
+                      <option key={department} value={department}>
+                        {department}
+                      </option>
+                    ))}
+                  </select>
 
                   <div className="grid grid-cols-2 gap-3">
                     <input
@@ -679,14 +720,24 @@ export default function Employees() {
                       className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                     />
 
-                    <input
-                      placeholder="Location"
+                    <select
+                      required
                       value={form.location}
                       onChange={(e) =>
                         setForm({ ...form, location: e.target.value })
                       }
-                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-                    />
+                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+                    >
+                      <option value="" disabled>
+                        Select Location
+                      </option>
+
+                      {LOCATION_OPTIONS.map((location) => (
+                        <option key={location} value={location}>
+                          {location}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {formError && (
