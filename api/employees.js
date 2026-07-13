@@ -22,10 +22,12 @@ export default async function handler(req, res) {
       const { email, id } = req.query;
 
       if (email) {
+        const cleanEmail = String(email).trim();
+
         const { data, error } = await supabase
           .from('employees')
           .select('*')
-          .eq('email', String(email))
+          .ilike('email', cleanEmail)
           .maybeSingle();
 
         if (error) {
@@ -100,7 +102,7 @@ export default async function handler(req, res) {
 
       const payload = {
         name,
-        email,
+        email: String(email).trim().toLowerCase(),
         title: title || null,
         department: department || null,
         phone: phone || null,
@@ -158,7 +160,9 @@ export default async function handler(req, res) {
         });
       }
 
-      if (employee.role === 'admin') {
+      const role = String(employee.role || '').toLowerCase();
+
+      if (role === 'admin') {
         return res.status(403).json({
           error: 'Admin profile cannot be deactivated from this action.',
         });
