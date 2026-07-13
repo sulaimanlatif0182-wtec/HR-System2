@@ -16,6 +16,7 @@ import {
   DollarSign,
   Loader2,
   Download,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -58,7 +59,6 @@ const LOCATION_OPTIONS = [
   'Factory 2',
   'Factory 3',
   'Factory 4',
-  'Factory 5',
 ];
 
 function initials(name: string) {
@@ -128,6 +128,7 @@ export default function Employees() {
   const { profile } = useAuth();
 
   const isManager = profile?.role === 'admin' || profile?.role === 'manager';
+  const isAdmin = profile?.role === 'admin';
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,6 +148,7 @@ export default function Employees() {
     location: '',
   });
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [formError, setFormError] = useState('');
   const [tab, setTab] = useState<'info' | 'documents' | 'performance'>('info');
 
@@ -221,6 +223,41 @@ export default function Employees() {
     }));
 
     downloadCsv('employees.csv', rows);
+  };
+
+  const handleDeleteEmployee = async (employee: Employee) => {
+    if (!isAdmin) return;
+
+    if (employee.id === profile?.id) {
+      alert('You cannot delete your own admin profile.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete ${employee.name}? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    setDeleting(true);
+
+    try {
+      const res = await fetch(`/api/employees?id=${employee.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || 'Failed to delete employee.');
+      }
+
+      setSelected(null);
+      setEmployees((prev) => prev.filter((e) => e.id !== employee.id));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete employee.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleAdd = async (e: FormEvent) => {
@@ -507,6 +544,23 @@ export default function Employees() {
                       {selected.status.replace('_', ' ')}
                     </Badge>
                   </div>
+
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteEmployee(selected)}
+                      disabled={deleting}
+                      className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-rose/25 bg-rose/10 px-4 py-2.5 text-sm font-semibold text-rose hover:bg-rose/20 disabled:cursor-not-allowed disabled:opacity-60 transition-all"
+                    >
+                      {deleting ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={16} />
+                      )}
+
+                      Delete Employee
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex gap-1 bg-surface border border-white/10 rounded-xl p-1 mt-6">
