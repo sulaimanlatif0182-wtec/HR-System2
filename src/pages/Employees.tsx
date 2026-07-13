@@ -226,70 +226,70 @@ export default function Employees() {
   };
 
   const handleDeactivateEmployee = async (employee: Employee) => {
-    if (!isAdmin) return;
+  if (!isAdmin) return;
 
-    if (employee.id === profile?.id) {
-      alert('You cannot deactivate your own admin profile.');
-      return;
+  if (employee.id === profile?.id) {
+    alert('You cannot deactivate your own admin profile.');
+    return;
+  }
+
+  if (employee.status === 'inactive') {
+    alert(`${employee.name} is already inactive.`);
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Are you sure you want to deactivate ${employee.name}? Their attendance, leave, and payroll history will be kept.`
+  );
+
+  if (!confirmed) return;
+
+  setDeactivating(true);
+
+  try {
+    const res = await fetch(`/api/employees?id=${employee.id}`, {
+      method: 'DELETE',
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      throw new Error(data?.error || 'Failed to deactivate employee.');
     }
 
-    if (employee.status === 'inactive') {
-      alert(`${employee.name} is already inactive.`);
-      return;
-    }
+    const updatedEmployee = data?.employee;
 
-    const confirmed = window.confirm(
-      `Are you sure you want to deactivate ${employee.name}? Their attendance, leave, and payroll history will be kept.`
-    );
-
-    if (!confirmed) return;
-
-    setDeactivating(true);
-
-    try {
-      const res = await fetch(`/api/employees?id=${employee.id}`, {
-        method: 'DELETE',
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to deactivate employee.');
-      }
-
-      const updatedEmployee = data?.employee;
-
-      if (updatedEmployee) {
-        setEmployees((prev) =>
-          prev.map((e) =>
-            e.id === employee.id
-              ? {
-                  ...e,
-                  status: updatedEmployee.status,
-                }
-              : e
-          )
-        );
-
-        setSelected((prev) =>
-          prev
+    if (updatedEmployee) {
+      setEmployees((prev) =>
+        prev.map((e) =>
+          e.id === employee.id
             ? {
-                ...prev,
+                ...e,
                 status: updatedEmployee.status,
               }
-            : prev
-        );
-      } else {
-        await fetchEmployees();
-      }
+            : e
+        )
+      );
 
-      alert(`${employee.name} has been deactivated.`);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to deactivate employee.');
-    } finally {
-      setDeactivating(false);
+      setSelected((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: updatedEmployee.status,
+            }
+          : prev
+      );
+    } else {
+      await fetchEmployees();
     }
-  };
+
+    alert(`${employee.name} has been deactivated.`);
+  } catch (err) {
+    alert(err instanceof Error ? err.message : 'Failed to deactivate employee.');
+  } finally {
+    setDeactivating(false);
+  }
+};
 
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
