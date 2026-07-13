@@ -148,7 +148,7 @@ export default function Employees() {
     location: '',
   });
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
   const [formError, setFormError] = useState('');
   const [tab, setTab] = useState<'info' | 'documents' | 'performance'>('info');
 
@@ -226,100 +226,68 @@ export default function Employees() {
   };
 
   const handleDeactivateEmployee = async (employee: Employee) => {
-  if (!isAdmin) return;
-
-  if (employee.id === profile?.id) {
-    alert('You cannot deactivate your own admin profile.');
-    return;
-  }
-
-  if (employee.status === 'inactive') {
-    alert(`${employee.name} is already inactive.`);
-    return;
-  }
-
-  const confirmed = window.confirm(
-    `Are you sure you want to deactivate ${employee.name}? Their attendance, leave, and payroll history will be kept.`
-  );
-
-  if (!confirmed) return;
-
-  setDeleting(true);
-
-  try {
-    const res = await fetch(`/api/employees?id=${employee.id}`, {
-      method: 'DELETE',
-    });
-
-    const data = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      throw new Error(data?.error || 'Failed to deactivate employee.');
-    }
-
-    const updatedEmployee = data?.employee;
-
-    if (updatedEmployee) {
-      setEmployees((prev) =>
-        prev.map((e) =>
-          e.id === employee.id
-            ? {
-                ...e,
-                status: updatedEmployee.status,
-              }
-            : e
-        )
-      );
-
-      setSelected((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: updatedEmployee.status,
-            }
-          : prev
-      );
-    } else {
-      await fetchEmployees();
-    }
-
-    alert(`${employee.name} has been deactivated.`);
-  } catch (err) {
-    alert(err instanceof Error ? err.message : 'Failed to deactivate employee.');
-  } finally {
-    setDeleting(false);
-  }
-};
+    if (!isAdmin) return;
 
     if (employee.id === profile?.id) {
-      alert('You cannot delete your own admin profile.');
+      alert('You cannot deactivate your own admin profile.');
+      return;
+    }
+
+    if (employee.status === 'inactive') {
+      alert(`${employee.name} is already inactive.`);
       return;
     }
 
     const confirmed = window.confirm(
-      `Are you sure you want to permanently delete ${employee.name}? This action cannot be undone.`
+      `Are you sure you want to deactivate ${employee.name}? Their attendance, leave, and payroll history will be kept.`
     );
 
     if (!confirmed) return;
 
-    setDeleting(true);
+    setDeactivating(true);
 
     try {
       const res = await fetch(`/api/employees?id=${employee.id}`, {
         method: 'DELETE',
       });
 
+      const data = await res.json().catch(() => null);
+
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || 'Failed to delete employee.');
+        throw new Error(data?.error || 'Failed to deactivate employee.');
       }
 
-      setSelected(null);
-      setEmployees((prev) => prev.filter((e) => e.id !== employee.id));
+      const updatedEmployee = data?.employee;
+
+      if (updatedEmployee) {
+        setEmployees((prev) =>
+          prev.map((e) =>
+            e.id === employee.id
+              ? {
+                  ...e,
+                  status: updatedEmployee.status,
+                }
+              : e
+          )
+        );
+
+        setSelected((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: updatedEmployee.status,
+              }
+            : prev
+        );
+      } else {
+        await fetchEmployees();
+      }
+
+      alert(`${employee.name} has been deactivated.`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete employee.');
+      alert(err instanceof Error ? err.message : 'Failed to deactivate employee.');
     } finally {
-      setDeleting(false);
+      setDeactivating(false);
     }
   };
 
@@ -608,14 +576,14 @@ export default function Employees() {
                     </Badge>
                   </div>
 
-                  {isAdmin && (
+                  {isAdmin && selected.status !== 'inactive' && (
                     <button
                       type="button"
-                      onClick={() => handleDeleteEmployee(selected)}
-                      disabled={deleting}
-                      className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-rose/25 bg-rose/10 px-4 py-2.5 text-sm font-semibold text-rose hover:bg-rose/20 disabled:cursor-not-allowed disabled:opacity-60 transition-all"
+                      onClick={() => handleDeactivateEmployee(selected)}
+                      disabled={deactivating}
+                      className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-amber/25 bg-amber/10 px-4 py-2.5 text-sm font-semibold text-amber hover:bg-amber/20 disabled:cursor-not-allowed disabled:opacity-60 transition-all"
                     >
-                      {deleting ? (
+                      {deactivating ? (
                         <Loader2 size={16} className="animate-spin" />
                       ) : (
                         <UserX size={16} />
