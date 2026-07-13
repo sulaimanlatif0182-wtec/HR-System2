@@ -11,7 +11,14 @@ import {
   EmptyState,
 } from '../components/ui';
 
-const PIE_COLORS = ['#8b5cf6', '#22d3ee', '#fbbf24', '#fb7185', '#34d399', '#6366f1'];
+const PIE_COLORS = [
+  '#8b5cf6',
+  '#22d3ee',
+  '#fbbf24',
+  '#fb7185',
+  '#34d399',
+  '#6366f1',
+];
 
 interface PayRec {
   id: number;
@@ -114,7 +121,10 @@ export default function Payroll() {
   }, [employees]);
 
   const visible = useMemo(
-    () => (isManager ? records : records.filter((r) => r.employee_id === profile?.id)),
+    () =>
+      isManager
+        ? records
+        : records.filter((r) => r.employee_id === profile?.id),
     [records, isManager, profile]
   );
 
@@ -122,8 +132,8 @@ export default function Payroll() {
     const map: Record<string, number> = {};
 
     records.forEach((r) => {
-      const d = empMap[r.employee_id]?.department || 'Unassigned';
-      map[d] = (map[d] || 0) + Number(r.net_pay);
+      const department = empMap[r.employee_id]?.department || 'Unassigned';
+      map[department] = (map[department] || 0) + Number(r.net_pay);
     });
 
     return Object.entries(map).map(([name, value]) => ({
@@ -132,7 +142,7 @@ export default function Payroll() {
     }));
   }, [records, empMap]);
 
-  const total = records.reduce((s, r) => s + Number(r.net_pay), 0);
+  const total = records.reduce((sum, r) => sum + Number(r.net_pay), 0);
   const avg = records.length ? total / records.length : 0;
   const paid = records.filter((r) => r.status === 'paid').length;
 
@@ -156,8 +166,13 @@ export default function Payroll() {
   };
 
   const handleExportSinglePayslip = (record: PayRec) => {
-    const employeeName = empMap[record.employee_id]?.name ?? `employee-${record.employee_id}`;
-    const safeEmployeeName = employeeName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const employeeName =
+      empMap[record.employee_id]?.name ?? `employee-${record.employee_id}`;
+
+    const safeEmployeeName = employeeName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
 
     downloadCsv(`payslip-${safeEmployeeName}-${record.period}.csv`, [
       formatPayrollRow(record),
@@ -165,23 +180,30 @@ export default function Payroll() {
   };
 
   if (loading) return <LoadingState label="Crunching payroll numbers…" />;
+
   if (error) return <ErrorState message={error} onRetry={fetchAll} />;
 
   return (
     <div>
       <PageHeader
         title="Payroll"
-        subtitle={isManager ? 'Organization-wide compensation overview.' : 'Your payslip history.'}
+        subtitle={
+          isManager
+            ? 'Organization-wide compensation overview.'
+            : 'Your payslip history.'
+        }
         action={
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            disabled={visible.length === 0}
-            className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
-          >
-            <Download size={16} />
-            Export CSV
-          </button>
+          isManager ? (
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              disabled={visible.length === 0}
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+            >
+              <Download size={16} />
+              Export CSV
+            </button>
+          ) : undefined
         }
       />
 
@@ -223,8 +245,13 @@ export default function Payroll() {
                     <Icon size={20} className="text-white" />
                   </div>
 
-                  <div className="font-display text-2xl font-bold">{c.value}</div>
-                  <div className="text-xs text-muted mt-1">{c.label}</div>
+                  <div className="font-display text-2xl font-bold">
+                    {c.value}
+                  </div>
+
+                  <div className="text-xs text-muted mt-1">
+                    {c.label}
+                  </div>
                 </div>
               </motion.div>
             );
@@ -251,13 +278,21 @@ export default function Payroll() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-white/5">
-                    {isManager && <th className="px-6 py-3 font-medium">Employee</th>}
+                    {isManager && (
+                      <th className="px-6 py-3 font-medium">
+                        Employee
+                      </th>
+                    )}
+
                     <th className="px-6 py-3 font-medium">Period</th>
                     <th className="px-6 py-3 font-medium">Base</th>
                     <th className="px-6 py-3 font-medium">Bonus</th>
                     <th className="px-6 py-3 font-medium">Net Pay</th>
                     <th className="px-6 py-3 font-medium">Status</th>
-                    {isManager && <th className="px-6 py-3 font-medium" />}
+
+                    {isManager && (
+                      <th className="px-6 py-3 font-medium" />
+                    )}
                   </tr>
                 </thead>
 
@@ -273,7 +308,9 @@ export default function Payroll() {
                         </td>
                       )}
 
-                      <td className="px-6 py-3 text-muted">{r.period}</td>
+                      <td className="px-6 py-3 text-muted">
+                        {r.period}
+                      </td>
 
                       <td className="px-6 py-3 text-muted">
                         ${Number(r.base_salary).toLocaleString()}
@@ -288,22 +325,25 @@ export default function Payroll() {
                       </td>
 
                       <td className="px-6 py-3">
-                        <Badge tone={r.status === 'paid' ? 'success' : 'warning'}>
+                        <Badge
+                          tone={r.status === 'paid' ? 'success' : 'warning'}
+                        >
                           {r.status}
                         </Badge>
                       </td>
 
                       {isManager && (
-                      <td className="px-6 py-3">
-                        <button
-                          type="button"
-                          onClick={() => handleExportSinglePayslip(r)}
-                          className="text-muted hover:text-primary transition-all"
-                          title="Download payslip CSV"
-                        >
-                          <Download size={15} />
-                        </button>
-                      </td>
+                        <td className="px-6 py-3">
+                          <button
+                            type="button"
+                            onClick={() => handleExportSinglePayslip(r)}
+                            className="text-muted hover:text-primary transition-all"
+                            title="Download payslip CSV"
+                          >
+                            <Download size={15} />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -319,8 +359,13 @@ export default function Payroll() {
             transition={{ delay: 0.1 }}
             className="glass rounded-2xl p-6"
           >
-            <h3 className="font-display font-semibold mb-1">Department Cost Split</h3>
-            <p className="text-xs text-muted mb-2">Payroll allocation</p>
+            <h3 className="font-display font-semibold mb-1">
+              Department Cost Split
+            </h3>
+
+            <p className="text-xs text-muted mb-2">
+              Payroll allocation
+            </p>
 
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
@@ -355,16 +400,24 @@ export default function Payroll() {
 
             <div className="space-y-1.5 mt-2">
               {deptSplit.map((d, i) => (
-                <div key={d.name} className="flex items-center justify-between text-xs">
+                <div
+                  key={d.name}
+                  className="flex items-center justify-between text-xs"
+                >
                   <div className="flex items-center gap-1.5 text-muted truncate">
                     <span
                       className="w-2 h-2 rounded-full shrink-0"
-                      style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
+                      style={{
+                        background: PIE_COLORS[i % PIE_COLORS.length],
+                      }}
                     />
+
                     {d.name}
                   </div>
 
-                  <span>${d.value.toLocaleString()}</span>
+                  <span>
+                    ${d.value.toLocaleString()}
+                  </span>
                 </div>
               ))}
             </div>
