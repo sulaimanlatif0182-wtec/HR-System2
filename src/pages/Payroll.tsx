@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { Wallet, TrendingUp, Receipt, Download } from 'lucide-react';
+import { canExport, scopeRows, exportToExcel } from '../lib/exportExcel';
 import { PageHeader, LoadingState, ErrorState, Badge, EmptyState } from '../components/Shared';
 import TiltCard from '../components/TiltCard';
 import { useAuth } from '../contexts/AuthContext';
@@ -58,13 +59,61 @@ export default function Payroll() {
   const totalCost = payroll.reduce((s, p) => s + Number(p.net_pay), 0);
   const avgPay = payroll.length ? totalCost / payroll.length : 0;
   const paidCount = payroll.filter((p) => p.status === 'paid').length;
+  const handleExport = () => {
+    const scoped = scopeRows(records, profile);
+    if (!scoped.length) return;
+    exportToExcel(
+      scoped.map((r) => ({
+        Employee: empMap[r.employee_id]?.name ?? `#${r.employee_id}`,
+        Department: empMap[r.employee_id]?.department ?? '',
+        Period: r.period,
+        'Base Salary': Number(r.base_salary),
+        Bonus: Number(r.bonus),
+        Deductions: Number(r.deductions),
+        'Net Pay': Number(r.net_pay),
+        Status: r.status,
+      })),
+      'WtecHR_Payroll',
+      'Payroll'
+    );
+  };
+
+  const exportSingle = (r: PayRec) => {
+    exportToExcel(
+      [{
+        Employee: empMap[r.employee_id]?.name ?? `#${r.employee_id}`,
+        Department: empMap[r.employee_id]?.department ?? '',
+        Period: r.period,
+        'Base Salary': Number(r.base_salary),
+        Bonus: Number(r.bonus),
+        Deductions: Number(r.deductions),
+        'Net Pay': Number(r.net_pay),
+        Status: r.status,
+      }],
+      `WtecHR_Payslip_${(empMap[r.employee_id]?.name ?? r.employee_id).toString().replace(/\s+/g, '_')}_${r.period.replace(/\s+/g, '_')}`,
+      'Payslip'
+    );
+  };
 
   if (loading) return <LoadingState label="Crunching payroll numbers…" />;
   if (error) return <ErrorState message={error} onRetry={fetchAll} />;
 
   return (
     <div>
-      <PageHeader title="Payroll" subtitle={isManager ? 'Organization-wide compensation overview.' : 'Your payslip history.'} />
+      <PageHeader
+        title="Payroll"
+        subtitle={isManager ? 'Organization-wide compensation overview.' : 'Your payslip history.'}
+        action={
+          canExport(profile) ? (
+            <button
+              onClick={handleExport}
+              className="flex items-center gap-2 rounded-xl bg-emerald/15 text-emerald border border-emerald/25 px-4 py-2.5 text-sm font-semibold hover:bg-emerald/25 transition-all"
+            >
+              <FileSpreadsheet size={16} /> Export Excel
+            </button>
+          ) : undefined
+        }
+      />
 
       {isManager && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
@@ -120,6 +169,13 @@ export default function Payroll() {
                       <td className="px-6 py-3 font-semibold">${Number(p.net_pay).toLocaleString()}</td>
                       <td className="px-6 py-3"><Badge tone={p.status === 'paid' ? 'success' : 'warning'}>{p.status}</Badge></td>
                       <td className="px-6 py-3"><button className="text-muted hover:text-primary transition-all"><Download size={15} /></button></td>
+                      <button
+                          onClick={() => exportSingle(r)}
+                          title="Download this payslip"
+                          className="text-muted hover:text-primary transition-all"
+                        >
+                          <Download size={15} />
+                        </button>
                     </tr>
                   ))}
                 </tbody>

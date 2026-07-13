@@ -3,6 +3,21 @@ import type { Session, User } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
 import type { Employee } from '../types';
 
+export interface EmployeeProfile {
+  id: number;
+  name: string;
+  email: string;
+  role: 'admin' | 'manager' | 'employee';
+  department: string | null;
+  title: string | null;
+  status: string;
+  phone: string | null;
+  location: string | null;
+  join_date: string | null;
+  salary: number | null;
+  avatar_url: string | null;
+}
+
 interface AuthContextValue {
   user: User | null;
   session: Session | null;

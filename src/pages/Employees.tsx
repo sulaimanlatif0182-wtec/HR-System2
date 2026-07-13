@@ -1,19 +1,22 @@
-import { useEffect, useMemo, useState,  } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Grid3x3, List, Mail, Phone, MapPin, X, Plus, Loader2, Briefcase, CalendarDays, DollarSign } from 'lucide-react';
-import { PageHeader, LoadingState, ErrorState, EmptyState, Badge } from '../components/Shared';
-import TiltCard from '../components/TiltCard';
-import type { Employee } from '../types';
+import { useState, useEffect, useMemo } from 'react';
+import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  UserPlus, Search, LayoutGrid, List, X, Mail, Phone, MapPin, Calendar, Briefcase, DollarSign, Loader2,
+} from 'lucide-react';
+import { PageHeader, Badge, GlowCard, LoadingState, ErrorState, EmptyState, InfoRow } from '../components/ui';
 
-const statusTone: Record<string, 'success' | 'warning' | 'default'> = {
-  active: 'success',
-  on_leave: 'warning',
-  inactive: 'default',
-};
+const STATUS_TONE: Record<string, string> = { active: 'success', on_leave: 'warning', inactive: 'default' };
 
-function initialsOf(name: string) {
-  return name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase();
+function initials(name: string) {
+  return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+}
+
+interface Employee {
+  id: number; name: string; email: string; title: string | null; department: string | null;
+  status: string; phone: string | null; location: string | null; join_date: string | null;
+  role: string; salary: number | null;
 }
 
 export default function Employees() {
@@ -23,26 +26,25 @@ export default function Employees() {
   const [view, setView] = useState<'grid' | 'table'>('grid');
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
+  const [deptFilter, setDeptFilter] = useState('all');
+  const [selected, setSelected] = useState<Employee | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: '', email: '', title: '', department: '', phone: '', location: '' });
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [tab, setTab] = useState<'info' | 'documents' | 'performance'>('info');
 
   // Keep local search in sync when arriving via global header search
   useEffect(() => {
     const q = searchParams.get('q');
     if (q !== null) setSearch(q);
   }, [searchParams]);
-  const [deptFilter, setDeptFilter] = useState('all');
-  const [selected, setSelected] = useState<Employee | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', title: '', department: '', phone: '', location: '' });
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState('');
-  const [tab, setTab] = useState<'info' | 'documents' | 'performance'>('info');
 
   const fetchEmployees = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/employees');
-      const data = await res.json();
+      const data = await (await fetch('/api/employees')).json();
       setEmployees(Array.isArray(data) ? data : []);
     } catch {
       setError('Failed to load employees.');
@@ -54,46 +56,48 @@ export default function Employees() {
   useEffect(() => { fetchEmployees(); }, []);
 
   const departments = useMemo(() => {
-    const set = new Set(employees.map((e) => e.department).filter(Boolean));
-    return ['all', ...Array.from(set) as string[]];
+    const set = new Set(employees.map((e) => e.department).filter(Boolean) as string[]);
+    return ['all', ...Array.from(set)];
   }, [employees]);
 
-  const filtered = useMemo(() => {
-    return employees.filter((e) => {
-      const s = search.toLowerCase();
-      const matchesSearch =
-        e.name.toLowerCase().includes(s) ||
-        e.email.toLowerCase().includes(s) ||
-        (e.title ?? '').toLowerCase().includes(s) ||
-        (e.department ?? '').toLowerCase().includes(s) ||
-        (e.location ?? '').toLowerCase().includes(s);
-      const matchesDept = deptFilter === 'all' || e.department === deptFilter;
-      return matchesSearch && matchesDept;
-    });
-  }, [employees, search, deptFilter]);
+  const filtered = useMemo(
+    () =>
+      employees.filter((e) => {
+        const s = search.toLowerCase();
+        const matchesSearch =
+          e.name.toLowerCase().includes(s) ||
+          e.email.toLowerCase().includes(s) ||
+          (e.title ?? '').toLowerCase().includes(s) ||
+          (e.department ?? '').toLowerCase().includes(s) ||
+          (e.location ?? '').toLowerCase().includes(s);
+        const matchesDept = deptFilter === 'all' || e.department === deptFilter;
+        return matchesSearch && matchesDept;
+      }),
+    [employees, search, deptFilter]
+  );
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email) {
+    if (!form.name || !form.email) {
       setFormError('Name and email are required.');
       return;
     }
-    setSubmitting(true);
+    setSaving(true);
     setFormError('');
     try {
       const res = await fetch('/api/employees', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, role: 'employee', status: 'active', join_date: new Date().toISOString().slice(0, 10) }),
+        body: JSON.stringify({ ...form, role: 'employee', status: 'active', join_date: new Date().toISOString().slice(0, 10) }),
       });
       if (!res.ok) throw new Error('Failed to add employee');
-      setShowForm(false);
-      setFormData({ name: '', email: '', title: '', department: '', phone: '', location: '' });
+      setShowAdd(false);
+      setForm({ name: '', email: '', title: '', department: '', phone: '', location: '' });
       fetchEmployees();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
   };
 
@@ -107,22 +111,21 @@ export default function Employees() {
         subtitle={`${employees.length} people across ${departments.length - 1} departments`}
         action={
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => setShowAdd(true)}
             className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] transition-all"
           >
-            <Plus size={16} /> Add Employee
+            <UserPlus size={16} /> Add Employee
           </button>
         }
       />
 
-      {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or title…"
+            placeholder="Search by name, email, title, department…"
             className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
           />
         </div>
@@ -137,7 +140,7 @@ export default function Employees() {
         </select>
         <div className="flex gap-1 bg-surface border border-white/10 rounded-xl p-1">
           <button onClick={() => setView('grid')} className={`p-2 rounded-lg transition-all ${view === 'grid' ? 'bg-primary/20 text-primary' : 'text-muted'}`}>
-            <Grid3x3 size={16} />
+            <LayoutGrid size={16} />
           </button>
           <button onClick={() => setView('table')} className={`p-2 rounded-lg transition-all ${view === 'table' ? 'bg-primary/20 text-primary' : 'text-muted'}`}>
             <List size={16} />
@@ -150,17 +153,12 @@ export default function Employees() {
       ) : view === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {filtered.map((emp, i) => (
-            <motion.div
-              key={emp.id}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: Math.min(i * 0.04, 0.4) }}
-            >
-              <TiltCard className="p-5 cursor-pointer h-full" intensity={6}>
+            <motion.div key={emp.id} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: Math.min(i * 0.04, 0.4) }}>
+              <GlowCard className="p-5 cursor-pointer h-full">
                 <div onClick={() => { setSelected(emp); setTab('info'); }}>
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent grid place-items-center font-bold shrink-0">
-                      {initialsOf(emp.name)}
+                      {initials(emp.name)}
                     </div>
                     <div className="min-w-0">
                       <p className="font-semibold text-sm truncate">{emp.name}</p>
@@ -169,10 +167,10 @@ export default function Employees() {
                   </div>
                   <div className="mt-4 flex items-center justify-between">
                     <Badge tone="info">{emp.department}</Badge>
-                    <Badge tone={statusTone[emp.status] ?? 'default'}>{emp.status.replace('_', ' ')}</Badge>
+                    <Badge tone={STATUS_TONE[emp.status] ?? 'default'}>{emp.status.replace('_', ' ')}</Badge>
                   </div>
                 </div>
-              </TiltCard>
+              </GlowCard>
             </motion.div>
           ))}
         </div>
@@ -198,7 +196,7 @@ export default function Employees() {
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center text-xs font-bold shrink-0">
-                        {initialsOf(emp.name)}
+                        {initials(emp.name)}
                       </div>
                       <div>
                         <p className="font-medium">{emp.name}</p>
@@ -208,7 +206,9 @@ export default function Employees() {
                   </td>
                   <td className="px-5 py-3.5 text-muted">{emp.department}</td>
                   <td className="px-5 py-3.5 text-muted">{emp.title}</td>
-                  <td className="px-5 py-3.5"><Badge tone={statusTone[emp.status] ?? 'default'}>{emp.status.replace('_', ' ')}</Badge></td>
+                  <td className="px-5 py-3.5">
+                    <Badge tone={STATUS_TONE[emp.status] ?? 'default'}>{emp.status.replace('_', ' ')}</Badge>
+                  </td>
                   <td className="px-5 py-3.5 text-muted">{emp.location}</td>
                 </tr>
               ))}
@@ -217,7 +217,6 @@ export default function Employees() {
         </div>
       )}
 
-      {/* Profile Drawer */}
       <AnimatePresence>
         {selected && (
           <>
@@ -237,13 +236,13 @@ export default function Employees() {
                 </button>
                 <div className="flex flex-col items-center text-center">
                   <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent grid place-items-center text-2xl font-bold shadow-xl shadow-primary/30">
-                    {initialsOf(selected.name)}
+                    {initials(selected.name)}
                   </div>
                   <h2 className="font-display text-xl font-bold mt-4">{selected.name}</h2>
                   <p className="text-muted text-sm">{selected.title}</p>
                   <div className="flex gap-2 mt-3">
                     <Badge tone="info">{selected.department}</Badge>
-                    <Badge tone={statusTone[selected.status] ?? 'default'}>{selected.status.replace('_', ' ')}</Badge>
+                    <Badge tone={STATUS_TONE[selected.status] ?? 'default'}>{selected.status.replace('_', ' ')}</Badge>
                   </div>
                 </div>
 
@@ -265,9 +264,11 @@ export default function Employees() {
                       <InfoRow icon={Mail} label="Email" value={selected.email} />
                       <InfoRow icon={Phone} label="Phone" value={selected.phone ?? '—'} />
                       <InfoRow icon={MapPin} label="Location" value={selected.location ?? '—'} />
-                      <InfoRow icon={CalendarDays} label="Joined" value={selected.join_date ?? '—'} />
+                      <InfoRow icon={Calendar} label="Joined" value={selected.join_date ?? '—'} />
                       <InfoRow icon={Briefcase} label="Role" value={selected.role} />
-                      {selected.salary && <InfoRow icon={DollarSign} label="Annual Salary" value={`$${Number(selected.salary).toLocaleString()}`} />}
+                      {selected.salary && (
+                        <InfoRow icon={DollarSign} label="Annual Salary" value={`$${Number(selected.salary).toLocaleString()}`} />
+                      )}
                     </>
                   )}
                   {tab === 'documents' && (
@@ -282,15 +283,15 @@ export default function Employees() {
                   )}
                   {tab === 'performance' && (
                     <div className="space-y-3">
-                      {[['Q1 Review', 92], ['Q2 Review', 88], ['Q3 Review', 95]].map(([label, score]) => (
-                        <div key={label as string} className="glass rounded-xl px-4 py-3">
+                      {([['Q1 Review', 92], ['Q2 Review', 88], ['Q3 Review', 95]] as const).map(([label, pct]) => (
+                        <div key={label} className="glass rounded-xl px-4 py-3">
                           <div className="flex justify-between text-sm mb-2">
                             <span>{label}</span>
-                            <span className="text-primary font-semibold">{score}%</span>
+                            <span className="text-primary font-semibold">{pct}%</span>
                           </div>
                           <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                             <motion.div
-                              initial={{ width: 0 }} animate={{ width: `${score}%` }} transition={{ duration: 0.8 }}
+                              initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8 }}
                               className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
                             />
                           </div>
@@ -305,40 +306,49 @@ export default function Employees() {
         )}
       </AnimatePresence>
 
-      {/* Add Employee Modal */}
       <AnimatePresence>
-        {showForm && (
+        {showAdd && (
           <>
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/60 z-50"
-              onClick={() => setShowForm(false)}
+              onClick={() => setShowAdd(false)}
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
             >
-              <div className="glass-solid rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+              <div className="glass-solid rounded-2xl p-6 w-full max-w-md pointer-events-auto" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-5">
                   <h3 className="font-display text-lg font-bold">Add Employee</h3>
-                  <button onClick={() => setShowForm(false)} className="text-muted hover:text-ink"><X size={18} /></button>
+                  <button onClick={() => setShowAdd(false)} className="text-muted hover:text-ink">
+                    <X size={18} />
+                  </button>
                 </div>
-                <form onSubmit={handleSubmit} className="space-y-3">
-                  <input required placeholder="Full name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50" />
-                  <input required type="email" placeholder="Email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50" />
-                  <input placeholder="Job title" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50" />
-                  <input placeholder="Department" value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })} className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50" />
+                <form onSubmit={handleAdd} className="space-y-3">
+                  <input required placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50" />
+                  <input required type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50" />
+                  <input placeholder="Job title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50" />
+                  <input placeholder="Department" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })}
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50" />
                   <div className="grid grid-cols-2 gap-3">
-                    <input placeholder="Phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50" />
-                    <input placeholder="Location" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50" />
+                    <input placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50" />
+                    <input placeholder="Location" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })}
+                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50" />
                   </div>
-                  {formError && <p className="text-rose text-xs bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">{formError}</p>}
+                  {formError && (
+                    <p className="text-rose text-xs bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">{formError}</p>
+                  )}
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={saving}
                     className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold mt-2 disabled:opacity-60"
                   >
-                    {submitting ? <Loader2 size={16} className="animate-spin" /> : 'Add Employee'}
+                    {saving ? <Loader2 size={16} className="animate-spin" /> : 'Add Employee'}
                   </button>
                 </form>
               </div>
@@ -346,18 +356,6 @@ export default function Employees() {
           </>
         )}
       </AnimatePresence>
-    </div>
-  );
-}
-
-function InfoRow({ icon: Icon, label, value }: { icon: typeof Mail; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-3 glass rounded-xl px-4 py-3">
-      <Icon size={16} className="text-primary shrink-0" />
-      <div className="min-w-0">
-        <p className="text-[11px] text-muted">{label}</p>
-        <p className="text-sm truncate">{value}</p>
-      </div>
     </div>
   );
 }
