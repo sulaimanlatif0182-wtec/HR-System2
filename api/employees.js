@@ -1,4 +1,4 @@
-import { supabase } from './db-client.js';
+import supabase from './db-client.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -12,9 +12,55 @@ export default async function handler(req, res) {
 
   try {
     // =========================
-    // GET EMPLOYEES
+    // GET EMPLOYEE / EMPLOYEES
+    // Supports:
+    // /api/employees
+    // /api/employees?email=test@email.com
+    // /api/employees?id=1
     // =========================
     if (req.method === 'GET') {
+      const { email, id } = req.query;
+
+      if (email) {
+        const { data, error } = await supabase
+          .from('employees')
+          .select('*')
+          .eq('email', String(email))
+          .maybeSingle();
+
+        if (error) {
+          return res.status(500).json({
+            error: error.message,
+          });
+        }
+
+        return res.status(200).json(data || null);
+      }
+
+      if (id) {
+        const employeeId = Number(id);
+
+        if (!employeeId) {
+          return res.status(400).json({
+            error: 'Valid employee ID is required.',
+          });
+        }
+
+        const { data, error } = await supabase
+          .from('employees')
+          .select('*')
+          .eq('id', employeeId)
+          .maybeSingle();
+
+        if (error) {
+          return res.status(500).json({
+            error: error.message,
+          });
+        }
+
+        return res.status(200).json(data || null);
+      }
+
       const { data, error } = await supabase
         .from('employees')
         .select('*')
@@ -82,8 +128,8 @@ export default async function handler(req, res) {
 
     // =========================
     // SOFT DELETE / DEACTIVATE EMPLOYEE
-    // This does NOT remove database record.
-    // It only changes status to inactive.
+    // Does NOT remove employee from database.
+    // Only changes status to inactive.
     // =========================
     if (req.method === 'DELETE') {
       const id = Number(req.query.id);
@@ -98,9 +144,15 @@ export default async function handler(req, res) {
         .from('employees')
         .select('id, name, role, status')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
-      if (findError || !employee) {
+      if (findError) {
+        return res.status(500).json({
+          error: findError.message,
+        });
+      }
+
+      if (!employee) {
         return res.status(404).json({
           error: 'Employee not found.',
         });
