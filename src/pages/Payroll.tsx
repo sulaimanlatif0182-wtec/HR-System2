@@ -257,7 +257,7 @@ export default function Payroll() {
                     <th className="px-6 py-3 font-medium">Bonus</th>
                     <th className="px-6 py-3 font-medium">Net Pay</th>
                     <th className="px-6 py-3 font-medium">Status</th>
-                    <th className="px-6 py-3 font-medium" />
+                    {isManager && <th className="px-6 py-3 font-medium" />}
                   </tr>
                 </thead>
 
@@ -293,6 +293,7 @@ export default function Payroll() {
                         </Badge>
                       </td>
 
+                      {isManager && (
                       <td className="px-6 py-3">
                         <button
                           type="button"

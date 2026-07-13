@@ -17,6 +17,7 @@ import {
   Loader2,
   Download,
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import {
   PageHeader,
   Badge,
@@ -74,7 +75,9 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
 
   const csv = [
     headers.join(','),
-    ...rows.map((row) => headers.map((header) => escapeCsvValue(row[header])).join(',')),
+    ...rows.map((row) =>
+      headers.map((header) => escapeCsvValue(row[header])).join(',')
+    ),
   ].join('\n');
 
   const blob = new Blob(['\uFEFF' + csv], {
@@ -86,6 +89,7 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
 
   link.href = url;
   link.download = filename;
+
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -94,6 +98,10 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
 }
 
 export default function Employees() {
+  const { profile } = useAuth();
+
+  const isManager = profile?.role === 'admin' || profile?.role === 'manager';
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -118,7 +126,10 @@ export default function Employees() {
   // Keep local search in sync when arriving via global header search
   useEffect(() => {
     const q = searchParams.get('q');
-    if (q !== null) setSearch(q);
+
+    if (q !== null) {
+      setSearch(q);
+    }
   }, [searchParams]);
 
   const fetchEmployees = async () => {
@@ -127,6 +138,7 @@ export default function Employees() {
 
     try {
       const data = await (await fetch('/api/employees')).json();
+
       setEmployees(Array.isArray(data) ? data : []);
     } catch {
       setError('Failed to load employees.');
@@ -140,7 +152,10 @@ export default function Employees() {
   }, []);
 
   const departments = useMemo(() => {
-    const set = new Set(employees.map((e) => e.department).filter(Boolean) as string[]);
+    const set = new Set(
+      employees.map((e) => e.department).filter(Boolean) as string[]
+    );
+
     return ['all', ...Array.from(set)];
   }, [employees]);
 
@@ -204,7 +219,9 @@ export default function Employees() {
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to add employee');
+      if (!res.ok) {
+        throw new Error('Failed to add employee');
+      }
 
       setShowAdd(false);
       setForm({
@@ -231,18 +248,22 @@ export default function Employees() {
     <div>
       <PageHeader
         title="Employee Directory"
-        subtitle={`${employees.length} people across ${departments.length - 1} departments`}
+        subtitle={`${employees.length} people across ${
+          departments.length - 1
+        } departments`}
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              disabled={filtered.length === 0}
-              className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
-            >
-              <Download size={16} />
-              Export CSV
-            </button>
+            {isManager && (
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                disabled={filtered.length === 0}
+                className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+              >
+                <Download size={16} />
+                Export CSV
+              </button>
+            )}
 
             <button
               type="button"
@@ -258,7 +279,11 @@ export default function Employees() {
 
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="relative flex-1">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+          <Search
+            size={16}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted"
+          />
+
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -311,7 +336,10 @@ export default function Employees() {
               key={emp.id}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: Math.min(i * 0.04, 0.4) }}
+              transition={{
+                duration: 0.35,
+                delay: Math.min(i * 0.04, 0.4),
+              }}
             >
               <GlowCard className="p-5 cursor-pointer h-full">
                 <div
@@ -326,13 +354,18 @@ export default function Employees() {
                     </div>
 
                     <div className="min-w-0">
-                      <p className="font-semibold text-sm truncate">{emp.name}</p>
-                      <p className="text-xs text-muted truncate">{emp.title}</p>
+                      <p className="font-semibold text-sm truncate">
+                        {emp.name}
+                      </p>
+                      <p className="text-xs text-muted truncate">
+                        {emp.title}
+                      </p>
                     </div>
                   </div>
 
                   <div className="mt-4 flex items-center justify-between">
                     <Badge tone="info">{emp.department}</Badge>
+
                     <Badge tone={STATUS_TONE[emp.status] ?? 'default'}>
                       {emp.status.replace('_', ' ')}
                     </Badge>
@@ -378,7 +411,10 @@ export default function Employees() {
                     </div>
                   </td>
 
-                  <td className="px-5 py-3.5 text-muted">{emp.department}</td>
+                  <td className="px-5 py-3.5 text-muted">
+                    {emp.department}
+                  </td>
+
                   <td className="px-5 py-3.5 text-muted">{emp.title}</td>
 
                   <td className="px-5 py-3.5">
@@ -427,11 +463,15 @@ export default function Employees() {
                     {initials(selected.name)}
                   </div>
 
-                  <h2 className="font-display text-xl font-bold mt-4">{selected.name}</h2>
+                  <h2 className="font-display text-xl font-bold mt-4">
+                    {selected.name}
+                  </h2>
+
                   <p className="text-muted text-sm">{selected.title}</p>
 
                   <div className="flex gap-2 mt-3">
                     <Badge tone="info">{selected.department}</Badge>
+
                     <Badge tone={STATUS_TONE[selected.status] ?? 'default'}>
                       {selected.status.replace('_', ' ')}
                     </Badge>
@@ -445,7 +485,9 @@ export default function Employees() {
                       key={t}
                       onClick={() => setTab(t)}
                       className={`flex-1 py-2 rounded-lg text-xs font-medium capitalize transition-all ${
-                        tab === t ? 'bg-primary/20 text-primary' : 'text-muted hover:text-ink'
+                        tab === t
+                          ? 'bg-primary/20 text-primary'
+                          : 'text-muted hover:text-ink'
                       }`}
                     >
                       {t}
@@ -456,17 +498,43 @@ export default function Employees() {
                 <div className="mt-5 space-y-3">
                   {tab === 'info' && (
                     <>
-                      <InfoRow icon={Mail} label="Email" value={selected.email} />
-                      <InfoRow icon={Phone} label="Phone" value={selected.phone ?? '—'} />
-                      <InfoRow icon={MapPin} label="Location" value={selected.location ?? '—'} />
-                      <InfoRow icon={Calendar} label="Joined" value={selected.join_date ?? '—'} />
-                      <InfoRow icon={Briefcase} label="Role" value={selected.role} />
+                      <InfoRow
+                        icon={Mail}
+                        label="Email"
+                        value={selected.email}
+                      />
+
+                      <InfoRow
+                        icon={Phone}
+                        label="Phone"
+                        value={selected.phone ?? '—'}
+                      />
+
+                      <InfoRow
+                        icon={MapPin}
+                        label="Location"
+                        value={selected.location ?? '—'}
+                      />
+
+                      <InfoRow
+                        icon={Calendar}
+                        label="Joined"
+                        value={selected.join_date ?? '—'}
+                      />
+
+                      <InfoRow
+                        icon={Briefcase}
+                        label="Role"
+                        value={selected.role}
+                      />
 
                       {selected.salary && (
                         <InfoRow
                           icon={DollarSign}
                           label="Annual Salary"
-                          value={`$${Number(selected.salary).toLocaleString()}`}
+                          value={`$${Number(
+                            selected.salary
+                          ).toLocaleString()}`}
                         />
                       )}
                     </>
@@ -474,17 +542,19 @@ export default function Employees() {
 
                   {tab === 'documents' && (
                     <div className="space-y-2">
-                      {['Employment Contract.pdf', 'ID Verification.pdf', 'Tax Form W-4.pdf'].map(
-                        (doc) => (
-                          <div
-                            key={doc}
-                            className="flex items-center justify-between glass rounded-xl px-4 py-3 text-sm"
-                          >
-                            <span>{doc}</span>
-                            <span className="text-xs text-muted">2.1 MB</span>
-                          </div>
-                        )
-                      )}
+                      {[
+                        'Employment Contract.pdf',
+                        'ID Verification.pdf',
+                        'Tax Form W-4.pdf',
+                      ].map((doc) => (
+                        <div
+                          key={doc}
+                          className="flex items-center justify-between glass rounded-xl px-4 py-3 text-sm"
+                        >
+                          <span>{doc}</span>
+                          <span className="text-xs text-muted">2.1 MB</span>
+                        </div>
+                      ))}
                     </div>
                   )}
 
@@ -500,7 +570,9 @@ export default function Employees() {
                         <div key={label} className="glass rounded-xl px-4 py-3">
                           <div className="flex justify-between text-sm mb-2">
                             <span>{label}</span>
-                            <span className="text-primary font-semibold">{pct}%</span>
+                            <span className="text-primary font-semibold">
+                              {pct}%
+                            </span>
                           </div>
 
                           <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
@@ -544,7 +616,9 @@ export default function Employees() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between mb-5">
-                  <h3 className="font-display text-lg font-bold">Add Employee</h3>
+                  <h3 className="font-display text-lg font-bold">
+                    Add Employee
+                  </h3>
 
                   <button
                     type="button"
@@ -560,7 +634,9 @@ export default function Employees() {
                     required
                     placeholder="Full name"
                     value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, name: e.target.value })
+                    }
                     className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                   />
 
@@ -569,21 +645,27 @@ export default function Employees() {
                     type="email"
                     placeholder="Email"
                     value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, email: e.target.value })
+                    }
                     className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                   />
 
                   <input
                     placeholder="Job title"
                     value={form.title}
-                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, title: e.target.value })
+                    }
                     className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                   />
 
                   <input
                     placeholder="Department"
                     value={form.department}
-                    onChange={(e) => setForm({ ...form, department: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, department: e.target.value })
+                    }
                     className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                   />
 
@@ -591,14 +673,18 @@ export default function Employees() {
                     <input
                       placeholder="Phone"
                       value={form.phone}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, phone: e.target.value })
+                      }
                       className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                     />
 
                     <input
                       placeholder="Location"
                       value={form.location}
-                      onChange={(e) => setForm({ ...form, location: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, location: e.target.value })
+                      }
                       className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                     />
                   </div>
@@ -614,7 +700,11 @@ export default function Employees() {
                     disabled={saving}
                     className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold mt-2 disabled:opacity-60"
                   >
-                    {saving ? <Loader2 size={16} className="animate-spin" /> : 'Add Employee'}
+                    {saving ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      'Add Employee'
+                    )}
                   </button>
                 </form>
               </div>

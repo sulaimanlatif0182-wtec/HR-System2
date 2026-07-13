@@ -220,7 +220,9 @@ export default function Leave() {
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to submit request');
+      if (!res.ok) {
+        throw new Error('Failed to submit request');
+      }
 
       setShowModal(false);
       setForm({
@@ -272,15 +274,17 @@ export default function Leave() {
         }
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              disabled={visible.length === 0}
-              className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
-            >
-              <Download size={16} />
-              Export CSV
-            </button>
+            {isManager && (
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                disabled={visible.length === 0}
+                className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+              >
+                <Download size={16} />
+                Export CSV
+              </button>
+            )}
 
             <button
               type="button"
@@ -367,7 +371,9 @@ export default function Leave() {
                   </p>
                 </div>
 
-                <Badge tone={STATUS_TONE[r.status] ?? 'default'}>{r.status}</Badge>
+                <Badge tone={STATUS_TONE[r.status] ?? 'default'}>
+                  {r.status}
+                </Badge>
               </div>
 
               {isManager && (
@@ -437,7 +443,9 @@ export default function Leave() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between mb-5">
-                  <h3 className="font-display text-lg font-bold">Request Leave</h3>
+                  <h3 className="font-display text-lg font-bold">
+                    Request Leave
+                  </h3>
 
                   <button
                     type="button"

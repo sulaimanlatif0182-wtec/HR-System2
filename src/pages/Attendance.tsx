@@ -85,6 +85,8 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
 export default function Attendance() {
   const { profile } = useAuth();
 
+  const isManager = profile?.role === 'admin' || profile?.role === 'manager';
+
   const [records, setRecords] = useState<AttRec[]>([]);
   const [employees, setEmployees] = useState<Emp[]>([]);
   const [loading, setLoading] = useState(true);
@@ -226,15 +228,17 @@ export default function Attendance() {
         title="Attendance"
         subtitle="Track daily check-ins and monitor org-wide presence."
         action={
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            disabled={records.length === 0}
-            className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
-          >
-            <Download size={16} />
-            Export CSV
-          </button>
+          isManager ? (
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              disabled={records.length === 0}
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+            >
+              <Download size={16} />
+              Export CSV
+            </button>
+          ) : undefined
         }
       />
 
@@ -314,7 +318,10 @@ export default function Attendance() {
         transition={{ delay: 0.1 }}
         className="glass rounded-2xl p-6 mb-6"
       >
-        <h3 className="font-display font-semibold mb-1">Presence Heatmap</h3>
+        <h3 className="font-display font-semibold mb-1">
+          Presence Heatmap
+        </h3>
+
         <p className="text-xs text-muted mb-4">
           Last 42 days · org-wide presence intensity
         </p>
