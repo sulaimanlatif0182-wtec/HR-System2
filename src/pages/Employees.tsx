@@ -16,7 +16,7 @@ import {
   DollarSign,
   Loader2,
   Download,
-  Trash2,
+  UserX,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -225,8 +225,71 @@ export default function Employees() {
     downloadCsv('employees.csv', rows);
   };
 
-  const handleDeleteEmployee = async (employee: Employee) => {
-    if (!isAdmin) return;
+  const handleDeactivateEmployee = async (employee: Employee) => {
+  if (!isAdmin) return;
+
+  if (employee.id === profile?.id) {
+    alert('You cannot deactivate your own admin profile.');
+    return;
+  }
+
+  if (employee.status === 'inactive') {
+    alert(`${employee.name} is already inactive.`);
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Are you sure you want to deactivate ${employee.name}? Their attendance, leave, and payroll history will be kept.`
+  );
+
+  if (!confirmed) return;
+
+  setDeleting(true);
+
+  try {
+    const res = await fetch(`/api/employees?id=${employee.id}`, {
+      method: 'DELETE',
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      throw new Error(data?.error || 'Failed to deactivate employee.');
+    }
+
+    const updatedEmployee = data?.employee;
+
+    if (updatedEmployee) {
+      setEmployees((prev) =>
+        prev.map((e) =>
+          e.id === employee.id
+            ? {
+                ...e,
+                status: updatedEmployee.status,
+              }
+            : e
+        )
+      );
+
+      setSelected((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: updatedEmployee.status,
+            }
+          : prev
+      );
+    } else {
+      await fetchEmployees();
+    }
+
+    alert(`${employee.name} has been deactivated.`);
+  } catch (err) {
+    alert(err instanceof Error ? err.message : 'Failed to deactivate employee.');
+  } finally {
+    setDeleting(false);
+  }
+};
 
     if (employee.id === profile?.id) {
       alert('You cannot delete your own admin profile.');
@@ -555,10 +618,10 @@ export default function Employees() {
                       {deleting ? (
                         <Loader2 size={16} className="animate-spin" />
                       ) : (
-                        <Trash2 size={16} />
+                        <UserX size={16} />
                       )}
 
-                      Delete Employee
+                      Deactivate Employee
                     </button>
                   )}
                 </div>

@@ -1,45 +1,153 @@
-import supabase from './db-client.js';
+import { supabase } from './db-client.js';
 
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.status(204).end();
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
 
   try {
+    // =========================
+    // GET EMPLOYEES
+    // =========================
     if (req.method === 'GET') {
-      const { email, id, department } = req.query;
-      let query = supabase.from('employees').select('*').order('id', { ascending: true });
-      if (email) query = query.eq('email', email);
-      if (id) query = query.eq('id', id);
-      if (department) query = query.eq('department', department);
-      const { data, error } = await query;
-      if (error) throw error;
-      return res.status(200).json(data);
+      const { data, error } = await supabase
+        .from('employees')
+        .select('*')
+        .order('id', { ascending: true });
+
+      if (error) {
+        return res.status(500).json({
+          error: error.message,
+        });
+      }
+
+      return res.status(200).json(data || []);
     }
+
+    // =========================
+    // ADD EMPLOYEE
+    // =========================
     if (req.method === 'POST') {
-      const body = req.body;
-      const { data, error } = await supabase.from('employees').insert(body).select().single();
-      if (error) throw error;
+      const {
+        name,
+        email,
+        title,
+        department,
+        phone,
+        location,
+        role,
+        status,
+        join_date,
+        salary,
+      } = req.body || {};
+
+      if (!name || !email) {
+        return res.status(400).json({
+          error: 'Name and email are required.',
+        });
+      }
+
+      const payload = {
+        name,
+        email,
+        title: title || null,
+        department: department || null,
+        phone: phone || null,
+        location: location || null,
+        role: role || 'employee',
+        status: status || 'active',
+        join_date: join_date || new Date().toISOString().slice(0, 10),
+        salary: salary ?? null,
+      };
+
+      const { data, error } = await supabase
+        .from('employees')
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error) {
+        return res.status(500).json({
+          error: error.message,
+        });
+      }
+
       return res.status(201).json(data);
     }
-    if (req.method === 'PUT') {
-      const { id, ...rest } = req.body;
-      if (!id) return res.status(400).json({ error: 'id is required' });
-      const { data, error } = await supabase.from('employees').update(rest).eq('id', id).select().single();
-      if (error) throw error;
-      return res.status(200).json(data);
-    }
+
+    // =========================
+    // SOFT DELETE / DEACTIVATE EMPLOYEE
+    // This does NOT remove database record.
+    // It only changes status to inactive.
+    // =========================
     if (req.method === 'DELETE') {
-      const { id } = req.body;
-      if (!id) return res.status(400).json({ error: 'id is required' });
-      const { error } = await supabase.from('employees').delete().eq('id', id);
-      if (error) throw error;
-      return res.status(200).json({ ok: true });
+      const id = Number(req.query.id);
+
+      if (!id) {
+        return res.status(400).json({
+          error: 'Employee ID is required.',
+        });
+      }
+
+      const { data: employee, error: findError } = await supabase
+        .from('employees')
+        .select('id, name, role, status')
+        .eq('id', id)
+        .single();
+
+      if (findError || !employee) {
+        return res.status(404).json({
+          error: 'Employee not found.',
+        });
+      }
+
+      if (employee.role === 'admin') {
+        return res.status(403).json({
+          error: 'Admin profile cannot be deactivated from this action.',
+        });
+      }
+
+      if (employee.status === 'inactive') {
+        return res.status(200).json({
+          success: true,
+          message: 'Employee is already inactive.',
+          employee,
+        });
+      }
+
+      const { data, error: updateError } = await supabase
+        .from('employees')
+        .update({
+          status: 'inactive',
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (updateError) {
+        return res.status(500).json({
+          error: updateError.message,
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Employee deactivated successfully.',
+        employee: data,
+      });
     }
-    res.status(405).json({ error: 'Method not allowed' });
+
+    return res.status(405).json({
+      error: `Method ${req.method} not allowed.`,
+    });
   } catch (err) {
-    console.error('API error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({
+      error: err instanceof Error ? err.message : 'Internal server error.',
+    });
   }
 }
