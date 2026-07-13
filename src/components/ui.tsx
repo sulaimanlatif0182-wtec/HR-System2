@@ -2,10 +2,18 @@ import type { ReactNode, ComponentType } from 'react';
 import { motion } from 'framer-motion';
 import { RefreshCw, Inbox } from 'lucide-react';
 
-export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+}) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
-      <div>
+    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-8">
+      <div className="min-w-0">
         <motion.h1
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -13,9 +21,15 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
         >
           {title}
         </motion.h1>
+
         {subtitle && <p className="text-muted text-sm mt-1.5">{subtitle}</p>}
       </div>
-      {action}
+
+      {action && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {action}
+        </div>
+      )}
     </div>
   );
 }

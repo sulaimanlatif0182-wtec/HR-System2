@@ -1,20 +1,90 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, LogIn, LogOut, Loader2, Database } from 'lucide-react';
+import {
+  Clock,
+  LogIn,
+  LogOut,
+  Loader2,
+  Database,
+  Download,
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { PageHeader, Badge, LoadingState, ErrorState, EmptyState } from '../components/ui';
+import {
+  PageHeader,
+  Badge,
+  LoadingState,
+  ErrorState,
+  EmptyState,
+} from '../components/ui';
 
-const STATUS_TONE: Record<string, string> = { present: 'success', late: 'warning', absent: 'danger', remote: 'info' };
+const STATUS_TONE: Record<string, string> = {
+  present: 'success',
+  late: 'warning',
+  absent: 'danger',
+  remote: 'info',
+};
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-interface AttRec { id: number; employee_id: number; date: string; check_in: string | null; check_out: string | null; status: string }
-interface Emp { id: number; name: string }
+interface AttRec {
+  id: number;
+  employee_id: number;
+  date: string;
+  check_in: string | null;
+  check_out: string | null;
+  status: string;
+}
+
+interface Emp {
+  id: number;
+  name: string;
+}
+
+function escapeCsvValue(value: unknown) {
+  if (value === null || value === undefined) return '""';
+
+  const stringValue = String(value).replace(/"/g, '""');
+
+  return `"${stringValue}"`;
+}
+
+function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
+  if (!rows.length) {
+    alert('No data available to export.');
+    return;
+  }
+
+  const headers = Object.keys(rows[0]);
+
+  const csv = [
+    headers.join(','),
+    ...rows.map((row) =>
+      headers.map((header) => escapeCsvValue(row[header])).join(',')
+    ),
+  ].join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], {
+    type: 'text/csv;charset=utf-8;',
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = filename;
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(url);
+}
 
 export default function Attendance() {
   const { profile } = useAuth();
+
   const [records, setRecords] = useState<AttRec[]>([]);
   const [employees, setEmployees] = useState<Emp[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,11 +94,13 @@ export default function Attendance() {
   const fetchAll = async () => {
     setLoading(true);
     setError('');
+
     try {
       const [att, emp] = await Promise.all([
         fetch('/api/attendance').then((r) => r.json()),
         fetch('/api/employees').then((r) => r.json()),
       ]);
+
       setRecords(Array.isArray(att) ? att : []);
       setEmployees(Array.isArray(emp) ? emp : []);
     } catch {
@@ -38,43 +110,86 @@ export default function Attendance() {
     }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    fetchAll();
+  }, []);
 
   const empMap = useMemo(() => {
     const m: Record<number, Emp> = {};
-    employees.forEach((e) => { m[e.id] = e; });
+
+    employees.forEach((e) => {
+      m[e.id] = e;
+    });
+
     return m;
   }, [employees]);
 
   const myToday = useMemo(
-    () => (profile && records.find((r) => r.employee_id === profile.id && r.date === todayStr())) || null,
+    () =>
+      (profile &&
+        records.find(
+          (r) => r.employee_id === profile.id && r.date === todayStr()
+        )) ||
+      null,
     [records, profile]
   );
 
   const heatmap = useMemo(() => {
     const days: { date: string; count: number }[] = [];
     const now = new Date();
+
     for (let i = 41; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
+
       const key = d.toISOString().slice(0, 10);
-      const count = records.filter((r) => r.date === key && (r.status === 'present' || r.status === 'remote')).length;
+
+      const count = records.filter(
+        (r) =>
+          r.date === key && (r.status === 'present' || r.status === 'remote')
+      ).length;
+
       days.push({ date: key, count });
     }
+
     return days;
   }, [records]);
 
   const maxCount = Math.max(...heatmap.map((d) => d.count), 1);
 
+  const recent = records.slice(0, 30);
+
+  const handleExportCsv = () => {
+    const rows = records.map((r) => ({
+      ID: r.id,
+      Employee_ID: r.employee_id,
+      Employee_Name: empMap[r.employee_id]?.name ?? `#${r.employee_id}`,
+      Date: r.date,
+      Check_In: r.check_in ? new Date(r.check_in).toLocaleString() : '',
+      Check_Out: r.check_out ? new Date(r.check_out).toLocaleString() : '',
+      Status: r.status,
+    }));
+
+    downloadCsv('attendance.csv', rows);
+  };
+
   const checkIn = async () => {
     if (!profile) return;
+
     setBusy(true);
+
     try {
       await fetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employee_id: profile.id, date: todayStr(), check_in: new Date().toISOString(), status: 'present' }),
+        body: JSON.stringify({
+          employee_id: profile.id,
+          date: todayStr(),
+          check_in: new Date().toISOString(),
+          status: 'present',
+        }),
       });
+
       fetchAll();
     } finally {
       setBusy(false);
@@ -83,13 +198,19 @@ export default function Attendance() {
 
   const checkOut = async () => {
     if (!myToday) return;
+
     setBusy(true);
+
     try {
       await fetch('/api/attendance', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: myToday.id, check_out: new Date().toISOString() }),
+        body: JSON.stringify({
+          id: myToday.id,
+          check_out: new Date().toISOString(),
+        }),
       });
+
       fetchAll();
     } finally {
       setBusy(false);
@@ -99,65 +220,120 @@ export default function Attendance() {
   if (loading) return <LoadingState label="Loading attendance…" />;
   if (error) return <ErrorState message={error} onRetry={fetchAll} />;
 
-  const recent = records.slice(0, 30);
-
   return (
     <div>
-      <PageHeader title="Attendance" subtitle="Track daily check-ins and monitor org-wide presence." />
+      <PageHeader
+        title="Attendance"
+        subtitle="Track daily check-ins and monitor org-wide presence."
+        action={
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            disabled={records.length === 0}
+            className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+          >
+            <Download size={16} />
+            Export CSV
+          </button>
+        }
+      />
 
       <motion.div
-        initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
         className="glass rounded-2xl p-6 mb-6 flex flex-col sm:flex-row items-center justify-between gap-5"
       >
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-accent grid place-items-center shadow-lg shadow-primary/30">
             <Clock size={24} className="text-white" />
           </div>
+
           <div>
             <p className="font-display font-semibold text-lg">
-              {myToday?.check_out ? "You're all done for today" : myToday?.check_in ? "You're checked in" : 'Ready to start your day?'}
+              {myToday?.check_out
+                ? "You're all done for today"
+                : myToday?.check_in
+                  ? "You're checked in"
+                  : 'Ready to start your day?'}
             </p>
+
             <p className="text-xs text-muted mt-0.5">
               {myToday?.check_in
-                ? `Checked in at ${new Date(myToday.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                ? `Checked in at ${new Date(myToday.check_in).toLocaleTimeString(
+                    [],
+                    {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }
+                  )}`
                 : 'No check-in recorded yet today'}
-              {myToday?.check_out ? ` · Out at ${new Date(myToday.check_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+
+              {myToday?.check_out
+                ? ` · Out at ${new Date(myToday.check_out).toLocaleTimeString(
+                    [],
+                    {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }
+                  )}`
+                : ''}
             </p>
           </div>
         </div>
+
         <div className="flex gap-3">
           <button
+            type="button"
             onClick={checkIn}
             disabled={!!myToday?.check_in || busy}
             className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 px-4 py-2.5 text-sm font-semibold shadow-lg disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] transition-all"
           >
-            {busy ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />} Check In
+            {busy ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <LogIn size={16} />
+            )}
+            Check In
           </button>
+
           <button
+            type="button"
             onClick={checkOut}
             disabled={!myToday?.check_in || !!myToday?.check_out || busy}
             className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
           >
-            <LogOut size={16} /> Check Out
+            <LogOut size={16} />
+            Check Out
           </button>
         </div>
       </motion.div>
 
       <motion.div
-        initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
         className="glass rounded-2xl p-6 mb-6"
       >
         <h3 className="font-display font-semibold mb-1">Presence Heatmap</h3>
-        <p className="text-xs text-muted mb-4">Last 42 days · org-wide presence intensity</p>
+        <p className="text-xs text-muted mb-4">
+          Last 42 days · org-wide presence intensity
+        </p>
+
         <div className="grid grid-cols-7 gap-1.5 sm:gap-2 max-w-md">
           {heatmap.map((d) => {
             const intensity = d.count / maxCount;
+
             return (
               <div
                 key={d.date}
                 title={`${d.date}: ${d.count} present`}
                 className="aspect-square rounded-md"
-                style={{ background: intensity === 0 ? 'rgba(255,255,255,0.04)' : `rgba(139, 92, 246, ${0.15 + intensity * 0.75})` }}
+                style={{
+                  background:
+                    intensity === 0
+                      ? 'rgba(255,255,255,0.04)'
+                      : `rgba(139, 92, 246, ${0.15 + intensity * 0.75})`,
+                }}
               />
             );
           })}
@@ -165,12 +341,15 @@ export default function Attendance() {
       </motion.div>
 
       <motion.div
-        initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
         className="glass rounded-2xl overflow-hidden"
       >
         <div className="px-6 py-4 border-b border-white/5">
           <h3 className="font-display font-semibold">Recent History</h3>
         </div>
+
         {recent.length === 0 ? (
           <EmptyState label="No attendance records yet." />
         ) : (
@@ -185,19 +364,41 @@ export default function Attendance() {
                   <th className="px-6 py-3 font-medium">Status</th>
                 </tr>
               </thead>
+
               <tbody>
                 {recent.map((r) => (
-                  <tr key={r.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-all">
-                    <td className="px-6 py-3">{empMap[r.employee_id]?.name ?? `#${r.employee_id}`}</td>
-                    <td className="px-6 py-3 text-muted">{r.date}</td>
-                    <td className="px-6 py-3 text-muted font-mono text-xs">
-                      {r.check_in ? new Date(r.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
-                    </td>
-                    <td className="px-6 py-3 text-muted font-mono text-xs">
-                      {r.check_out ? new Date(r.check_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
-                    </td>
+                  <tr
+                    key={r.id}
+                    className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-all"
+                  >
                     <td className="px-6 py-3">
-                      <Badge tone={STATUS_TONE[r.status] ?? 'default'}>{r.status}</Badge>
+                      {empMap[r.employee_id]?.name ?? `#${r.employee_id}`}
+                    </td>
+
+                    <td className="px-6 py-3 text-muted">{r.date}</td>
+
+                    <td className="px-6 py-3 text-muted font-mono text-xs">
+                      {r.check_in
+                        ? new Date(r.check_in).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
+                    </td>
+
+                    <td className="px-6 py-3 text-muted font-mono text-xs">
+                      {r.check_out
+                        ? new Date(r.check_out).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
+                    </td>
+
+                    <td className="px-6 py-3">
+                      <Badge tone={STATUS_TONE[r.status] ?? 'default'}>
+                        {r.status}
+                      </Badge>
                     </td>
                   </tr>
                 ))}
@@ -208,7 +409,8 @@ export default function Attendance() {
       </motion.div>
 
       <div className="flex items-center gap-1.5 text-xs text-muted mt-2 justify-end">
-        <Database size={12} /> Data synced live with Supabase
+        <Database size={12} />
+        Data synced live with Supabase
       </div>
     </div>
   );
