@@ -108,6 +108,7 @@ function getCheckOutWindow(date = new Date()) {
 
   const normalStart = 17 * 60 + 30; // 17:30
   const normalEnd = 17 * 60 + 45; // 17:45
+  const otStart = 17 * 60 + 46; // 17:46
 
   if (now < normalStart) {
     return {
@@ -118,7 +119,7 @@ function getCheckOutWindow(date = new Date()) {
     };
   }
 
-  if (now <= normalEnd) {
+  if (now >= normalStart && now <= normalEnd) {
     return {
       allowed: true,
       type: 'normal',
@@ -127,23 +128,34 @@ function getCheckOutWindow(date = new Date()) {
     };
   }
 
+  if (now < otStart) {
+    return {
+      allowed: false,
+      type: 'not_open',
+      label: 'OT check-out starts at 17:46',
+      overtimeHours: 0,
+    };
+  }
+
   const overtimeWindows = [
-    { end: 18 * 60 + 15, hours: 0.5 },
-    { end: 18 * 60 + 45, hours: 1 },
-    { end: 19 * 60 + 15, hours: 1.5 },
-    { end: 19 * 60 + 45, hours: 2 },
-    { end: 20 * 60 + 15, hours: 2.5 },
-    { end: 20 * 60 + 45, hours: 3 },
-    { end: 21 * 60 + 15, hours: 3.5 },
-    { end: 21 * 60 + 45, hours: 4 },
-    { end: 22 * 60 + 15, hours: 4.5 },
-    { end: 22 * 60 + 45, hours: 5 },
-    { end: 23 * 60 + 15, hours: 5.5 },
-    { end: 23 * 60 + 45, hours: 6 },
-    { end: 24 * 60, hours: 6.5 },
+    { start: 17 * 60 + 46, end: 18 * 60 + 15, hours: 0.5 },
+    { start: 18 * 60 + 16, end: 18 * 60 + 45, hours: 1 },
+    { start: 18 * 60 + 46, end: 19 * 60 + 15, hours: 1.5 },
+    { start: 19 * 60 + 16, end: 19 * 60 + 45, hours: 2 },
+    { start: 19 * 60 + 46, end: 20 * 60 + 15, hours: 2.5 },
+    { start: 20 * 60 + 16, end: 20 * 60 + 45, hours: 3 },
+    { start: 20 * 60 + 46, end: 21 * 60 + 15, hours: 3.5 },
+    { start: 21 * 60 + 16, end: 21 * 60 + 45, hours: 4 },
+    { start: 21 * 60 + 46, end: 22 * 60 + 15, hours: 4.5 },
+    { start: 22 * 60 + 16, end: 22 * 60 + 45, hours: 5 },
+    { start: 22 * 60 + 46, end: 23 * 60 + 15, hours: 5.5 },
+    { start: 23 * 60 + 16, end: 23 * 60 + 45, hours: 6 },
+    { start: 23 * 60 + 46, end: 24 * 60, hours: 6.5 },
   ];
 
-  const matchedWindow = overtimeWindows.find((window) => now <= window.end);
+  const matchedWindow = overtimeWindows.find(
+    (window) => now >= window.start && now <= window.end
+  );
 
   if (matchedWindow) {
     return {
