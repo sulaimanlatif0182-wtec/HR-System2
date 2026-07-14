@@ -56,12 +56,20 @@ interface AttRec {
   check_in: string | null;
   check_out: string | null;
   status: string;
+
   check_in_latitude?: number | null;
   check_in_longitude?: number | null;
   check_in_accuracy?: number | null;
   check_in_site?: string | null;
   check_in_distance_meters?: number | null;
   check_in_verified?: boolean | null;
+
+  check_out_latitude?: number | null;
+  check_out_longitude?: number | null;
+  check_out_accuracy?: number | null;
+  check_out_site?: string | null;
+  check_out_distance_meters?: number | null;
+  check_out_verified?: boolean | null;
 }
 
 interface Emp {
@@ -291,25 +299,33 @@ export default function Attendance() {
   const recent = visibleRecords.slice(0, 30);
 
   const handleExportCsv = () => {
-    const rows = visibleRecords.map((r) => ({
-      ID: r.id,
-      Employee_ID: r.employee_id,
-      Employee_Name: empMap[r.employee_id]?.name ?? `#${r.employee_id}`,
-      Department: empMap[r.employee_id]?.department ?? '',
-      Date: r.date,
-      Check_In: r.check_in ? new Date(r.check_in).toLocaleString() : '',
-      Check_Out: r.check_out ? new Date(r.check_out).toLocaleString() : '',
-      Status: r.status,
-      Check_In_Site: r.check_in_site ?? '',
-      Check_In_Verified: r.check_in_verified ? 'Yes' : 'No',
-      Check_In_Distance_Meters: r.check_in_distance_meters ?? '',
-      Check_In_Accuracy_Meters: r.check_in_accuracy ?? '',
-      Check_In_Latitude: r.check_in_latitude ?? '',
-      Check_In_Longitude: r.check_in_longitude ?? '',
-    }));
+  const rows = visibleRecords.map((r) => ({
+    ID: r.id,
+    Employee_ID: r.employee_id,
+    Employee_Name: empMap[r.employee_id]?.name ?? `#${r.employee_id}`,
+    Department: empMap[r.employee_id]?.department ?? '',
+    Date: r.date,
+    Check_In: r.check_in ? new Date(r.check_in).toLocaleString() : '',
+    Check_Out: r.check_out ? new Date(r.check_out).toLocaleString() : '',
+    Status: r.status,
 
-    downloadCsv('attendance.csv', rows);
-  };
+    Check_In_Site: r.check_in_site ?? '',
+    Check_In_Verified: r.check_in_verified ? 'Yes' : 'No',
+    Check_In_Distance_Meters: r.check_in_distance_meters ?? '',
+    Check_In_Accuracy_Meters: r.check_in_accuracy ?? '',
+    Check_In_Latitude: r.check_in_latitude ?? '',
+    Check_In_Longitude: r.check_in_longitude ?? '',
+
+    Check_Out_Site: r.check_out_site ?? '',
+    Check_Out_Verified: r.check_out_verified ? 'Yes' : 'No',
+    Check_Out_Distance_Meters: r.check_out_distance_meters ?? '',
+    Check_Out_Accuracy_Meters: r.check_out_accuracy ?? '',
+    Check_Out_Latitude: r.check_out_latitude ?? '',
+    Check_Out_Longitude: r.check_out_longitude ?? '',
+  }));
+
+  downloadCsv('attendance.csv', rows);
+};
 
   const checkIn = async () => {
     if (!profile) return;
@@ -393,34 +409,87 @@ export default function Attendance() {
     }
   };
 
-  const checkOut = async () => {
-    if (!myToday) return;
+const checkOut = async () => {
+  if (!myToday) return;
 
-    setBusy(true);
+  setBusy(true);
+  setGpsMessage('Getting your GPS location for check-out…');
 
-    try {
-      const res = await fetch('/api/attendance', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: myToday.id,
-          check_out: new Date().toISOString(),
-        }),
-      });
+  try {
+    const position = await getBrowserLocation();
 
-      const data = await res.json().catch(() => null);
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
+    const accuracy = position.coords.accuracy;
 
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to check out.');
-      }
-
-      await fetchAll();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to check out.');
-    } finally {
-      setBusy(false);
+    if (accuracy > MAX_GPS_ACCURACY_METERS) {
+      throw new Error(
+        `Your GPS accuracy is too low (${Math.round(
+          accuracy
+        )}m). Please move near an open area or enable high accuracy GPS, then try again.`
+      );
     }
-  };
+
+    const nearest = findNearestSite(latitude, longitude);
+
+    if (!nearest) {
+      throw new Error('No approved attendance site is configured.');
+    }
+
+    const distance = nearest.distanceMeters;
+    const site = nearest.site;
+
+    if (distance > site.radiusMeters) {
+      throw new Error(
+        `You are outside the approved check-out area.\n\nNearest site: ${
+          site.name
+        }\nYour distance: ${Math.round(
+          distance
+        )}m\nAllowed radius: ${site.radiusMeters}m`
+      );
+    }
+
+    setGpsMessage(
+      `Check-out location verified at ${site.name}. Distance: ${Math.round(
+        distance
+      )}m.`
+    );
+
+    const res = await fetch('/api/attendance', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: myToday.id,
+        check_out: new Date().toISOString(),
+        check_out_latitude: latitude,
+        check_out_longitude: longitude,
+        check_out_accuracy: accuracy,
+        check_out_site: site.name,
+        check_out_distance_meters: Math.round(distance),
+        check_out_verified: true,
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      throw new Error(data?.error || 'Failed to check out.');
+    }
+
+    await fetchAll();
+
+    alert(
+      `Check-out successful.\n\nSite: ${site.name}\nDistance: ${Math.round(
+        distance
+      )}m\nGPS accuracy: ${Math.round(accuracy)}m`
+    );
+  } catch (err) {
+    alert(err instanceof Error ? err.message : 'Failed to verify check-out location.');
+  } finally {
+    setBusy(false);
+    setTimeout(() => setGpsMessage(''), 4000);
+  }
+};
 
   if (loading) return <LoadingState label="Loading attendance…" />;
 
