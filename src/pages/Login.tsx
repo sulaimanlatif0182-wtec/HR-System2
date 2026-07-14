@@ -1,340 +1,684 @@
-import { useState, useEffect } from 'react';
-import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Mail, Lock, ArrowRight, Loader2, ArrowLeft, CheckCircle2, Check, X, ShieldCheck } from 'lucide-react';
-import supabase, { REMEMBER_KEY, REMEMBERED_EMAIL_KEY } from '../lib/supabase';
+import { useState, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import {
+  Clock,
+  LogIn,
+  LogOut,
+  Loader2,
+  Database,
+  Download,
+  MapPin,
+  ShieldCheck,
+  ShieldAlert,
+} from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  PageHeader,
+  Badge,
+  LoadingState,
+  ErrorState,
+  EmptyState,
+} from '../components/ui';
 
-type Mode = 'signin' | 'signup' | 'forgot';
+const STATUS_TONE: Record<string, string> = {
+  present: 'success',
+  late: 'warning',
+  absent: 'danger',
+  remote: 'info',
+};
 
-const PASSWORD_RULES: Array<{ label: string; test: (p: string) => boolean }> = [
-  { label: 'At least 8 characters', test: (p) => p.length >= 8 },
-  { label: 'One uppercase letter (A–Z)', test: (p) => /[A-Z]/.test(p) },
-  { label: 'One lowercase letter (a–z)', test: (p) => /[a-z]/.test(p) },
-  { label: 'One number (0–9)', test: (p) => /[0-9]/.test(p) },
+const GEOFENCE_RADIUS_METERS = 100;
+const MAX_GPS_ACCURACY_METERS = 250;
+
+const ATTENDANCE_SITES = [
+  {
+    name: 'Factory 1',
+    latitude: 2.9662584,
+    longitude: 101.8372782,
+    radiusMeters: GEOFENCE_RADIUS_METERS,
+  },
+  {
+    name: 'Factory 2',
+    latitude: 2.967353,
+    longitude: 101.836689,
+    radiusMeters: GEOFENCE_RADIUS_METERS,
+  },
 ];
 
-export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [mode, setMode] = useState<Mode>('signin');
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+interface AttRec {
+  id: number;
+  employee_id: number;
+  date: string;
+  check_in: string | null;
+  check_out: string | null;
+  status: string;
+  check_in_latitude?: number | null;
+  check_in_longitude?: number | null;
+  check_in_accuracy?: number | null;
+  check_in_site?: string | null;
+  check_in_distance_meters?: number | null;
+  check_in_verified?: boolean | null;
+}
+
+interface Emp {
+  id: number;
+  name: string;
+  department: string | null;
+}
+
+function escapeCsvValue(value: unknown) {
+  if (value === null || value === undefined) return '""';
+
+  const stringValue = String(value).replace(/"/g, '""');
+
+  return `"${stringValue}"`;
+}
+
+function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
+  if (!rows.length) {
+    alert('No data available to export.');
+    return;
+  }
+
+  const headers = Object.keys(rows[0]);
+
+  const csv = [
+    headers.join(','),
+    ...rows.map((row) =>
+      headers.map((header) => escapeCsvValue(row[header])).join(',')
+    ),
+  ].join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], {
+    type: 'text/csv;charset=utf-8;',
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = filename;
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(url);
+}
+
+function getDistanceMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+) {
+  const earthRadiusMeters = 6371000;
+
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return earthRadiusMeters * c;
+}
+
+function findNearestSite(latitude: number, longitude: number) {
+  const sitesWithDistance = ATTENDANCE_SITES.map((site) => ({
+    site,
+    distanceMeters: getDistanceMeters(
+      latitude,
+      longitude,
+      site.latitude,
+      site.longitude
+    ),
+  }));
+
+  return sitesWithDistance.sort(
+    (a, b) => a.distanceMeters - b.distanceMeters
+  )[0];
+}
+
+function getBrowserLocation(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('GPS location is not supported by this browser.'));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 0,
+    });
+  });
+}
+
+function formatMeters(value?: number | null) {
+  if (value === null || value === undefined) return '—';
+
+  return `${Math.round(Number(value))}m`;
+}
+
+export default function Attendance() {
+  const { profile } = useAuth();
+
+  const isAdmin = profile?.role === 'admin';
+  const isManagerOnly = profile?.role === 'manager';
+  const isAdminOrManager =
+    profile?.role === 'admin' || profile?.role === 'manager';
+
+  const profileDepartment = String(profile?.department ?? '')
+    .trim()
+    .toLowerCase();
+
+  const [records, setRecords] = useState<AttRec[]>([]);
+  const [employees, setEmployees] = useState<Emp[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
-  const [remember, setRemember] = useState(true);
-  const [stats, setStats] = useState({ employees: 0, departments: 0, locations: 0 });
-  const navigate = useNavigate();
+  const [gpsMessage, setGpsMessage] = useState('');
 
-  // Restore "remember me" preference + remembered email
-  useEffect(() => {
-    const pref = localStorage.getItem(REMEMBER_KEY);
-    if (pref === 'false') setRemember(false);
-    const savedEmail = localStorage.getItem(REMEMBERED_EMAIL_KEY);
-    if (savedEmail) setEmail(savedEmail);
-  }, []);
-
-  useEffect(() => {
-    fetch('/api/employees')
-      .then((r) => r.json())
-      .then((d) => {
-        if (Array.isArray(d)) {
-          const locs = new Set(d.map((e) => e.location).filter(Boolean));
-          setStats((s) => ({ ...s, employees: d.length, locations: locs.size }));
-        }
-      })
-      .catch(() => {});
-    fetch('/api/departments')
-      .then((r) => r.json())
-      .then((d) => {
-        if (Array.isArray(d)) setStats((s) => ({ ...s, departments: d.length }));
-      })
-      .catch(() => {});
-  }, []);
-
-  const applyRememberChoice = (value: boolean) => {
-    setRemember(value);
-    localStorage.setItem(REMEMBER_KEY, String(value));
-  };
-
-  const persistRemembered = () => {
-    localStorage.setItem(REMEMBER_KEY, String(remember));
-    if (remember) localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
-    else localStorage.removeItem(REMEMBERED_EMAIL_KEY);
-  };
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const fetchAll = async () => {
+    setLoading(true);
     setError('');
-    setNotice('');
 
-    if (mode === 'forgot') {
-      if (!email) {
-        setError('Please enter your email address.');
-        return;
-      }
-      setBusy(true);
-      try {
-        const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
-        });
-        if (err) throw err;
-        setNotice(`Password reset link sent to ${email}. Check your inbox (and spam folder), then follow the link to set a new password.`);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not send reset email.');
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
-
-    if (!email || !password) {
-      setError('Please fill in both fields.');
-      return;
-    }
-    if (mode === 'signup') {
-      const failed = PASSWORD_RULES.filter((r) => !r.test(password));
-      if (failed.length > 0) {
-        setError('Password does not meet the requirements below.');
-        return;
-      }
-    }
-    setBusy(true);
     try {
-      persistRemembered();
-      if (mode === 'signup') {
-        // Secure registration: server verifies the email exists in the
-        // employee directory (added by admin) before creating the account.
-        const res = await fetch('/api/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'Registration failed.');
-        // Account created — sign them straight in
-        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
-        if (err) throw err;
-        navigate('/');
-      } else {
-        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
-        if (err) throw err;
-        navigate('/');
+      const [att, emp] = await Promise.all([
+        fetch('/api/attendance').then((r) => r.json()),
+        fetch('/api/employees').then((r) => r.json()),
+      ]);
+
+      setRecords(Array.isArray(att) ? att : []);
+      setEmployees(Array.isArray(emp) ? emp : []);
+    } catch {
+      setError('Failed to load attendance records.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAll();
+  }, []);
+
+  const empMap = useMemo(() => {
+    const m: Record<number, Emp> = {};
+
+    employees.forEach((e) => {
+      m[e.id] = e;
+    });
+
+    return m;
+  }, [employees]);
+
+  const visibleEmployees = useMemo(() => {
+    if (isAdmin) {
+      return employees;
+    }
+
+    if (isManagerOnly) {
+      return employees.filter(
+        (employee) =>
+          String(employee.department ?? '').trim().toLowerCase() ===
+          profileDepartment
+      );
+    }
+
+    return employees.filter((employee) => employee.id === profile?.id);
+  }, [employees, isAdmin, isManagerOnly, profile?.id, profileDepartment]);
+
+  const visibleEmployeeIds = useMemo(
+    () => new Set(visibleEmployees.map((employee) => employee.id)),
+    [visibleEmployees]
+  );
+
+  const visibleRecords = useMemo(() => {
+    if (isAdmin) {
+      return records;
+    }
+
+    return records.filter((record) =>
+      visibleEmployeeIds.has(record.employee_id)
+    );
+  }, [records, visibleEmployeeIds, isAdmin]);
+
+  const myToday = useMemo(
+    () =>
+      (profile &&
+        records.find(
+          (r) => r.employee_id === profile.id && r.date === todayStr()
+        )) ||
+      null,
+    [records, profile]
+  );
+
+  const heatmap = useMemo(() => {
+    const days: { date: string; count: number }[] = [];
+    const now = new Date();
+
+    for (let i = 41; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+
+      const key = d.toISOString().slice(0, 10);
+
+      const count = visibleRecords.filter(
+        (r) =>
+          r.date === key && (r.status === 'present' || r.status === 'remote')
+      ).length;
+
+      days.push({ date: key, count });
+    }
+
+    return days;
+  }, [visibleRecords]);
+
+  const maxCount = Math.max(...heatmap.map((d) => d.count), 1);
+
+  const recent = visibleRecords.slice(0, 30);
+
+  const handleExportCsv = () => {
+    const rows = visibleRecords.map((r) => ({
+      ID: r.id,
+      Employee_ID: r.employee_id,
+      Employee_Name: empMap[r.employee_id]?.name ?? `#${r.employee_id}`,
+      Department: empMap[r.employee_id]?.department ?? '',
+      Date: r.date,
+      Check_In: r.check_in ? new Date(r.check_in).toLocaleString() : '',
+      Check_Out: r.check_out ? new Date(r.check_out).toLocaleString() : '',
+      Status: r.status,
+      Check_In_Site: r.check_in_site ?? '',
+      Check_In_Verified: r.check_in_verified ? 'Yes' : 'No',
+      Check_In_Distance_Meters: r.check_in_distance_meters ?? '',
+      Check_In_Accuracy_Meters: r.check_in_accuracy ?? '',
+      Check_In_Latitude: r.check_in_latitude ?? '',
+      Check_In_Longitude: r.check_in_longitude ?? '',
+    }));
+
+    downloadCsv('attendance.csv', rows);
+  };
+
+  const checkIn = async () => {
+    if (!profile) return;
+
+    setBusy(true);
+    setGpsMessage('Getting your GPS location…');
+
+    try {
+      const position = await getBrowserLocation();
+
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
+
+      if (accuracy > MAX_GPS_ACCURACY_METERS) {
+        throw new Error(
+          `Your GPS accuracy is too low (${Math.round(
+            accuracy
+          )}m). Please move near an open area or enable high accuracy GPS, then try again.`
+        );
       }
+
+      const nearest = findNearestSite(latitude, longitude);
+
+      if (!nearest) {
+        throw new Error('No approved attendance site is configured.');
+      }
+
+      const distance = nearest.distanceMeters;
+      const site = nearest.site;
+
+      if (distance > site.radiusMeters) {
+        throw new Error(
+          `You are outside the approved check-in area.\n\nNearest site: ${
+            site.name
+          }\nYour distance: ${Math.round(
+            distance
+          )}m\nAllowed radius: ${site.radiusMeters}m`
+        );
+      }
+
+      setGpsMessage(
+        `Location verified at ${site.name}. Distance: ${Math.round(distance)}m.`
+      );
+
+      const res = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_id: profile.id,
+          date: todayStr(),
+          check_in: new Date().toISOString(),
+          status: 'present',
+          check_in_latitude: latitude,
+          check_in_longitude: longitude,
+          check_in_accuracy: accuracy,
+          check_in_site: site.name,
+          check_in_distance_meters: Math.round(distance),
+          check_in_verified: true,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to check in.');
+      }
+
+      await fetchAll();
+
+      alert(
+        `Check-in successful.\n\nSite: ${site.name}\nDistance: ${Math.round(
+          distance
+        )}m\nGPS accuracy: ${Math.round(accuracy)}m`
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
+      alert(err instanceof Error ? err.message : 'Failed to verify location.');
+    } finally {
+      setBusy(false);
+      setTimeout(() => setGpsMessage(''), 4000);
+    }
+  };
+
+  const checkOut = async () => {
+    if (!myToday) return;
+
+    setBusy(true);
+
+    try {
+      const res = await fetch('/api/attendance', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: myToday.id,
+          check_out: new Date().toISOString(),
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to check out.');
+      }
+
+      await fetchAll();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to check out.');
     } finally {
       setBusy(false);
     }
   };
 
-  const statItems: Array<[string, string]> = [
-    [stats.employees > 0 ? `${stats.employees}` : '—', 'Employees managed'],
-    [stats.departments > 0 ? `${stats.departments}` : '—', 'Departments'],
-    [stats.locations > 0 ? `${stats.locations}` : '—', 'Locations'],
-  ];
+  if (loading) return <LoadingState label="Loading attendance…" />;
+
+  if (error) return <ErrorState message={error} onRetry={fetchAll} />;
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-bg text-ink flex items-center justify-center px-4 py-10">
-      <div className="absolute inset-0 grid-noise opacity-40" />
-      <div className="absolute -top-40 -left-40 w-[520px] h-[520px] rounded-full bg-primary/30 blur-[140px]" />
-      <div className="absolute -bottom-40 -right-20 w-[480px] h-[480px] rounded-full bg-accent/20 blur-[140px]" />
-      <motion.div
-        className="absolute top-1/4 right-1/4 w-24 h-24 rounded-3xl glass animate-float-slow hidden lg:block"
-        initial={{ opacity: 0 }} animate={{ opacity: 0.6 }} transition={{ delay: 0.4, duration: 1 }}
-      />
-      <motion.div
-        className="absolute bottom-1/4 left-1/3 w-16 h-16 rounded-2xl glass hidden lg:block"
-        style={{ animationDelay: '1.5s' }}
-        initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} transition={{ delay: 0.7, duration: 1 }}
-      />
-
-      <div className="relative z-10 w-full max-w-5xl grid lg:grid-cols-[1.05fr_1fr] gap-10 items-center">
-        <motion.div
-          initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.7, ease: 'easeOut' }}
-          className="hidden lg:flex flex-col gap-8 pr-6"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary to-accent grid place-items-center shadow-lg shadow-primary/30">
-              <Sparkles size={22} className="text-white" />
-            </div>
-            <span className="font-display text-2xl font-bold tracking-tight">
-              Wtec<span className="text-gradient">HR</span>
-            </span>
-          </div>
-          <div>
-            <h1 className="font-display text-5xl font-bold leading-[1.08] tracking-tight">
-              People operations,<br />
-              <span className="text-gradient">reimagined.</span>
-            </h1>
-            <p className="mt-5 text-muted text-lg max-w-md leading-relaxed">
-              A unified command center for headcount, attendance, payroll & performance — built for teams that move fast.
-            </p>
-          </div>
-          <div className="flex gap-6 pt-4">
-            {statItems.map(([value, label]) => (
-              <div key={label}>
-                <div className="font-display text-2xl font-bold text-gradient">{value}</div>
-                <div className="text-xs text-muted mt-1">{label}</div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: 'easeOut', delay: 0.1 }}
-          className="glass rounded-3xl p-7 sm:p-9 shadow-2xl shadow-black/40"
-        >
-          <div className="lg:hidden flex items-center gap-2 mb-6">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center">
-              <Sparkles size={18} className="text-white" />
-            </div>
-            <span className="font-display text-xl font-bold">
-              Wtec<span className="text-gradient">HR</span>
-            </span>
-          </div>
-
-          {mode === 'forgot' ? (
-            <>
-              <button
-                onClick={() => { setMode('signin'); setError(''); setNotice(''); }}
-                className="flex items-center gap-1.5 text-xs text-muted hover:text-ink transition-colors mb-4"
-              >
-                <ArrowLeft size={13} /> Back to sign in
-              </button>
-              <h2 className="font-display text-2xl font-bold mb-2">Reset your password</h2>
-              <p className="text-muted text-sm mb-6">
-                Enter the email linked to your account and we'll send you a secure link to set a new password.
-              </p>
-            </>
-          ) : (
-            <h2 className="font-display text-2xl font-bold mb-6">
-              {mode === 'signup' ? 'Create your account' : 'Welcome back'}
-            </h2>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="text-xs text-muted mb-1.5 block">Email address</label>
-              <div className="relative">
-                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-3 py-3 text-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all"
-                />
-              </div>
-            </div>
-
-            {mode !== 'forgot' && (
-              <div>
-                <label className="text-xs text-muted mb-1.5 block">Password</label>
-                <div className="relative">
-                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-3 py-3 text-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all"
-                  />
-                </div>
-              </div>
-            )}
-            {mode === 'signup' && (
-              <div className="bg-white/[0.03] border border-white/10 rounded-xl px-3.5 py-3 space-y-1.5">
-                <p className="text-[11px] text-muted font-medium mb-1 flex items-center gap-1.5">
-                  <ShieldCheck size={12} className="text-primary" /> Password requirements
-                </p>
-                {PASSWORD_RULES.map((rule) => {
-                  const ok = rule.test(password);
-                  return (
-                    <div key={rule.label} className={`flex items-center gap-2 text-[11px] transition-colors ${ok ? 'text-emerald' : 'text-muted'}`}>
-                      {ok ? <Check size={12} className="shrink-0" /> : <X size={12} className="shrink-0 opacity-50" />}
-                      {rule.label}
-                    </div>
-                  );
-                })}
-                <p className="text-[10px] text-muted/70 pt-1 border-t border-white/5 mt-2">
-                  Note: sign-up is only available for email addresses registered in the employee directory by your administrator.
-                </p>
-              </div>
-            )}
-            <AnimatePresence>
-              {error && (
-                <motion.p
-                  initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                  className="text-rose text-xs bg-rose/10 border border-rose/20 rounded-lg px-3 py-2"
-                >
-                  {error}
-                </motion.p>
-              )}
-              {notice && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                  className="flex items-start gap-2 text-emerald text-xs bg-emerald/10 border border-emerald/20 rounded-lg px-3 py-2"
-                >
-                  <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
-                  <span>{notice}</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {mode === 'signin' && (
-              <div className="flex items-center justify-between text-xs text-muted">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={remember}
-                    onChange={(e) => applyRememberChoice(e.target.checked)}
-                    className="accent-[#8b5cf6]"
-                  />
-                  Remember me
-                </label>
-                <button
-                  type="button"
-                  onClick={() => { setMode('forgot'); setError(''); setNotice(''); }}
-                  className="hover:text-ink transition-colors"
-                >
-                  Forgot password?
-                </button>
-              </div>
-            )}
-
+    <div>
+      <PageHeader
+        title="Attendance"
+        subtitle={
+          isAdmin
+            ? 'Track daily check-ins and monitor org-wide presence.'
+            : isManagerOnly
+              ? `Track attendance for ${profile?.department ?? 'your department'}.`
+              : 'GPS verified check-in for your daily attendance.'
+        }
+        action={
+          isAdminOrManager ? (
             <button
-              type="submit"
-              disabled={busy}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-3 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-60"
+              type="button"
+              onClick={handleExportCsv}
+              disabled={visibleRecords.length === 0}
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
             >
-              {busy ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <>
-                  {mode === 'signup' ? 'Create account' : mode === 'forgot' ? 'Send reset link' : 'Sign in'}{' '}
-                  <ArrowRight size={16} />
-                </>
-              )}
+              <Download size={16} />
+              Export CSV
             </button>
-          </form>
+          ) : undefined
+        }
+      />
 
-          {mode !== 'forgot' && (
-            <p className="text-center text-xs text-muted mt-6">
-              {mode === 'signup' ? 'Already have an account?' : "Don't have an account?"}{' '}
-              <button
-                onClick={() => { setMode(mode === 'signup' ? 'signin' : 'signup'); setError(''); setNotice(''); }}
-                className="text-ink font-medium hover:text-gradient underline underline-offset-2"
-              >
-                {mode === 'signup' ? 'Sign in' : 'Sign up'}
-              </button>
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass rounded-2xl p-6 mb-6 flex flex-col sm:flex-row items-center justify-between gap-5"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-accent grid place-items-center shadow-lg shadow-primary/30">
+            <Clock size={24} className="text-white" />
+          </div>
+
+          <div>
+            <p className="font-display font-semibold text-lg">
+              {myToday?.check_out
+                ? "You're all done for today"
+                : myToday?.check_in
+                  ? "You're checked in"
+                  : 'Ready to start your day?'}
             </p>
-          )}
-          <p className="text-center text-[11px] text-muted/70 mt-3">
-            Need help? <span className="text-muted">it1@wtecgroup.com.my</span>
-          </p>
-        </motion.div>
+
+            <p className="text-xs text-muted mt-0.5">
+              {myToday?.check_in
+                ? `Checked in at ${new Date(myToday.check_in).toLocaleTimeString(
+                    [],
+                    {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }
+                  )}`
+                : 'No check-in recorded yet today'}
+
+              {myToday?.check_out
+                ? ` · Out at ${new Date(myToday.check_out).toLocaleTimeString(
+                    [],
+                    {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }
+                  )}`
+                : ''}
+            </p>
+
+            {myToday?.check_in_verified && (
+              <p className="text-xs text-emerald mt-1 flex items-center gap-1">
+                <ShieldCheck size={13} />
+                Verified at {myToday.check_in_site ?? 'approved site'} ·{' '}
+                {formatMeters(myToday.check_in_distance_meters)}
+              </p>
+            )}
+
+            {gpsMessage && (
+              <p className="text-xs text-accent mt-1 flex items-center gap-1">
+                <MapPin size={13} />
+                {gpsMessage}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={checkIn}
+            disabled={!!myToday?.check_in || busy}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 px-4 py-2.5 text-sm font-semibold shadow-lg disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] transition-all"
+          >
+            {busy ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <LogIn size={16} />
+            )}
+            GPS Check In
+          </button>
+
+          <button
+            type="button"
+            onClick={checkOut}
+            disabled={!myToday?.check_in || !!myToday?.check_out || busy}
+            className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
+          >
+            <LogOut size={16} />
+            Check Out
+          </button>
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="glass rounded-2xl p-6 mb-6"
+      >
+        <h3 className="font-display font-semibold mb-1">
+          Presence Heatmap
+        </h3>
+
+        <p className="text-xs text-muted mb-4">
+          Last 42 days ·{' '}
+          {isAdmin
+            ? 'org-wide presence intensity'
+            : isManagerOnly
+              ? `${profile?.department ?? 'department'} presence intensity`
+              : 'your attendance intensity'}
+        </p>
+
+        <div className="grid grid-cols-7 gap-1.5 sm:gap-2 max-w-md">
+          {heatmap.map((d) => {
+            const intensity = d.count / maxCount;
+
+            return (
+              <div
+                key={d.date}
+                title={`${d.date}: ${d.count} present`}
+                className="aspect-square rounded-md"
+                style={{
+                  background:
+                    intensity === 0
+                      ? 'rgba(255,255,255,0.04)'
+                      : `rgba(139, 92, 246, ${0.15 + intensity * 0.75})`,
+                }}
+              />
+            );
+          })}
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="glass rounded-2xl overflow-hidden"
+      >
+        <div className="px-6 py-4 border-b border-white/5">
+          <h3 className="font-display font-semibold">
+            {isAdmin
+              ? 'Recent History'
+              : isManagerOnly
+                ? `${profile?.department ?? 'Department'} Attendance History`
+                : 'Your Attendance History'}
+          </h3>
+        </div>
+
+        {recent.length === 0 ? (
+          <EmptyState label="No attendance records yet." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-white/5">
+                  <th className="px-6 py-3 font-medium">Employee</th>
+                  <th className="px-6 py-3 font-medium">Department</th>
+                  <th className="px-6 py-3 font-medium">Date</th>
+                  <th className="px-6 py-3 font-medium">Check In</th>
+                  <th className="px-6 py-3 font-medium">Check Out</th>
+                  <th className="px-6 py-3 font-medium">Site</th>
+                  <th className="px-6 py-3 font-medium">GPS</th>
+                  <th className="px-6 py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {recent.map((r) => (
+                  <tr
+                    key={r.id}
+                    className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-all"
+                  >
+                    <td className="px-6 py-3">
+                      {empMap[r.employee_id]?.name ?? `#${r.employee_id}`}
+                    </td>
+
+                    <td className="px-6 py-3 text-muted">
+                      {empMap[r.employee_id]?.department ?? '—'}
+                    </td>
+
+                    <td className="px-6 py-3 text-muted">{r.date}</td>
+
+                    <td className="px-6 py-3 text-muted font-mono text-xs">
+                      {r.check_in
+                        ? new Date(r.check_in).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
+                    </td>
+
+                    <td className="px-6 py-3 text-muted font-mono text-xs">
+                      {r.check_out
+                        ? new Date(r.check_out).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
+                    </td>
+
+                    <td className="px-6 py-3 text-muted">
+                      {r.check_in_site ?? '—'}
+                    </td>
+
+                    <td className="px-6 py-3">
+                      {r.check_in_verified ? (
+                        <div className="flex items-center gap-1 text-emerald text-xs">
+                          <ShieldCheck size={14} />
+                          {formatMeters(r.check_in_distance_meters)}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 text-muted text-xs">
+                          <ShieldAlert size={14} />
+                          Not verified
+                        </div>
+                      )}
+                    </td>
+
+                    <td className="px-6 py-3">
+                      <Badge tone={STATUS_TONE[r.status] ?? 'default'}>
+                        {r.status}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </motion.div>
+
+      <div className="flex items-center gap-1.5 text-xs text-muted mt-2 justify-end">
+        <Database size={12} />
+        Data synced live with Supabase
       </div>
     </div>
   );

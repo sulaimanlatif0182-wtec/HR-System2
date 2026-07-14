@@ -1,102 +1,73 @@
 import { useState, useEffect, useMemo } from 'react';
-import type { FormEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-  UserPlus,
-  Search,
-  LayoutGrid,
-  List,
-  X,
-  Mail,
-  Phone,
-  MapPin,
-  Calendar,
-  Briefcase,
-  DollarSign,
+  Clock,
+  LogIn,
+  LogOut,
   Loader2,
+  Database,
   Download,
-  UserX,
+  MapPin,
+  ShieldCheck,
+  ShieldAlert,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   PageHeader,
   Badge,
-  GlowCard,
   LoadingState,
   ErrorState,
   EmptyState,
-  InfoRow,
 } from '../components/ui';
 
 const STATUS_TONE: Record<string, string> = {
-  active: 'success',
-  on_leave: 'warning',
-  inactive: 'default',
+  present: 'success',
+  late: 'warning',
+  absent: 'danger',
+  remote: 'info',
 };
 
-const DEPARTMENT_OPTIONS = [
-  'Engineering',
-  'QA',
-  'Managing Director',
-  'Sales',
-  'Human Resource',
-  'Finance',
-  'Executive Director',
-  'Administration',
-  'Shipping',
-  'Maintenance',
-  'QC',
-  'Store',
-  'Planner',
-  'IT',
-  'Purchasing',
-  'Marketing',
+const GEOFENCE_RADIUS_METERS = 100;
+const MAX_GPS_ACCURACY_METERS = 250;
+
+const ATTENDANCE_SITES = [
+  {
+    name: 'Factory 1',
+    latitude: 2.9662584,
+    longitude: 101.8372782,
+    radiusMeters: GEOFENCE_RADIUS_METERS,
+  },
+  {
+    name: 'Factory 2',
+    latitude: 2.967353,
+    longitude: 101.836689,
+    radiusMeters: GEOFENCE_RADIUS_METERS,
+  },
 ];
 
-const LOCATION_OPTIONS = [
-  'Factory 1',
-  'Factory 2',
-  'Factory 3',
-  'Factory 4',
-];
-
-const ROLE_OPTIONS = [
-  {
-    label: 'Employee',
-    value: 'employee',
-  },
-  {
-    label: 'Manager',
-    value: 'manager',
-  },
-  {
-    label: 'Admin',
-    value: 'admin',
-  },
-] as const;
-
-function initials(name: string) {
-  return name
-    .split(' ')
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-interface Employee {
+interface AttRec {
+  id: number;
+  employee_id: number;
+  date: string;
+  check_in: string | null;
+  check_out: string | null;
+  status: string;
+  check_in_latitude?: number | null;
+  check_in_longitude?: number | null;
+  check_in_accuracy?: number | null;
+  check_in_site?: string | null;
+  check_in_distance_meters?: number | null;
+  check_in_verified?: boolean | null;
+}
+
+interface Emp {
   id: number;
   name: string;
-  email: string;
-  title: string | null;
   department: string | null;
-  status: string;
-  phone: string | null;
-  location: string | null;
-  join_date: string | null;
-  role: string;
-  salary: number | null;
 }
 
 function escapeCsvValue(value: unknown) {
@@ -139,70 +110,119 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
   URL.revokeObjectURL(url);
 }
 
-export default function Employees() {
+function getDistanceMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+) {
+  const earthRadiusMeters = 6371000;
+
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return earthRadiusMeters * c;
+}
+
+function findNearestSite(latitude: number, longitude: number) {
+  const sitesWithDistance = ATTENDANCE_SITES.map((site) => ({
+    site,
+    distanceMeters: getDistanceMeters(
+      latitude,
+      longitude,
+      site.latitude,
+      site.longitude
+    ),
+  }));
+
+  return sitesWithDistance.sort(
+    (a, b) => a.distanceMeters - b.distanceMeters
+  )[0];
+}
+
+function getBrowserLocation(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('GPS location is not supported by this browser.'));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 0,
+    });
+  });
+}
+
+function formatMeters(value?: number | null) {
+  if (value === null || value === undefined) return '—';
+
+  return `${Math.round(Number(value))}m`;
+}
+
+export default function Attendance() {
   const { profile } = useAuth();
 
   const isAdmin = profile?.role === 'admin';
   const isManagerOnly = profile?.role === 'manager';
-  const isAdminOrManager = profile?.role === 'admin' || profile?.role === 'manager';
+  const isAdminOrManager =
+    profile?.role === 'admin' || profile?.role === 'manager';
 
-  const profileDepartment = String(profile?.department ?? '').trim().toLowerCase();
+  const profileDepartment = String(profile?.department ?? '')
+    .trim()
+    .toLowerCase();
 
-  const availableRoleOptions = isAdmin
-    ? ROLE_OPTIONS
-    : ROLE_OPTIONS.filter((role) => role.value === 'employee');
-
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [records, setRecords] = useState<AttRec[]>([]);
+  const [employees, setEmployees] = useState<Emp[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [view, setView] = useState<'grid' | 'table'>('grid');
-  const [searchParams] = useSearchParams();
-  const [search, setSearch] = useState(searchParams.get('q') ?? '');
-  const [deptFilter, setDeptFilter] = useState('all');
-  const [selected, setSelected] = useState<Employee | null>(null);
-  const [showAdd, setShowAdd] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [gpsMessage, setGpsMessage] = useState('');
 
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    role: 'employee',
-    title: '',
-    department: '',
-    phone: '',
-    location: '',
-  });
-
-  const [saving, setSaving] = useState(false);
-  const [deactivating, setDeactivating] = useState(false);
-  const [formError, setFormError] = useState('');
-  const [tab, setTab] = useState<'info' | 'documents' | 'performance'>('info');
-
-  useEffect(() => {
-    const q = searchParams.get('q');
-
-    if (q !== null) {
-      setSearch(q);
-    }
-  }, [searchParams]);
-
-  const fetchEmployees = async () => {
+  const fetchAll = async () => {
     setLoading(true);
     setError('');
 
     try {
-      const data = await (await fetch('/api/employees')).json();
+      const [att, emp] = await Promise.all([
+        fetch('/api/attendance').then((r) => r.json()),
+        fetch('/api/employees').then((r) => r.json()),
+      ]);
 
-      setEmployees(Array.isArray(data) ? data : []);
+      setRecords(Array.isArray(att) ? att : []);
+      setEmployees(Array.isArray(emp) ? emp : []);
     } catch {
-      setError('Failed to load employees.');
+      setError('Failed to load attendance records.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchEmployees();
+    fetchAll();
   }, []);
+
+  const empMap = useMemo(() => {
+    const m: Record<number, Emp> = {};
+
+    employees.forEach((e) => {
+      m[e.id] = e;
+    });
+
+    return m;
+  }, [employees]);
 
   const visibleEmployees = useMemo(() => {
     if (isAdmin) {
@@ -212,790 +232,454 @@ export default function Employees() {
     if (isManagerOnly) {
       return employees.filter(
         (employee) =>
-          String(employee.department ?? '').trim().toLowerCase() === profileDepartment
+          String(employee.department ?? '').trim().toLowerCase() ===
+          profileDepartment
       );
     }
 
     return employees.filter((employee) => employee.id === profile?.id);
   }, [employees, isAdmin, isManagerOnly, profile?.id, profileDepartment]);
 
-  const departments = useMemo(() => {
-    const set = new Set(
-      visibleEmployees.map((e) => e.department).filter(Boolean) as string[]
-    );
-
-    return ['all', ...Array.from(set)];
-  }, [visibleEmployees]);
-
-  const filtered = useMemo(
-    () =>
-      visibleEmployees.filter((e) => {
-        const s = search.toLowerCase();
-
-        const matchesSearch =
-          e.name.toLowerCase().includes(s) ||
-          e.email.toLowerCase().includes(s) ||
-          (e.role ?? '').toLowerCase().includes(s) ||
-          (e.title ?? '').toLowerCase().includes(s) ||
-          (e.department ?? '').toLowerCase().includes(s) ||
-          (e.location ?? '').toLowerCase().includes(s);
-
-        const matchesDept = deptFilter === 'all' || e.department === deptFilter;
-
-        return matchesSearch && matchesDept;
-      }),
-    [visibleEmployees, search, deptFilter]
+  const visibleEmployeeIds = useMemo(
+    () => new Set(visibleEmployees.map((employee) => employee.id)),
+    [visibleEmployees]
   );
 
-  const effectiveDepartment: string = isAdmin
-    ? form.department
-    : profile?.department ?? '';
+  const visibleRecords = useMemo(() => {
+    if (isAdmin) {
+      return records;
+    }
 
-  const addDepartmentOptions = useMemo(() => {
-  if (isAdmin) {
-    return DEPARTMENT_OPTIONS;
-  }
+    return records.filter((record) =>
+      visibleEmployeeIds.has(record.employee_id)
+    );
+  }, [records, visibleEmployeeIds, isAdmin]);
 
-  return profile?.department ? [profile.department] : [];
-}, [isAdmin, profile?.department]);
+  const myToday = useMemo(
+    () =>
+      (profile &&
+        records.find(
+          (r) => r.employee_id === profile.id && r.date === todayStr()
+        )) ||
+      null,
+    [records, profile]
+  );
 
-  const handleOpenAdd = () => {
-    setForm({
-      name: '',
-      email: '',
-      role: 'employee',
-      title: '',
-      department: isAdmin ? '' : profile?.department ?? '',
-      phone: '',
-      location: '',
-    });
+  const heatmap = useMemo(() => {
+    const days: { date: string; count: number }[] = [];
+    const now = new Date();
 
-    setFormError('');
-    setShowAdd(true);
-  };
+    for (let i = 41; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+
+      const key = d.toISOString().slice(0, 10);
+
+      const count = visibleRecords.filter(
+        (r) =>
+          r.date === key && (r.status === 'present' || r.status === 'remote')
+      ).length;
+
+      days.push({ date: key, count });
+    }
+
+    return days;
+  }, [visibleRecords]);
+
+  const maxCount = Math.max(...heatmap.map((d) => d.count), 1);
+
+  const recent = visibleRecords.slice(0, 30);
 
   const handleExportCsv = () => {
-    const rows = filtered.map((emp) => ({
-      ID: emp.id,
-      Name: emp.name,
-      Email: emp.email,
-      Role: emp.role,
-      Title: emp.title ?? '',
-      Department: emp.department ?? '',
-      Status: emp.status,
-      Phone: emp.phone ?? '',
-      Location: emp.location ?? '',
-      Join_Date: emp.join_date ?? '',
-      Salary: emp.salary ?? '',
+    const rows = visibleRecords.map((r) => ({
+      ID: r.id,
+      Employee_ID: r.employee_id,
+      Employee_Name: empMap[r.employee_id]?.name ?? `#${r.employee_id}`,
+      Department: empMap[r.employee_id]?.department ?? '',
+      Date: r.date,
+      Check_In: r.check_in ? new Date(r.check_in).toLocaleString() : '',
+      Check_Out: r.check_out ? new Date(r.check_out).toLocaleString() : '',
+      Status: r.status,
+      Check_In_Site: r.check_in_site ?? '',
+      Check_In_Verified: r.check_in_verified ? 'Yes' : 'No',
+      Check_In_Distance_Meters: r.check_in_distance_meters ?? '',
+      Check_In_Accuracy_Meters: r.check_in_accuracy ?? '',
+      Check_In_Latitude: r.check_in_latitude ?? '',
+      Check_In_Longitude: r.check_in_longitude ?? '',
     }));
 
-    downloadCsv('employees.csv', rows);
+    downloadCsv('attendance.csv', rows);
   };
 
-  const handleDeactivateEmployee = async (employee: Employee) => {
-    if (!isAdmin) return;
+  const checkIn = async () => {
+    if (!profile) return;
 
-    if (employee.id === profile?.id) {
-      alert('You cannot deactivate your own admin profile.');
-      return;
-    }
-
-    if (employee.status === 'inactive') {
-      alert(`${employee.name} is already inactive.`);
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Are you sure you want to deactivate ${employee.name}? Their attendance, leave, and payroll history will be kept.`
-    );
-
-    if (!confirmed) return;
-
-    setDeactivating(true);
+    setBusy(true);
+    setGpsMessage('Getting your GPS location…');
 
     try {
-      const res = await fetch(`/api/employees?id=${employee.id}`, {
-        method: 'DELETE',
+      const position = await getBrowserLocation();
+
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
+
+      if (accuracy > MAX_GPS_ACCURACY_METERS) {
+        throw new Error(
+          `Your GPS accuracy is too low (${Math.round(
+            accuracy
+          )}m). Please move near an open area or enable high accuracy GPS, then try again.`
+        );
+      }
+
+      const nearest = findNearestSite(latitude, longitude);
+
+      if (!nearest) {
+        throw new Error('No approved attendance site is configured.');
+      }
+
+      const distance = nearest.distanceMeters;
+      const site = nearest.site;
+
+      if (distance > site.radiusMeters) {
+        throw new Error(
+          `You are outside the approved check-in area.\n\nNearest site: ${
+            site.name
+          }\nYour distance: ${Math.round(
+            distance
+          )}m\nAllowed radius: ${site.radiusMeters}m`
+        );
+      }
+
+      setGpsMessage(
+        `Location verified at ${site.name}. Distance: ${Math.round(distance)}m.`
+      );
+
+      const res = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_id: profile.id,
+          date: todayStr(),
+          check_in: new Date().toISOString(),
+          status: 'present',
+          check_in_latitude: latitude,
+          check_in_longitude: longitude,
+          check_in_accuracy: accuracy,
+          check_in_site: site.name,
+          check_in_distance_meters: Math.round(distance),
+          check_in_verified: true,
+        }),
       });
 
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error(data?.error || 'Failed to deactivate employee.');
+        throw new Error(data?.error || 'Failed to check in.');
       }
 
-      const updatedEmployee = data?.employee;
+      await fetchAll();
 
-      if (updatedEmployee) {
-        setEmployees((prev) =>
-          prev.map((e) =>
-            e.id === employee.id
-              ? {
-                  ...e,
-                  status: updatedEmployee.status,
-                }
-              : e
-          )
-        );
-
-        setSelected((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: updatedEmployee.status,
-              }
-            : prev
-        );
-      } else {
-        await fetchEmployees();
-      }
-
-      alert(`${employee.name} has been deactivated.`);
+      alert(
+        `Check-in successful.\n\nSite: ${site.name}\nDistance: ${Math.round(
+          distance
+        )}m\nGPS accuracy: ${Math.round(accuracy)}m`
+      );
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to deactivate employee.');
+      alert(err instanceof Error ? err.message : 'Failed to verify location.');
     } finally {
-      setDeactivating(false);
+      setBusy(false);
+      setTimeout(() => setGpsMessage(''), 4000);
     }
   };
 
-  const handleAdd = async (e: FormEvent) => {
-    e.preventDefault();
+  const checkOut = async () => {
+    if (!myToday) return;
 
-    if (!form.name || !form.email || !form.role || !effectiveDepartment || !form.location) {
-      setFormError('Name, email, role, department and location are required.');
-      return;
-    }
-
-    setSaving(true);
-    setFormError('');
+    setBusy(true);
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
+      const res = await fetch('/api/attendance', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...form,
-          role: isAdmin ? form.role : 'employee',
-          department: effectiveDepartment,
-          status: 'active',
-          join_date: new Date().toISOString().slice(0, 10),
+          id: myToday.id,
+          check_out: new Date().toISOString(),
         }),
       });
 
+      const data = await res.json().catch(() => null);
+
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || 'Failed to add employee');
+        throw new Error(data?.error || 'Failed to check out.');
       }
 
-      setShowAdd(false);
-
-      setForm({
-        name: '',
-        email: '',
-        role: 'employee',
-        title: '',
-        department: '',
-        phone: '',
-        location: '',
-      });
-
-      fetchEmployees();
+      await fetchAll();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Something went wrong.');
+      alert(err instanceof Error ? err.message : 'Failed to check out.');
     } finally {
-      setSaving(false);
+      setBusy(false);
     }
   };
 
-  if (loading) return <LoadingState label="Loading employee directory…" />;
-  if (error) return <ErrorState message={error} onRetry={fetchEmployees} />;
+  if (loading) return <LoadingState label="Loading attendance…" />;
+
+  if (error) return <ErrorState message={error} onRetry={fetchAll} />;
 
   return (
     <div>
       <PageHeader
-        title="Employee Directory"
-        subtitle={`${visibleEmployees.length} visible people across ${
-          departments.length - 1
-        } departments`}
+        title="Attendance"
+        subtitle={
+          isAdmin
+            ? 'Track daily check-ins and monitor org-wide presence.'
+            : isManagerOnly
+              ? `Track attendance for ${profile?.department ?? 'your department'}.`
+              : 'GPS verified check-in for your daily attendance.'
+        }
         action={
           isAdminOrManager ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleExportCsv}
-                disabled={filtered.length === 0}
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
-              >
-                <Download size={16} />
-                Export CSV
-              </button>
-
-              <button
-                type="button"
-                onClick={handleOpenAdd}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] transition-all"
-              >
-                <UserPlus size={16} />
-                Add Employee
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              disabled={visibleRecords.length === 0}
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+            >
+              <Download size={16} />
+              Export CSV
+            </button>
           ) : undefined
         }
       />
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search
-            size={16}
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted"
-          />
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass rounded-2xl p-6 mb-6 flex flex-col sm:flex-row items-center justify-between gap-5"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-accent grid place-items-center shadow-lg shadow-primary/30">
+            <Clock size={24} className="text-white" />
+          </div>
 
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, role, title…"
-            className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
-          />
+          <div>
+            <p className="font-display font-semibold text-lg">
+              {myToday?.check_out
+                ? "You're all done for today"
+                : myToday?.check_in
+                  ? "You're checked in"
+                  : 'Ready to start your day?'}
+            </p>
+
+            <p className="text-xs text-muted mt-0.5">
+              {myToday?.check_in
+                ? `Checked in at ${new Date(myToday.check_in).toLocaleTimeString(
+                    [],
+                    {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }
+                  )}`
+                : 'No check-in recorded yet today'}
+
+              {myToday?.check_out
+                ? ` · Out at ${new Date(myToday.check_out).toLocaleTimeString(
+                    [],
+                    {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }
+                  )}`
+                : ''}
+            </p>
+
+            {myToday?.check_in_verified && (
+              <p className="text-xs text-emerald mt-1 flex items-center gap-1">
+                <ShieldCheck size={13} />
+                Verified at {myToday.check_in_site ?? 'approved site'} ·{' '}
+                {formatMeters(myToday.check_in_distance_meters)}
+              </p>
+            )}
+
+            {gpsMessage && (
+              <p className="text-xs text-accent mt-1 flex items-center gap-1">
+                <MapPin size={13} />
+                {gpsMessage}
+              </p>
+            )}
+          </div>
         </div>
 
-        <select
-          value={deptFilter}
-          onChange={(e) => setDeptFilter(e.target.value)}
-          className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50 transition-all"
-        >
-          {departments.map((d) => (
-            <option key={d} value={d}>
-              {d === 'all' ? 'All Departments' : d}
-            </option>
-          ))}
-        </select>
-
-        <div className="flex gap-1 bg-surface border border-white/10 rounded-xl p-1">
+        <div className="flex gap-3">
           <button
             type="button"
-            onClick={() => setView('grid')}
-            className={`p-2 rounded-lg transition-all ${
-              view === 'grid' ? 'bg-primary/20 text-primary' : 'text-muted'
-            }`}
+            onClick={checkIn}
+            disabled={!!myToday?.check_in || busy}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 px-4 py-2.5 text-sm font-semibold shadow-lg disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] transition-all"
           >
-            <LayoutGrid size={16} />
+            {busy ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <LogIn size={16} />
+            )}
+            GPS Check In
           </button>
 
           <button
             type="button"
-            onClick={() => setView('table')}
-            className={`p-2 rounded-lg transition-all ${
-              view === 'table' ? 'bg-primary/20 text-primary' : 'text-muted'
-            }`}
+            onClick={checkOut}
+            disabled={!myToday?.check_in || !!myToday?.check_out || busy}
+            className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
           >
-            <List size={16} />
+            <LogOut size={16} />
+            Check Out
           </button>
         </div>
-      </div>
+      </motion.div>
 
-      {filtered.length === 0 ? (
-        <EmptyState label="No employees match your filters." />
-      ) : view === 'grid' ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {filtered.map((emp, i) => (
-            <motion.div
-              key={emp.id}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: 0.35,
-                delay: Math.min(i * 0.04, 0.4),
-              }}
-            >
-              <GlowCard className="p-5 cursor-pointer h-full">
-                <div
-                  onClick={() => {
-                    setSelected(emp);
-                    setTab('info');
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent grid place-items-center font-bold shrink-0">
-                      {initials(emp.name)}
-                    </div>
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="glass rounded-2xl p-6 mb-6"
+      >
+        <h3 className="font-display font-semibold mb-1">
+          Presence Heatmap
+        </h3>
 
-                    <div className="min-w-0">
-                      <p className="font-semibold text-sm truncate">
-                        {emp.name}
-                      </p>
-                      <p className="text-xs text-muted truncate">
-                        {emp.title}
-                      </p>
-                    </div>
-                  </div>
+        <p className="text-xs text-muted mb-4">
+          Last 42 days ·{' '}
+          {isAdmin
+            ? 'org-wide presence intensity'
+            : isManagerOnly
+              ? `${profile?.department ?? 'department'} presence intensity`
+              : 'your attendance intensity'}
+        </p>
 
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <Badge
-                      tone={
-                        emp.role === 'admin'
-                          ? 'danger'
-                          : emp.role === 'manager'
-                            ? 'warning'
-                            : 'default'
-                      }
-                    >
-                      {emp.role}
-                    </Badge>
+        <div className="grid grid-cols-7 gap-1.5 sm:gap-2 max-w-md">
+          {heatmap.map((d) => {
+            const intensity = d.count / maxCount;
 
-                    <Badge tone="info">{emp.department}</Badge>
-
-                    <Badge tone={STATUS_TONE[emp.status] ?? 'default'}>
-                      {emp.status.replace('_', ' ')}
-                    </Badge>
-                  </div>
-                </div>
-              </GlowCard>
-            </motion.div>
-          ))}
-        </div>
-      ) : (
-        <div className="glass rounded-2xl overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-white/5">
-                <th className="px-5 py-3.5 font-medium">Employee</th>
-                <th className="px-5 py-3.5 font-medium">Role</th>
-                <th className="px-5 py-3.5 font-medium">Department</th>
-                <th className="px-5 py-3.5 font-medium">Title</th>
-                <th className="px-5 py-3.5 font-medium">Status</th>
-                <th className="px-5 py-3.5 font-medium">Location</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filtered.map((emp) => (
-                <tr
-                  key={emp.id}
-                  onClick={() => {
-                    setSelected(emp);
-                    setTab('info');
-                  }}
-                  className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] cursor-pointer transition-all"
-                >
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center text-xs font-bold shrink-0">
-                        {initials(emp.name)}
-                      </div>
-
-                      <div>
-                        <p className="font-medium">{emp.name}</p>
-                        <p className="text-xs text-muted">{emp.email}</p>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-3.5">
-                    <Badge
-                      tone={
-                        emp.role === 'admin'
-                          ? 'danger'
-                          : emp.role === 'manager'
-                            ? 'warning'
-                            : 'default'
-                      }
-                    >
-                      {emp.role}
-                    </Badge>
-                  </td>
-
-                  <td className="px-5 py-3.5 text-muted">
-                    {emp.department}
-                  </td>
-
-                  <td className="px-5 py-3.5 text-muted">
-                    {emp.title}
-                  </td>
-
-                  <td className="px-5 py-3.5">
-                    <Badge tone={STATUS_TONE[emp.status] ?? 'default'}>
-                      {emp.status.replace('_', ' ')}
-                    </Badge>
-                  </td>
-
-                  <td className="px-5 py-3.5 text-muted">
-                    {emp.location}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <AnimatePresence>
-        {selected && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 z-50"
-              onClick={() => setSelected(null)}
-            />
-
-            <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="fixed right-0 top-0 h-screen w-full max-w-md glass-solid border-l border-white/10 z-50 overflow-y-auto scrollbar-thin"
-            >
-              <div className="p-6">
-                <button
-                  type="button"
-                  onClick={() => setSelected(null)}
-                  className="ml-auto flex text-muted hover:text-ink mb-4"
-                >
-                  <X size={20} />
-                </button>
-
-                <div className="flex flex-col items-center text-center">
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent grid place-items-center text-2xl font-bold shadow-xl shadow-primary/30">
-                    {initials(selected.name)}
-                  </div>
-
-                  <h2 className="font-display text-xl font-bold mt-4">
-                    {selected.name}
-                  </h2>
-
-                  <p className="text-muted text-sm">{selected.title}</p>
-
-                  <div className="flex flex-wrap justify-center gap-2 mt-3">
-                    <Badge
-                      tone={
-                        selected.role === 'admin'
-                          ? 'danger'
-                          : selected.role === 'manager'
-                            ? 'warning'
-                            : 'default'
-                      }
-                    >
-                      {selected.role}
-                    </Badge>
-
-                    <Badge tone="info">{selected.department}</Badge>
-
-                    <Badge tone={STATUS_TONE[selected.status] ?? 'default'}>
-                      {selected.status.replace('_', ' ')}
-                    </Badge>
-                  </div>
-
-                  {isAdmin && selected.status !== 'inactive' && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeactivateEmployee(selected)}
-                      disabled={deactivating}
-                      className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-amber/25 bg-amber/10 px-4 py-2.5 text-sm font-semibold text-amber hover:bg-amber/20 disabled:cursor-not-allowed disabled:opacity-60 transition-all"
-                    >
-                      {deactivating ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <UserX size={16} />
-                      )}
-
-                      Deactivate Employee
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex gap-1 bg-surface border border-white/10 rounded-xl p-1 mt-6">
-                  {(['info', 'documents', 'performance'] as const).map((t) => (
-                    <button
-                      type="button"
-                      key={t}
-                      onClick={() => setTab(t)}
-                      className={`flex-1 py-2 rounded-lg text-xs font-medium capitalize transition-all ${
-                        tab === t
-                          ? 'bg-primary/20 text-primary'
-                          : 'text-muted hover:text-ink'
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mt-5 space-y-3">
-                  {tab === 'info' && (
-                    <>
-                      <InfoRow
-                        icon={Mail}
-                        label="Email"
-                        value={selected.email}
-                      />
-
-                      <InfoRow
-                        icon={Phone}
-                        label="Phone"
-                        value={selected.phone ?? '—'}
-                      />
-
-                      <InfoRow
-                        icon={MapPin}
-                        label="Location"
-                        value={selected.location ?? '—'}
-                      />
-
-                      <InfoRow
-                        icon={Calendar}
-                        label="Joined"
-                        value={selected.join_date ?? '—'}
-                      />
-
-                      <InfoRow
-                        icon={Briefcase}
-                        label="Role"
-                        value={selected.role}
-                      />
-
-                      {selected.salary && (
-                        <InfoRow
-                          icon={DollarSign}
-                          label="Annual Salary"
-                          value={`$${Number(
-                            selected.salary
-                          ).toLocaleString()}`}
-                        />
-                      )}
-                    </>
-                  )}
-
-                  {tab === 'documents' && (
-                    <div className="space-y-2">
-                      {[
-                        'Employment Contract.pdf',
-                        'ID Verification.pdf',
-                        'Tax Form W-4.pdf',
-                      ].map((doc) => (
-                        <div
-                          key={doc}
-                          className="flex items-center justify-between glass rounded-xl px-4 py-3 text-sm"
-                        >
-                          <span>{doc}</span>
-                          <span className="text-xs text-muted">2.1 MB</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {tab === 'performance' && (
-                    <div className="space-y-3">
-                      {(
-                        [
-                          ['Q1 Review', 92],
-                          ['Q2 Review', 88],
-                          ['Q3 Review', 95],
-                        ] as const
-                      ).map(([label, pct]) => (
-                        <div key={label} className="glass rounded-xl px-4 py-3">
-                          <div className="flex justify-between text-sm mb-2">
-                            <span>{label}</span>
-                            <span className="text-primary font-semibold">
-                              {pct}%
-                            </span>
-                          </div>
-
-                          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: `${pct}%` }}
-                              transition={{ duration: 0.8 }}
-                              className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showAdd && isAdminOrManager && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 z-50"
-              onClick={() => setShowAdd(false)}
-            />
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
-            >
+            return (
               <div
-                className="glass-solid rounded-2xl p-6 w-full max-w-md pointer-events-auto"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center justify-between mb-5">
-                  <h3 className="font-display text-lg font-bold">
-                    Add Employee
-                  </h3>
+                key={d.date}
+                title={`${d.date}: ${d.count} present`}
+                className="aspect-square rounded-md"
+                style={{
+                  background:
+                    intensity === 0
+                      ? 'rgba(255,255,255,0.04)'
+                      : `rgba(139, 92, 246, ${0.15 + intensity * 0.75})`,
+                }}
+              />
+            );
+          })}
+        </div>
+      </motion.div>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowAdd(false)}
-                    className="text-muted hover:text-ink"
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="glass rounded-2xl overflow-hidden"
+      >
+        <div className="px-6 py-4 border-b border-white/5">
+          <h3 className="font-display font-semibold">
+            {isAdmin
+              ? 'Recent History'
+              : isManagerOnly
+                ? `${profile?.department ?? 'Department'} Attendance History`
+                : 'Your Attendance History'}
+          </h3>
+        </div>
+
+        {recent.length === 0 ? (
+          <EmptyState label="No attendance records yet." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-white/5">
+                  <th className="px-6 py-3 font-medium">Employee</th>
+                  <th className="px-6 py-3 font-medium">Department</th>
+                  <th className="px-6 py-3 font-medium">Date</th>
+                  <th className="px-6 py-3 font-medium">Check In</th>
+                  <th className="px-6 py-3 font-medium">Check Out</th>
+                  <th className="px-6 py-3 font-medium">Site</th>
+                  <th className="px-6 py-3 font-medium">GPS</th>
+                  <th className="px-6 py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {recent.map((r) => (
+                  <tr
+                    key={r.id}
+                    className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-all"
                   >
-                    <X size={18} />
-                  </button>
-                </div>
+                    <td className="px-6 py-3">
+                      {empMap[r.employee_id]?.name ?? `#${r.employee_id}`}
+                    </td>
 
-                <form onSubmit={handleAdd} className="space-y-3">
-                  <input
-                    required
-                    placeholder="Full name"
-                    value={form.name}
-                    onChange={(e) =>
-                      setForm({ ...form, name: e.target.value })
-                    }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-                  />
+                    <td className="px-6 py-3 text-muted">
+                      {empMap[r.employee_id]?.department ?? '—'}
+                    </td>
 
-                  <input
-                    required
-                    type="email"
-                    placeholder="Email"
-                    value={form.email}
-                    onChange={(e) =>
-                      setForm({ ...form, email: e.target.value })
-                    }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-                  />
+                    <td className="px-6 py-3 text-muted">{r.date}</td>
 
-                  <select
-                    required
-                    value={form.role}
-                    onChange={(e) =>
-                      setForm({ ...form, role: e.target.value })
-                    }
-                    disabled={!isAdmin}
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {availableRoleOptions.map((role) => (
-                      <option key={role.value} value={role.value}>
-                        {role.label}
-                      </option>
-                    ))}
-                  </select>
+                    <td className="px-6 py-3 text-muted font-mono text-xs">
+                      {r.check_in
+                        ? new Date(r.check_in).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
+                    </td>
 
-                  <input
-                    placeholder="Job title"
-                    value={form.title}
-                    onChange={(e) =>
-                      setForm({ ...form, title: e.target.value })
-                    }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-                  />
+                    <td className="px-6 py-3 text-muted font-mono text-xs">
+                      {r.check_out
+                        ? new Date(r.check_out).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
+                    </td>
 
-                  <select
-                    required
-                    value={effectiveDepartment || ''}
-                    onChange={(e) =>
-                      setForm({ ...form, department: e.target.value })
-                    }
-                    disabled={!isAdmin}
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <option value="" disabled>
-                      Select Department
-                    </option>
+                    <td className="px-6 py-3 text-muted">
+                      {r.check_in_site ?? '—'}
+                    </td>
 
-                    {addDepartmentOptions.map((department) => (
-                      <option key={department} value={department}>
-                        {department}
-                      </option>
-                    ))}
-                  </select>
+                    <td className="px-6 py-3">
+                      {r.check_in_verified ? (
+                        <div className="flex items-center gap-1 text-emerald text-xs">
+                          <ShieldCheck size={14} />
+                          {formatMeters(r.check_in_distance_meters)}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 text-muted text-xs">
+                          <ShieldAlert size={14} />
+                          Not verified
+                        </div>
+                      )}
+                    </td>
 
-                  {form.role === 'manager' && effectiveDepartment && (
-                    <p className="text-xs text-amber bg-amber/10 border border-amber/20 rounded-lg px-3 py-2">
-                      This user will be assigned as Manager for {effectiveDepartment}.
-                    </p>
-                  )}
-
-                  {form.role === 'admin' && (
-                    <p className="text-xs text-rose bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">
-                      This user will have full admin access.
-                    </p>
-                  )}
-
-                  {!isAdmin && profile?.department && (
-                    <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
-                      As a manager, you can only add employees to your department:{' '}
-                      <span className="text-ink font-medium">
-                        {profile.department}
-                      </span>
-                    </p>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <input
-                      placeholder="Phone"
-                      value={form.phone}
-                      onChange={(e) =>
-                        setForm({ ...form, phone: e.target.value })
-                      }
-                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-                    />
-
-                    <select
-                      required
-                      value={form.location}
-                      onChange={(e) =>
-                        setForm({ ...form, location: e.target.value })
-                      }
-                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
-                    >
-                      <option value="" disabled>
-                        Select Location
-                      </option>
-
-                      {LOCATION_OPTIONS.map((location) => (
-                        <option key={location} value={location}>
-                          {location}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {formError && (
-                    <p className="text-rose text-xs bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">
-                      {formError}
-                    </p>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold mt-2 disabled:opacity-60"
-                  >
-                    {saving ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      'Add Employee'
-                    )}
-                  </button>
-                </form>
-              </div>
-            </motion.div>
-          </>
+                    <td className="px-6 py-3">
+                      <Badge tone={STATUS_TONE[r.status] ?? 'default'}>
+                        {r.status}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </AnimatePresence>
+      </motion.div>
+
+      <div className="flex items-center gap-1.5 text-xs text-muted mt-2 justify-end">
+        <Database size={12} />
+        Data synced live with Supabase
+      </div>
     </div>
   );
 }
