@@ -375,7 +375,7 @@ export default function Leave() {
       time_off_end: '',
       reason: '',
       duties_covered_by: '',
-      mployee_acknowledged: false,
+      employee_acknowledged: false,
   });
 
     setAttachmentFile(null);
