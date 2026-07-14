@@ -142,8 +142,11 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
 export default function Employees() {
   const { profile } = useAuth();
 
-  const isManager = profile?.role === 'admin' || profile?.role === 'manager';
   const isAdmin = profile?.role === 'admin';
+  const isManagerOnly = profile?.role === 'manager';
+  const isAdminOrManager = profile?.role === 'admin' || profile?.role === 'manager';
+
+  const profileDepartment = String(profile?.department ?? '').trim().toLowerCase();
 
   const availableRoleOptions = isAdmin
     ? ROLE_OPTIONS
@@ -201,22 +204,38 @@ export default function Employees() {
     fetchEmployees();
   }, []);
 
+  const visibleEmployees = useMemo(() => {
+    if (isAdmin) {
+      return employees;
+    }
+
+    if (isManagerOnly) {
+      return employees.filter(
+        (employee) =>
+          String(employee.department ?? '').trim().toLowerCase() === profileDepartment
+      );
+    }
+
+    return employees.filter((employee) => employee.id === profile?.id);
+  }, [employees, isAdmin, isManagerOnly, profile?.id, profileDepartment]);
+
   const departments = useMemo(() => {
     const set = new Set(
-      employees.map((e) => e.department).filter(Boolean) as string[]
+      visibleEmployees.map((e) => e.department).filter(Boolean) as string[]
     );
 
     return ['all', ...Array.from(set)];
-  }, [employees]);
+  }, [visibleEmployees]);
 
   const filtered = useMemo(
     () =>
-      employees.filter((e) => {
+      visibleEmployees.filter((e) => {
         const s = search.toLowerCase();
 
         const matchesSearch =
           e.name.toLowerCase().includes(s) ||
           e.email.toLowerCase().includes(s) ||
+          (e.role ?? '').toLowerCase().includes(s) ||
           (e.title ?? '').toLowerCase().includes(s) ||
           (e.department ?? '').toLowerCase().includes(s) ||
           (e.location ?? '').toLowerCase().includes(s);
@@ -225,8 +244,27 @@ export default function Employees() {
 
         return matchesSearch && matchesDept;
       }),
-    [employees, search, deptFilter]
+    [visibleEmployees, search, deptFilter]
   );
+
+  const effectiveDepartment = isAdmin
+    ? form.department
+    : profile?.department ?? '';
+
+  const handleOpenAdd = () => {
+    setForm({
+      name: '',
+      email: '',
+      role: 'employee',
+      title: '',
+      department: isAdmin ? '' : profile?.department ?? '',
+      phone: '',
+      location: '',
+    });
+
+    setFormError('');
+    setShowAdd(true);
+  };
 
   const handleExportCsv = () => {
     const rows = filtered.map((emp) => ({
@@ -315,7 +353,7 @@ export default function Employees() {
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!form.name || !form.email || !form.role || !form.department || !form.location) {
+    if (!form.name || !form.email || !form.role || !effectiveDepartment || !form.location) {
       setFormError('Name, email, role, department and location are required.');
       return;
     }
@@ -330,6 +368,7 @@ export default function Employees() {
         body: JSON.stringify({
           ...form,
           role: isAdmin ? form.role : 'employee',
+          department: effectiveDepartment,
           status: 'active',
           join_date: new Date().toISOString().slice(0, 10),
         }),
@@ -367,11 +406,11 @@ export default function Employees() {
     <div>
       <PageHeader
         title="Employee Directory"
-        subtitle={`${employees.length} people across ${
+        subtitle={`${visibleEmployees.length} visible people across ${
           departments.length - 1
         } departments`}
         action={
-          isManager ? (
+          isAdminOrManager ? (
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
@@ -385,7 +424,7 @@ export default function Employees() {
 
               <button
                 type="button"
-                onClick={() => setShowAdd(true)}
+                onClick={handleOpenAdd}
                 className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] transition-all"
               >
                 <UserPlus size={16} />
@@ -406,7 +445,7 @@ export default function Employees() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or title…"
+            placeholder="Search by name, role, title…"
             className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
           />
         </div>
@@ -482,7 +521,19 @@ export default function Employees() {
                     </div>
                   </div>
 
-                  <div className="mt-4 flex items-center justify-between">
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <Badge
+                      tone={
+                        emp.role === 'admin'
+                          ? 'danger'
+                          : emp.role === 'manager'
+                            ? 'warning'
+                            : 'default'
+                      }
+                    >
+                      {emp.role}
+                    </Badge>
+
                     <Badge tone="info">{emp.department}</Badge>
 
                     <Badge tone={STATUS_TONE[emp.status] ?? 'default'}>
@@ -762,7 +813,7 @@ export default function Employees() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showAdd && isManager && (
+        {showAdd && isAdminOrManager && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
@@ -845,32 +896,45 @@ export default function Employees() {
 
                   <select
                     required
-                    value={form.department}
+                    value={effectiveDepartment}
                     onChange={(e) =>
                       setForm({ ...form, department: e.target.value })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+                    disabled={!isAdmin}
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <option value="" disabled>
                       Select Department
                     </option>
 
-                    {DEPARTMENT_OPTIONS.map((department) => (
+                    {(isAdmin
+                      ? DEPARTMENT_OPTIONS
+                      : [profile?.department].filter(Boolean)
+                    ).map((department) => (
                       <option key={department} value={department}>
                         {department}
                       </option>
                     ))}
                   </select>
 
-                  {form.role === 'manager' && form.department && (
+                  {form.role === 'manager' && effectiveDepartment && (
                     <p className="text-xs text-amber bg-amber/10 border border-amber/20 rounded-lg px-3 py-2">
-                      This user will be assigned as Manager for {form.department}.
+                      This user will be assigned as Manager for {effectiveDepartment}.
                     </p>
                   )}
 
                   {form.role === 'admin' && (
                     <p className="text-xs text-rose bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">
                       This user will have full admin access.
+                    </p>
+                  )}
+
+                  {!isAdmin && profile?.department && (
+                    <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
+                      As a manager, you can only add employees to your department:{' '}
+                      <span className="text-ink font-medium">
+                        {profile.department}
+                      </span>
                     </p>
                   )}
 

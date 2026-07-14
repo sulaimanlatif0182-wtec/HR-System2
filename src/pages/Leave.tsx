@@ -58,6 +58,7 @@ interface LeaveReq {
 interface Emp {
   id: number;
   name: string;
+  department: string | null;
 }
 
 function escapeCsvValue(value: unknown) {
@@ -103,7 +104,14 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
 export default function Leave() {
   const { profile } = useAuth();
 
-  const isManager = profile?.role === 'admin' || profile?.role === 'manager';
+  const isAdmin = profile?.role === 'admin';
+  const isManagerOnly = profile?.role === 'manager';
+  const isAdminOrManager =
+    profile?.role === 'admin' || profile?.role === 'manager';
+
+  const profileDepartment = String(profile?.department ?? '')
+    .trim()
+    .toLowerCase();
 
   const [requests, setRequests] = useState<LeaveReq[]>([]);
   const [employees, setEmployees] = useState<Emp[]>([]);
@@ -111,12 +119,14 @@ export default function Leave() {
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
+
   const [form, setForm] = useState({
     leave_type: LEAVE_TYPES[0],
     start_date: '',
     end_date: '',
     reason: '',
   });
+
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [deciding, setDeciding] = useState<number | null>(null);
@@ -155,39 +165,66 @@ export default function Leave() {
   }, [employees]);
 
   const visible = useMemo(() => {
-    let list = isManager
-      ? requests
-      : requests.filter((r) => r.employee_id === profile?.id);
+    let list = requests;
+
+    if (isAdmin) {
+      list = requests;
+    } else if (isManagerOnly) {
+      list = requests.filter((request) => {
+        const employeeDepartment = String(
+          empMap[request.employee_id]?.department ?? ''
+        )
+          .trim()
+          .toLowerCase();
+
+        return employeeDepartment === profileDepartment;
+      });
+    } else {
+      list = requests.filter((request) => request.employee_id === profile?.id);
+    }
 
     if (filter !== 'all') {
-      list = list.filter((r) => r.status === filter);
+      list = list.filter((request) => request.status === filter);
     }
 
     return list;
-  }, [requests, filter, isManager, profile]);
+  }, [
+    requests,
+    filter,
+    isAdmin,
+    isManagerOnly,
+    profile?.id,
+    profileDepartment,
+    empMap,
+  ]);
 
   const balance = useMemo(() => {
     if (!profile) return { used: 0, total: 24 };
 
     const used = requests
-      .filter((r) => r.employee_id === profile.id && r.status === 'approved')
-      .reduce((sum, r) => sum + r.days, 0);
+      .filter(
+        (request) =>
+          request.employee_id === profile.id && request.status === 'approved'
+      )
+      .reduce((sum, request) => sum + request.days, 0);
 
     return { used, total: 24 };
   }, [requests, profile]);
 
   const handleExportCsv = () => {
-    const rows = visible.map((r) => ({
-      ID: r.id,
-      Employee_ID: r.employee_id,
-      Employee_Name: empMap[r.employee_id]?.name ?? `Employee #${r.employee_id}`,
-      Leave_Type: r.leave_type,
-      Start_Date: r.start_date,
-      End_Date: r.end_date,
-      Days: r.days,
-      Status: r.status,
-      Reason: r.reason ?? '',
-      Decided_By: r.decided_by ?? '',
+    const rows = visible.map((request) => ({
+      ID: request.id,
+      Employee_ID: request.employee_id,
+      Employee_Name:
+        empMap[request.employee_id]?.name ?? `Employee #${request.employee_id}`,
+      Department: empMap[request.employee_id]?.department ?? '',
+      Leave_Type: request.leave_type,
+      Start_Date: request.start_date,
+      End_Date: request.end_date,
+      Days: request.days,
+      Status: request.status,
+      Reason: request.reason ?? '',
+      Decided_By: request.decided_by ?? '',
     }));
 
     downloadCsv('leave-requests.csv', rows);
@@ -200,6 +237,11 @@ export default function Leave() {
 
     if (!form.start_date || !form.end_date) {
       setFormError('Please select a date range.');
+      return;
+    }
+
+    if (new Date(form.end_date) < new Date(form.start_date)) {
+      setFormError('End date cannot be earlier than start date.');
       return;
     }
 
@@ -221,10 +263,12 @@ export default function Leave() {
       });
 
       if (!res.ok) {
-        throw new Error('Failed to submit request');
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || 'Failed to submit request');
       }
 
       setShowModal(false);
+
       setForm({
         leave_type: LEAVE_TYPES[0],
         start_date: '',
@@ -241,6 +285,8 @@ export default function Leave() {
   };
 
   const decide = async (id: number, status: string) => {
+    if (!isAdminOrManager) return;
+
     setDeciding(id);
 
     try {
@@ -261,6 +307,7 @@ export default function Leave() {
   };
 
   if (loading) return <LoadingState label="Loading leave requests…" />;
+
   if (error) return <ErrorState message={error} onRetry={fetchAll} />;
 
   return (
@@ -268,13 +315,17 @@ export default function Leave() {
       <PageHeader
         title="Leave Management"
         subtitle={
-          isManager
-            ? 'Review and approve time-off requests across the org.'
-            : 'Track and submit your time-off requests.'
+          isAdmin
+            ? 'Review and approve time-off requests across the organization.'
+            : isManagerOnly
+              ? `Review and approve time-off requests for ${
+                  profile?.department ?? 'your department'
+                }.`
+              : 'Track and submit your time-off requests.'
         }
         action={
           <div className="flex flex-wrap items-center gap-2">
-            {isManager && (
+            {isAdminOrManager && (
               <button
                 type="button"
                 onClick={handleExportCsv}
@@ -298,7 +349,7 @@ export default function Leave() {
         }
       />
 
-      {!isManager && (
+      {!isAdminOrManager && (
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -350,54 +401,65 @@ export default function Leave() {
         <EmptyState label="No leave requests found." />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {visible.map((r, i) => (
+          {visible.map((request, i) => (
             <motion.div
-              key={r.id}
+              key={request.id}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: Math.min(i * 0.05, 0.3) }}
               className="glass rounded-2xl p-5"
             >
-              <div className="flex items-start justify-between mb-3">
+              <div className="flex items-start justify-between mb-3 gap-3">
                 <div>
                   <p className="font-semibold text-sm">
-                    {isManager
-                      ? empMap[r.employee_id]?.name ?? `Employee #${r.employee_id}`
-                      : r.leave_type}
+                    {isAdminOrManager
+                      ? empMap[request.employee_id]?.name ??
+                        `Employee #${request.employee_id}`
+                      : request.leave_type}
                   </p>
 
                   <p className="text-xs text-muted mt-0.5">
-                    {isManager ? r.leave_type : `${r.start_date} → ${r.end_date}`}
+                    {isAdminOrManager
+                      ? `${request.leave_type} · ${
+                          empMap[request.employee_id]?.department ?? '—'
+                        }`
+                      : `${request.start_date} → ${request.end_date}`}
                   </p>
                 </div>
 
-                <Badge tone={STATUS_TONE[r.status] ?? 'default'}>
-                  {r.status}
+                <Badge tone={STATUS_TONE[request.status] ?? 'default'}>
+                  {request.status}
                 </Badge>
               </div>
 
-              {isManager && (
+              {isAdminOrManager && (
                 <p className="text-xs text-muted mb-2">
-                  {r.start_date} → {r.end_date} · {r.days} day
-                  {r.days > 1 ? 's' : ''}
+                  {request.start_date} → {request.end_date} · {request.days} day
+                  {request.days > 1 ? 's' : ''}
                 </p>
               )}
 
-              {r.reason && (
+              {request.reason && (
                 <p className="text-sm text-muted/90 bg-white/[0.03] rounded-lg px-3 py-2 mb-3">
-                  "{r.reason}"
+                  "{request.reason}"
                 </p>
               )}
 
-              {isManager && r.status === 'pending' && (
+              {request.decided_by && request.status !== 'pending' && (
+                <p className="text-xs text-muted mb-3">
+                  Decided by: {request.decided_by}
+                </p>
+              )}
+
+              {isAdminOrManager && request.status === 'pending' && (
                 <div className="flex gap-2 mt-3">
                   <button
                     type="button"
-                    onClick={() => decide(r.id, 'approved')}
-                    disabled={deciding === r.id}
+                    onClick={() => decide(request.id, 'approved')}
+                    disabled={deciding === request.id}
                     className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-emerald/15 text-emerald border border-emerald/25 py-2 text-xs font-medium hover:bg-emerald/25 transition-all disabled:opacity-50"
                   >
-                    {deciding === r.id ? (
+                    {deciding === request.id ? (
                       <Loader2 size={13} className="animate-spin" />
                     ) : (
                       <Check size={13} />
@@ -407,11 +469,15 @@ export default function Leave() {
 
                   <button
                     type="button"
-                    onClick={() => decide(r.id, 'rejected')}
-                    disabled={deciding === r.id}
+                    onClick={() => decide(request.id, 'rejected')}
+                    disabled={deciding === request.id}
                     className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-rose/15 text-rose border border-rose/25 py-2 text-xs font-medium hover:bg-rose/25 transition-all disabled:opacity-50"
                   >
-                    <XCircle size={13} />
+                    {deciding === request.id ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <XCircle size={13} />
+                    )}
                     Reject
                   </button>
                 </div>

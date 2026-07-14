@@ -80,7 +80,14 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
 export default function Payroll() {
   const { profile } = useAuth();
 
-  const isManager = profile?.role === 'admin' || profile?.role === 'manager';
+  const isAdmin = profile?.role === 'admin';
+  const isManagerOnly = profile?.role === 'manager';
+  const isAdminOrManager =
+    profile?.role === 'admin' || profile?.role === 'manager';
+
+  const profileDepartment = String(profile?.department ?? '')
+    .trim()
+    .toLowerCase();
 
   const [records, setRecords] = useState<PayRec[]>([]);
   const [employees, setEmployees] = useState<Emp[]>([]);
@@ -120,18 +127,41 @@ export default function Payroll() {
     return m;
   }, [employees]);
 
-  const visible = useMemo(
-    () =>
-      isManager
-        ? records
-        : records.filter((r) => r.employee_id === profile?.id),
-    [records, isManager, profile]
+  const visibleEmployees = useMemo(() => {
+    if (isAdmin) {
+      return employees;
+    }
+
+    if (isManagerOnly) {
+      return employees.filter(
+        (employee) =>
+          String(employee.department ?? '').trim().toLowerCase() ===
+          profileDepartment
+      );
+    }
+
+    return employees.filter((employee) => employee.id === profile?.id);
+  }, [employees, isAdmin, isManagerOnly, profile?.id, profileDepartment]);
+
+  const visibleEmployeeIds = useMemo(
+    () => new Set(visibleEmployees.map((employee) => employee.id)),
+    [visibleEmployees]
   );
+
+  const visible = useMemo(() => {
+    if (isAdmin) {
+      return records;
+    }
+
+    return records.filter((record) =>
+      visibleEmployeeIds.has(record.employee_id)
+    );
+  }, [records, visibleEmployeeIds, isAdmin]);
 
   const deptSplit = useMemo(() => {
     const map: Record<string, number> = {};
 
-    records.forEach((r) => {
+    visible.forEach((r) => {
       const department = empMap[r.employee_id]?.department || 'Unassigned';
       map[department] = (map[department] || 0) + Number(r.net_pay);
     });
@@ -140,11 +170,11 @@ export default function Payroll() {
       name,
       value: Math.round(value),
     }));
-  }, [records, empMap]);
+  }, [visible, empMap]);
 
-  const total = records.reduce((sum, r) => sum + Number(r.net_pay), 0);
-  const avg = records.length ? total / records.length : 0;
-  const paid = records.filter((r) => r.status === 'paid').length;
+  const total = visible.reduce((sum, r) => sum + Number(r.net_pay), 0);
+  const avg = visible.length ? total / visible.length : 0;
+  const paid = visible.filter((r) => r.status === 'paid').length;
 
   const formatPayrollRow = (r: PayRec) => ({
     ID: r.id,
@@ -188,12 +218,16 @@ export default function Payroll() {
       <PageHeader
         title="Payroll"
         subtitle={
-          isManager
+          isAdmin
             ? 'Organization-wide compensation overview.'
-            : 'Your payslip history.'
+            : isManagerOnly
+              ? `Compensation overview for ${
+                  profile?.department ?? 'your department'
+                }.`
+              : 'Your payslip history.'
         }
         action={
-          isManager ? (
+          isAdminOrManager ? (
             <button
               type="button"
               onClick={handleExportCsv}
@@ -207,11 +241,11 @@ export default function Payroll() {
         }
       />
 
-      {isManager && (
+      {isAdminOrManager && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
           {[
             {
-              label: 'Total Monthly Cost',
+              label: isAdmin ? 'Total Monthly Cost' : 'Department Monthly Cost',
               value: `$${total.toLocaleString()}`,
               icon: Wallet,
               grad: 'from-violet-500 to-fuchsia-500',
@@ -224,7 +258,7 @@ export default function Payroll() {
             },
             {
               label: 'Payslips Processed',
-              value: `${paid}/${records.length}`,
+              value: `${paid}/${visible.length}`,
               icon: FileText,
               grad: 'from-amber-400 to-orange-500',
             },
@@ -263,11 +297,19 @@ export default function Payroll() {
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="xl:col-span-2 glass rounded-2xl overflow-hidden"
+          className={
+            isAdminOrManager
+              ? 'xl:col-span-2 glass rounded-2xl overflow-hidden'
+              : 'xl:col-span-3 glass rounded-2xl overflow-hidden'
+          }
         >
           <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
             <h3 className="font-display font-semibold">
-              {isManager ? 'Payslip Records' : 'Your Payslips'}
+              {isAdmin
+                ? 'Payslip Records'
+                : isManagerOnly
+                  ? `${profile?.department ?? 'Department'} Payslip Records`
+                  : 'Your Payslips'}
             </h3>
           </div>
 
@@ -278,9 +320,15 @@ export default function Payroll() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-white/5">
-                    {isManager && (
+                    {isAdminOrManager && (
                       <th className="px-6 py-3 font-medium">
                         Employee
+                      </th>
+                    )}
+
+                    {isAdminOrManager && (
+                      <th className="px-6 py-3 font-medium">
+                        Department
                       </th>
                     )}
 
@@ -290,7 +338,7 @@ export default function Payroll() {
                     <th className="px-6 py-3 font-medium">Net Pay</th>
                     <th className="px-6 py-3 font-medium">Status</th>
 
-                    {isManager && (
+                    {isAdminOrManager && (
                       <th className="px-6 py-3 font-medium" />
                     )}
                   </tr>
@@ -302,9 +350,15 @@ export default function Payroll() {
                       key={r.id}
                       className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-all"
                     >
-                      {isManager && (
+                      {isAdminOrManager && (
                         <td className="px-6 py-3">
                           {empMap[r.employee_id]?.name ?? `#${r.employee_id}`}
+                        </td>
+                      )}
+
+                      {isAdminOrManager && (
+                        <td className="px-6 py-3 text-muted">
+                          {empMap[r.employee_id]?.department ?? '—'}
                         </td>
                       )}
 
@@ -332,7 +386,7 @@ export default function Payroll() {
                         </Badge>
                       </td>
 
-                      {isManager && (
+                      {isAdminOrManager && (
                         <td className="px-6 py-3">
                           <button
                             type="button"
@@ -352,7 +406,7 @@ export default function Payroll() {
           )}
         </motion.div>
 
-        {isManager && (
+        {isAdminOrManager && (
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
@@ -360,67 +414,77 @@ export default function Payroll() {
             className="glass rounded-2xl p-6"
           >
             <h3 className="font-display font-semibold mb-1">
-              Department Cost Split
+              {isAdmin ? 'Department Cost Split' : 'Payroll Cost Split'}
             </h3>
 
             <p className="text-xs text-muted mb-2">
-              Payroll allocation
+              {isAdmin
+                ? 'Payroll allocation by department'
+                : `Payroll allocation for ${
+                    profile?.department ?? 'your department'
+                  }`}
             </p>
 
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={deptSplit}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={55}
-                  outerRadius={80}
-                  paddingAngle={3}
-                >
-                  {deptSplit.map((_, i) => (
-                    <Cell
-                      key={i}
-                      fill={PIE_COLORS[i % PIE_COLORS.length]}
-                      stroke="none"
-                    />
-                  ))}
-                </Pie>
+            {deptSplit.length === 0 ? (
+              <EmptyState label="No payroll data available." />
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={deptSplit}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={55}
+                      outerRadius={80}
+                      paddingAngle={3}
+                    >
+                      {deptSplit.map((_, i) => (
+                        <Cell
+                          key={i}
+                          fill={PIE_COLORS[i % PIE_COLORS.length]}
+                          stroke="none"
+                        />
+                      ))}
+                    </Pie>
 
-                <Tooltip
-                  contentStyle={{
-                    background: '#12131f',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: 12,
-                    fontSize: 12,
-                  }}
-                  formatter={(v) => `$${Number(v ?? 0).toLocaleString()}`}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-
-            <div className="space-y-1.5 mt-2">
-              {deptSplit.map((d, i) => (
-                <div
-                  key={d.name}
-                  className="flex items-center justify-between text-xs"
-                >
-                  <div className="flex items-center gap-1.5 text-muted truncate">
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{
-                        background: PIE_COLORS[i % PIE_COLORS.length],
+                    <Tooltip
+                      contentStyle={{
+                        background: '#12131f',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: 12,
+                        fontSize: 12,
                       }}
+                      formatter={(v) => `$${Number(v ?? 0).toLocaleString()}`}
                     />
+                  </PieChart>
+                </ResponsiveContainer>
 
-                    {d.name}
-                  </div>
+                <div className="space-y-1.5 mt-2">
+                  {deptSplit.map((d, i) => (
+                    <div
+                      key={d.name}
+                      className="flex items-center justify-between text-xs"
+                    >
+                      <div className="flex items-center gap-1.5 text-muted truncate">
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{
+                            background: PIE_COLORS[i % PIE_COLORS.length],
+                          }}
+                        />
 
-                  <span>
-                    ${d.value.toLocaleString()}
-                  </span>
+                        {d.name}
+                      </div>
+
+                      <span>
+                        ${d.value.toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
           </motion.div>
         )}
       </div>

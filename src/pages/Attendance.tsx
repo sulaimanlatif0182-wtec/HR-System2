@@ -40,6 +40,7 @@ interface AttRec {
 interface Emp {
   id: number;
   name: string;
+  department: string | null;
 }
 
 function escapeCsvValue(value: unknown) {
@@ -85,7 +86,14 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
 export default function Attendance() {
   const { profile } = useAuth();
 
-  const isManager = profile?.role === 'admin' || profile?.role === 'manager';
+  const isAdmin = profile?.role === 'admin';
+  const isManagerOnly = profile?.role === 'manager';
+  const isAdminOrManager =
+    profile?.role === 'admin' || profile?.role === 'manager';
+
+  const profileDepartment = String(profile?.department ?? '')
+    .trim()
+    .toLowerCase();
 
   const [records, setRecords] = useState<AttRec[]>([]);
   const [employees, setEmployees] = useState<Emp[]>([]);
@@ -126,6 +134,37 @@ export default function Attendance() {
     return m;
   }, [employees]);
 
+  const visibleEmployees = useMemo(() => {
+    if (isAdmin) {
+      return employees;
+    }
+
+    if (isManagerOnly) {
+      return employees.filter(
+        (employee) =>
+          String(employee.department ?? '').trim().toLowerCase() ===
+          profileDepartment
+      );
+    }
+
+    return employees.filter((employee) => employee.id === profile?.id);
+  }, [employees, isAdmin, isManagerOnly, profile?.id, profileDepartment]);
+
+  const visibleEmployeeIds = useMemo(
+    () => new Set(visibleEmployees.map((employee) => employee.id)),
+    [visibleEmployees]
+  );
+
+  const visibleRecords = useMemo(() => {
+    if (isAdmin) {
+      return records;
+    }
+
+    return records.filter((record) =>
+      visibleEmployeeIds.has(record.employee_id)
+    );
+  }, [records, visibleEmployeeIds, isAdmin]);
+
   const myToday = useMemo(
     () =>
       (profile &&
@@ -146,7 +185,7 @@ export default function Attendance() {
 
       const key = d.toISOString().slice(0, 10);
 
-      const count = records.filter(
+      const count = visibleRecords.filter(
         (r) =>
           r.date === key && (r.status === 'present' || r.status === 'remote')
       ).length;
@@ -155,17 +194,18 @@ export default function Attendance() {
     }
 
     return days;
-  }, [records]);
+  }, [visibleRecords]);
 
   const maxCount = Math.max(...heatmap.map((d) => d.count), 1);
 
-  const recent = records.slice(0, 30);
+  const recent = visibleRecords.slice(0, 30);
 
   const handleExportCsv = () => {
-    const rows = records.map((r) => ({
+    const rows = visibleRecords.map((r) => ({
       ID: r.id,
       Employee_ID: r.employee_id,
       Employee_Name: empMap[r.employee_id]?.name ?? `#${r.employee_id}`,
+      Department: empMap[r.employee_id]?.department ?? '',
       Date: r.date,
       Check_In: r.check_in ? new Date(r.check_in).toLocaleString() : '',
       Check_Out: r.check_out ? new Date(r.check_out).toLocaleString() : '',
@@ -220,19 +260,26 @@ export default function Attendance() {
   };
 
   if (loading) return <LoadingState label="Loading attendance…" />;
+
   if (error) return <ErrorState message={error} onRetry={fetchAll} />;
 
   return (
     <div>
       <PageHeader
         title="Attendance"
-        subtitle="Track daily check-ins and monitor org-wide presence."
+        subtitle={
+          isAdmin
+            ? 'Track daily check-ins and monitor org-wide presence.'
+            : isManagerOnly
+              ? `Track attendance for ${profile?.department ?? 'your department'}.`
+              : 'Track your daily check-ins and attendance history.'
+        }
         action={
-          isManager ? (
+          isAdminOrManager ? (
             <button
               type="button"
               onClick={handleExportCsv}
-              disabled={records.length === 0}
+              disabled={visibleRecords.length === 0}
               className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
             >
               <Download size={16} />
@@ -323,7 +370,12 @@ export default function Attendance() {
         </h3>
 
         <p className="text-xs text-muted mb-4">
-          Last 42 days · org-wide presence intensity
+          Last 42 days ·{' '}
+          {isAdmin
+            ? 'org-wide presence intensity'
+            : isManagerOnly
+              ? `${profile?.department ?? 'department'} presence intensity`
+              : 'your attendance intensity'}
         </p>
 
         <div className="grid grid-cols-7 gap-1.5 sm:gap-2 max-w-md">
@@ -354,7 +406,13 @@ export default function Attendance() {
         className="glass rounded-2xl overflow-hidden"
       >
         <div className="px-6 py-4 border-b border-white/5">
-          <h3 className="font-display font-semibold">Recent History</h3>
+          <h3 className="font-display font-semibold">
+            {isAdmin
+              ? 'Recent History'
+              : isManagerOnly
+                ? `${profile?.department ?? 'Department'} Attendance History`
+                : 'Your Attendance History'}
+          </h3>
         </div>
 
         {recent.length === 0 ? (
@@ -365,6 +423,7 @@ export default function Attendance() {
               <thead>
                 <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-white/5">
                   <th className="px-6 py-3 font-medium">Employee</th>
+                  <th className="px-6 py-3 font-medium">Department</th>
                   <th className="px-6 py-3 font-medium">Date</th>
                   <th className="px-6 py-3 font-medium">Check In</th>
                   <th className="px-6 py-3 font-medium">Check Out</th>
@@ -380,6 +439,10 @@ export default function Attendance() {
                   >
                     <td className="px-6 py-3">
                       {empMap[r.employee_id]?.name ?? `#${r.employee_id}`}
+                    </td>
+
+                    <td className="px-6 py-3 text-muted">
+                      {empMap[r.employee_id]?.department ?? '—'}
                     </td>
 
                     <td className="px-6 py-3 text-muted">{r.date}</td>
