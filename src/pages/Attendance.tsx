@@ -45,8 +45,121 @@ const ATTENDANCE_SITES = [
   },
 ];
 
-function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+function formatLocalDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function getMinutesFromDate(date = new Date()) {
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+function getCheckInWindow(date = new Date()) {
+  const now = getMinutesFromDate(date);
+
+  const normalStart = 6 * 60; // 06:00
+  const normalEnd = 8 * 60 + 15; // 08:15
+  const lateEnd = 9 * 60; // 09:00
+
+  if (now < normalStart) {
+    return {
+      allowed: false,
+      type: 'not_open',
+      status: 'closed',
+      label: 'Check-in opens at 06:00',
+      isLate: false,
+    };
+  }
+
+  if (now <= normalEnd) {
+    return {
+      allowed: true,
+      type: 'normal',
+      status: 'present',
+      label: 'Normal Check In',
+      isLate: false,
+    };
+  }
+
+  if (now <= lateEnd) {
+    return {
+      allowed: true,
+      type: 'late',
+      status: 'late',
+      label: 'Late Check In',
+      isLate: true,
+    };
+  }
+
+  return {
+    allowed: false,
+    type: 'missed',
+    status: 'absent',
+    label: 'Check-in window closed',
+    isLate: false,
+  };
+}
+
+function getCheckOutWindow(date = new Date()) {
+  const now = getMinutesFromDate(date);
+
+  const normalStart = 17 * 60 + 30; // 17:30
+  const normalEnd = 17 * 60 + 45; // 17:45
+
+  if (now < normalStart) {
+    return {
+      allowed: false,
+      type: 'not_open',
+      label: 'Check-out opens at 17:30',
+      overtimeHours: 0,
+    };
+  }
+
+  if (now <= normalEnd) {
+    return {
+      allowed: true,
+      type: 'normal',
+      label: 'Normal Check Out',
+      overtimeHours: 0,
+    };
+  }
+
+  const overtimeWindows = [
+    { end: 18 * 60 + 15, hours: 0.5 },
+    { end: 18 * 60 + 45, hours: 1 },
+    { end: 19 * 60 + 15, hours: 1.5 },
+    { end: 19 * 60 + 45, hours: 2 },
+    { end: 20 * 60 + 15, hours: 2.5 },
+    { end: 20 * 60 + 45, hours: 3 },
+    { end: 21 * 60 + 15, hours: 3.5 },
+    { end: 21 * 60 + 45, hours: 4 },
+    { end: 22 * 60 + 15, hours: 4.5 },
+    { end: 22 * 60 + 45, hours: 5 },
+    { end: 23 * 60 + 15, hours: 5.5 },
+    { end: 23 * 60 + 45, hours: 6 },
+    { end: 24 * 60, hours: 6.5 },
+  ];
+
+  const matchedWindow = overtimeWindows.find((window) => now <= window.end);
+
+  if (matchedWindow) {
+    return {
+      allowed: true,
+      type: 'ot',
+      label: `OT ${matchedWindow.hours} Check Out`,
+      overtimeHours: matchedWindow.hours,
+    };
+  }
+
+  return {
+    allowed: false,
+    type: 'closed',
+    label: 'Check-out window closed',
+    overtimeHours: 0,
+  };
 }
 
 interface AttRec {
@@ -56,6 +169,11 @@ interface AttRec {
   check_in: string | null;
   check_out: string | null;
   status: string;
+
+  check_in_type?: string | null;
+  check_out_type?: string | null;
+  overtime_hours?: number | null;
+  is_late?: boolean | null;
 
   check_in_latitude?: number | null;
   check_in_longitude?: number | null;
@@ -180,6 +298,12 @@ function formatMeters(value?: number | null) {
   return `${Math.round(Number(value))}m`;
 }
 
+function formatType(value?: string | null) {
+  if (!value) return '—';
+
+  return value.replace('_', ' ');
+}
+
 export default function Attendance() {
   const { profile } = useAuth();
 
@@ -192,12 +316,24 @@ export default function Attendance() {
     .trim()
     .toLowerCase();
 
+  const [now, setNow] = useState(() => new Date());
   const [records, setRecords] = useState<AttRec[]>([]);
   const [employees, setEmployees] = useState<Emp[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [gpsMessage, setGpsMessage] = useState('');
+
+  const checkInWindow = useMemo(() => getCheckInWindow(now), [now]);
+  const checkOutWindow = useMemo(() => getCheckOutWindow(now), [now]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNow(new Date());
+    }, 30000);
+
+    return () => window.clearInterval(interval);
+  }, []);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -267,7 +403,7 @@ export default function Attendance() {
     () =>
       (profile &&
         records.find(
-          (r) => r.employee_id === profile.id && r.date === todayStr()
+          (r) => r.employee_id === profile.id && r.date === formatLocalDate()
         )) ||
       null,
     [records, profile]
@@ -275,13 +411,13 @@ export default function Attendance() {
 
   const heatmap = useMemo(() => {
     const days: { date: string; count: number }[] = [];
-    const now = new Date();
+    const currentDate = new Date();
 
     for (let i = 41; i >= 0; i--) {
-      const d = new Date(now);
+      const d = new Date(currentDate);
       d.setDate(d.getDate() - i);
 
-      const key = d.toISOString().slice(0, 10);
+      const key = formatLocalDate(d);
 
       const count = visibleRecords.filter(
         (r) =>
@@ -299,36 +435,45 @@ export default function Attendance() {
   const recent = visibleRecords.slice(0, 30);
 
   const handleExportCsv = () => {
-  const rows = visibleRecords.map((r) => ({
-    ID: r.id,
-    Employee_ID: r.employee_id,
-    Employee_Name: empMap[r.employee_id]?.name ?? `#${r.employee_id}`,
-    Department: empMap[r.employee_id]?.department ?? '',
-    Date: r.date,
-    Check_In: r.check_in ? new Date(r.check_in).toLocaleString() : '',
-    Check_Out: r.check_out ? new Date(r.check_out).toLocaleString() : '',
-    Status: r.status,
+    const rows = visibleRecords.map((r) => ({
+      ID: r.id,
+      Employee_ID: r.employee_id,
+      Employee_Name: empMap[r.employee_id]?.name ?? `#${r.employee_id}`,
+      Department: empMap[r.employee_id]?.department ?? '',
+      Date: r.date,
+      Check_In: r.check_in ? new Date(r.check_in).toLocaleString() : '',
+      Check_Out: r.check_out ? new Date(r.check_out).toLocaleString() : '',
+      Status: r.status,
+      Check_In_Type: r.check_in_type ?? '',
+      Is_Late: r.is_late ? 'Yes' : 'No',
+      Check_Out_Type: r.check_out_type ?? '',
+      Overtime_Hours: r.overtime_hours ?? 0,
 
-    Check_In_Site: r.check_in_site ?? '',
-    Check_In_Verified: r.check_in_verified ? 'Yes' : 'No',
-    Check_In_Distance_Meters: r.check_in_distance_meters ?? '',
-    Check_In_Accuracy_Meters: r.check_in_accuracy ?? '',
-    Check_In_Latitude: r.check_in_latitude ?? '',
-    Check_In_Longitude: r.check_in_longitude ?? '',
+      Check_In_Site: r.check_in_site ?? '',
+      Check_In_Verified: r.check_in_verified ? 'Yes' : 'No',
+      Check_In_Distance_Meters: r.check_in_distance_meters ?? '',
+      Check_In_Accuracy_Meters: r.check_in_accuracy ?? '',
+      Check_In_Latitude: r.check_in_latitude ?? '',
+      Check_In_Longitude: r.check_in_longitude ?? '',
 
-    Check_Out_Site: r.check_out_site ?? '',
-    Check_Out_Verified: r.check_out_verified ? 'Yes' : 'No',
-    Check_Out_Distance_Meters: r.check_out_distance_meters ?? '',
-    Check_Out_Accuracy_Meters: r.check_out_accuracy ?? '',
-    Check_Out_Latitude: r.check_out_latitude ?? '',
-    Check_Out_Longitude: r.check_out_longitude ?? '',
-  }));
+      Check_Out_Site: r.check_out_site ?? '',
+      Check_Out_Verified: r.check_out_verified ? 'Yes' : 'No',
+      Check_Out_Distance_Meters: r.check_out_distance_meters ?? '',
+      Check_Out_Accuracy_Meters: r.check_out_accuracy ?? '',
+      Check_Out_Latitude: r.check_out_latitude ?? '',
+      Check_Out_Longitude: r.check_out_longitude ?? '',
+    }));
 
-  downloadCsv('attendance.csv', rows);
-};
+    downloadCsv('attendance.csv', rows);
+  };
 
   const checkIn = async () => {
     if (!profile) return;
+
+    if (!checkInWindow.allowed) {
+      alert(checkInWindow.label);
+      return;
+    }
 
     setBusy(true);
     setGpsMessage('Getting your GPS location…');
@@ -376,9 +521,11 @@ export default function Attendance() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           employee_id: profile.id,
-          date: todayStr(),
+          date: formatLocalDate(),
           check_in: new Date().toISOString(),
-          status: 'present',
+          status: checkInWindow.status,
+          check_in_type: checkInWindow.type,
+          is_late: checkInWindow.isLate,
           check_in_latitude: latitude,
           check_in_longitude: longitude,
           check_in_accuracy: accuracy,
@@ -397,9 +544,11 @@ export default function Attendance() {
       await fetchAll();
 
       alert(
-        `Check-in successful.\n\nSite: ${site.name}\nDistance: ${Math.round(
-          distance
-        )}m\nGPS accuracy: ${Math.round(accuracy)}m`
+        `Check-in successful.\n\nType: ${checkInWindow.label}\nSite: ${
+          site.name
+        }\nDistance: ${Math.round(distance)}m\nGPS accuracy: ${Math.round(
+          accuracy
+        )}m`
       );
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to verify location.');
@@ -409,87 +558,102 @@ export default function Attendance() {
     }
   };
 
-const checkOut = async () => {
-  if (!myToday) return;
+  const checkOut = async () => {
+    if (!myToday) return;
 
-  setBusy(true);
-  setGpsMessage('Getting your GPS location for check-out…');
-
-  try {
-    const position = await getBrowserLocation();
-
-    const latitude = position.coords.latitude;
-    const longitude = position.coords.longitude;
-    const accuracy = position.coords.accuracy;
-
-    if (accuracy > MAX_GPS_ACCURACY_METERS) {
-      throw new Error(
-        `Your GPS accuracy is too low (${Math.round(
-          accuracy
-        )}m). Please move near an open area or enable high accuracy GPS, then try again.`
-      );
+    if (!checkOutWindow.allowed) {
+      alert(checkOutWindow.label);
+      return;
     }
 
-    const nearest = findNearestSite(latitude, longitude);
+    setBusy(true);
+    setGpsMessage('Getting your GPS location for check-out…');
 
-    if (!nearest) {
-      throw new Error('No approved attendance site is configured.');
-    }
+    try {
+      const position = await getBrowserLocation();
 
-    const distance = nearest.distanceMeters;
-    const site = nearest.site;
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
 
-    if (distance > site.radiusMeters) {
-      throw new Error(
-        `You are outside the approved check-out area.\n\nNearest site: ${
-          site.name
-        }\nYour distance: ${Math.round(
+      if (accuracy > MAX_GPS_ACCURACY_METERS) {
+        throw new Error(
+          `Your GPS accuracy is too low (${Math.round(
+            accuracy
+          )}m). Please move near an open area or enable high accuracy GPS, then try again.`
+        );
+      }
+
+      const nearest = findNearestSite(latitude, longitude);
+
+      if (!nearest) {
+        throw new Error('No approved attendance site is configured.');
+      }
+
+      const distance = nearest.distanceMeters;
+      const site = nearest.site;
+
+      if (distance > site.radiusMeters) {
+        throw new Error(
+          `You are outside the approved check-out area.\n\nNearest site: ${
+            site.name
+          }\nYour distance: ${Math.round(
+            distance
+          )}m\nAllowed radius: ${site.radiusMeters}m`
+        );
+      }
+
+      setGpsMessage(
+        `Check-out location verified at ${site.name}. Distance: ${Math.round(
           distance
-        )}m\nAllowed radius: ${site.radiusMeters}m`
+        )}m.`
       );
+
+      const res = await fetch('/api/attendance', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: myToday.id,
+          check_out: new Date().toISOString(),
+          check_out_type: checkOutWindow.type,
+          overtime_hours: checkOutWindow.overtimeHours,
+          check_out_latitude: latitude,
+          check_out_longitude: longitude,
+          check_out_accuracy: accuracy,
+          check_out_site: site.name,
+          check_out_distance_meters: Math.round(distance),
+          check_out_verified: true,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to check out.');
+      }
+
+      await fetchAll();
+
+      alert(
+        `Check-out successful.\n\nType: ${
+          checkOutWindow.label
+        }\nOT Hours: ${checkOutWindow.overtimeHours}\nSite: ${
+          site.name
+        }\nDistance: ${Math.round(distance)}m\nGPS accuracy: ${Math.round(
+          accuracy
+        )}m`
+      );
+    } catch (err) {
+      alert(
+        err instanceof Error
+          ? err.message
+          : 'Failed to verify check-out location.'
+      );
+    } finally {
+      setBusy(false);
+      setTimeout(() => setGpsMessage(''), 4000);
     }
-
-    setGpsMessage(
-      `Check-out location verified at ${site.name}. Distance: ${Math.round(
-        distance
-      )}m.`
-    );
-
-    const res = await fetch('/api/attendance', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: myToday.id,
-        check_out: new Date().toISOString(),
-        check_out_latitude: latitude,
-        check_out_longitude: longitude,
-        check_out_accuracy: accuracy,
-        check_out_site: site.name,
-        check_out_distance_meters: Math.round(distance),
-        check_out_verified: true,
-      }),
-    });
-
-    const data = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      throw new Error(data?.error || 'Failed to check out.');
-    }
-
-    await fetchAll();
-
-    alert(
-      `Check-out successful.\n\nSite: ${site.name}\nDistance: ${Math.round(
-        distance
-      )}m\nGPS accuracy: ${Math.round(accuracy)}m`
-    );
-  } catch (err) {
-    alert(err instanceof Error ? err.message : 'Failed to verify check-out location.');
-  } finally {
-    setBusy(false);
-    setTimeout(() => setGpsMessage(''), 4000);
-  }
-};
+  };
 
   if (loading) return <LoadingState label="Loading attendance…" />;
 
@@ -562,11 +726,38 @@ const checkOut = async () => {
                 : ''}
             </p>
 
+            {myToday?.check_in_type && (
+              <p className="text-xs text-muted mt-1">
+                Check-in type:{' '}
+                <span className={myToday.is_late ? 'text-amber' : 'text-emerald'}>
+                  {formatType(myToday.check_in_type)}
+                </span>
+              </p>
+            )}
+
+            {myToday?.check_out_type && (
+              <p className="text-xs text-muted mt-1">
+                Check-out type:{' '}
+                <span className="text-accent">
+                  {formatType(myToday.check_out_type)}
+                </span>
+                {' · '}OT: {Number(myToday.overtime_hours ?? 0)}h
+              </p>
+            )}
+
             {myToday?.check_in_verified && (
               <p className="text-xs text-emerald mt-1 flex items-center gap-1">
                 <ShieldCheck size={13} />
-                Verified at {myToday.check_in_site ?? 'approved site'} ·{' '}
+                Check-in verified at {myToday.check_in_site ?? 'approved site'} ·{' '}
                 {formatMeters(myToday.check_in_distance_meters)}
+              </p>
+            )}
+
+            {myToday?.check_out_verified && (
+              <p className="text-xs text-emerald mt-1 flex items-center gap-1">
+                <ShieldCheck size={13} />
+                Check-out verified at {myToday.check_out_site ?? 'approved site'} ·{' '}
+                {formatMeters(myToday.check_out_distance_meters)}
               </p>
             )}
 
@@ -579,29 +770,34 @@ const checkOut = async () => {
           </div>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <button
             type="button"
             onClick={checkIn}
-            disabled={!!myToday?.check_in || busy}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 px-4 py-2.5 text-sm font-semibold shadow-lg disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] transition-all"
+            disabled={!!myToday?.check_in || busy || !checkInWindow.allowed}
+            className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 px-4 py-2.5 text-sm font-semibold shadow-lg disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] transition-all"
           >
             {busy ? (
               <Loader2 size={16} className="animate-spin" />
             ) : (
               <LogIn size={16} />
             )}
-            GPS Check In
+            {checkInWindow.label}
           </button>
 
           <button
             type="button"
             onClick={checkOut}
-            disabled={!myToday?.check_in || !!myToday?.check_out || busy}
-            className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
+            disabled={
+              !myToday?.check_in ||
+              !!myToday?.check_out ||
+              busy ||
+              !checkOutWindow.allowed
+            }
+            className="flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
           >
             <LogOut size={16} />
-            Check Out
+            {checkOutWindow.label}
           </button>
         </div>
       </motion.div>
@@ -674,6 +870,8 @@ const checkOut = async () => {
                   <th className="px-6 py-3 font-medium">Date</th>
                   <th className="px-6 py-3 font-medium">Check In</th>
                   <th className="px-6 py-3 font-medium">Check Out</th>
+                  <th className="px-6 py-3 font-medium">Type</th>
+                  <th className="px-6 py-3 font-medium">OT</th>
                   <th className="px-6 py-3 font-medium">Site</th>
                   <th className="px-6 py-3 font-medium">GPS</th>
                   <th className="px-6 py-3 font-medium">Status</th>
@@ -715,21 +913,49 @@ const checkOut = async () => {
                     </td>
 
                     <td className="px-6 py-3 text-muted">
-                      {r.check_in_site ?? '—'}
+                      <div className="text-xs">
+                        <p>In: {formatType(r.check_in_type)}</p>
+                        <p>Out: {formatType(r.check_out_type)}</p>
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-3 text-muted">
+                      {Number(r.overtime_hours ?? 0)}h
+                    </td>
+
+                    <td className="px-6 py-3 text-muted">
+                      <div className="text-xs">
+                        <p>In: {r.check_in_site ?? '—'}</p>
+                        <p>Out: {r.check_out_site ?? '—'}</p>
+                      </div>
                     </td>
 
                     <td className="px-6 py-3">
-                      {r.check_in_verified ? (
-                        <div className="flex items-center gap-1 text-emerald text-xs">
-                          <ShieldCheck size={14} />
-                          {formatMeters(r.check_in_distance_meters)}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1 text-muted text-xs">
-                          <ShieldAlert size={14} />
-                          Not verified
-                        </div>
-                      )}
+                      <div className="space-y-1">
+                        {r.check_in_verified ? (
+                          <div className="flex items-center gap-1 text-emerald text-xs">
+                            <ShieldCheck size={14} />
+                            In {formatMeters(r.check_in_distance_meters)}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 text-muted text-xs">
+                            <ShieldAlert size={14} />
+                            In not verified
+                          </div>
+                        )}
+
+                        {r.check_out_verified ? (
+                          <div className="flex items-center gap-1 text-emerald text-xs">
+                            <ShieldCheck size={14} />
+                            Out {formatMeters(r.check_out_distance_meters)}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 text-muted text-xs">
+                            <ShieldAlert size={14} />
+                            Out not verified
+                          </div>
+                        )}
+                      </div>
                     </td>
 
                     <td className="px-6 py-3">
