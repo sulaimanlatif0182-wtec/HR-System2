@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Mail,
@@ -11,10 +11,11 @@ import {
   AlertCircle,
   CheckCircle2,
   Sparkles,
+  UserPlus,
 } from 'lucide-react';
 import supabase from '../lib/supabase';
 
-type AuthMode = 'signin' | 'forgot';
+type AuthMode = 'signin' | 'signup' | 'forgot';
 
 function getFriendlyAuthError(message: string) {
   const lower = message.toLowerCase();
@@ -24,7 +25,15 @@ function getFriendlyAuthError(message: string) {
   }
 
   if (lower.includes('email not confirmed')) {
-    return 'Please confirm your email before signing in.';
+    return 'Please verify your email before signing in.';
+  }
+
+  if (lower.includes('user already registered')) {
+    return 'This email is already registered. Please sign in instead.';
+  }
+
+  if (lower.includes('password should be at least')) {
+    return 'Password is too short.';
   }
 
   if (lower.includes('email rate limit')) {
@@ -42,17 +51,49 @@ function getFriendlyAuthError(message: string) {
   return message || 'Something went wrong. Please try again.';
 }
 
+function validatePassword(password: string) {
+  if (password.length < 8) {
+    return 'Password must be at least 8 characters.';
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    return 'Password must include at least one uppercase letter.';
+  }
+
+  if (!/[a-z]/.test(password)) {
+    return 'Password must include at least one lowercase letter.';
+  }
+
+  if (!/[0-9]/.test(password)) {
+    return 'Password must include at least one number.';
+  }
+
+  return '';
+}
+
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  const [confirmPassword, setConfirmPassword] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    const verified = searchParams.get('verified');
+
+    if (verified === '1') {
+      setSuccess('Email verified successfully. You can now sign in.');
+      setMode('signin');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     let mounted = true;
@@ -79,11 +120,52 @@ export default function Login() {
     };
   }, [navigate]);
 
+  const resetMessages = () => {
+    setError('');
+    setSuccess('');
+  };
+
+  const switchMode = (nextMode: AuthMode) => {
+    resetMessages();
+    setMode(nextMode);
+    setPassword('');
+    setConfirmPassword('');
+  };
+
+  const checkEmployeeWhitelist = async (targetEmail: string) => {
+    const res = await fetch(
+      `/api/employees?email=${encodeURIComponent(targetEmail)}&t=${Date.now()}`,
+      {
+        method: 'GET',
+        cache: 'no-store',
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error('Unable to verify employee email. Please contact IT support.');
+    }
+
+    const data = await res.json();
+
+    if (!data) {
+      throw new Error(
+        'This email has not been registered by HR. Please contact your administrator.'
+      );
+    }
+
+    if (String(data.status || '').toLowerCase() === 'inactive') {
+      throw new Error(
+        'This employee account is inactive. Please contact your administrator.'
+      );
+    }
+
+    return data;
+  };
+
   const handleSignIn = async (e: FormEvent) => {
     e.preventDefault();
 
-    setError('');
-    setSuccess('');
+    resetMessages();
 
     if (!email || !password) {
       setError('Email and password are required.');
@@ -93,8 +175,10 @@ export default function Login() {
     setLoading(true);
 
     try {
+      const cleanEmail = email.trim().toLowerCase();
+
       const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+        email: cleanEmail,
         password,
       });
 
@@ -114,11 +198,77 @@ export default function Login() {
     }
   };
 
+  const handleSignUp = async (e: FormEvent) => {
+    e.preventDefault();
+
+    resetMessages();
+
+    if (!email || !password || !confirmPassword) {
+      setError('Email, password and confirm password are required.');
+      return;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (password !== confirmPassword) {
+      setError('Password and confirm password do not match.');
+      return;
+    }
+
+    const passwordError = validatePassword(password);
+
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const employeeProfile = await checkEmployeeWhitelist(cleanEmail);
+
+      const emailRedirectTo = `${window.location.origin}/login?verified=1`;
+
+      const { error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          emailRedirectTo,
+          data: {
+            employee_id: employeeProfile.id,
+            name: employeeProfile.name,
+            role: employeeProfile.role,
+            department: employeeProfile.department,
+          },
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setSuccess(
+        'Account created. Please check your email and click the verification link before signing in.'
+      );
+
+      setMode('signin');
+      setPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setError(
+        getFriendlyAuthError(
+          err instanceof Error ? err.message : 'Failed to create account.'
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleResetPassword = async (e: FormEvent) => {
     e.preventDefault();
 
-    setError('');
-    setSuccess('');
+    resetMessages();
 
     if (!email) {
       setError('Please enter your email address.');
@@ -128,14 +278,13 @@ export default function Login() {
     setLoading(true);
 
     try {
+      const cleanEmail = email.trim().toLowerCase();
+
       const redirectTo = `${window.location.origin}/reset-password`;
 
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        email.trim().toLowerCase(),
-        {
-          redirectTo,
-        }
-      );
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo,
+      });
 
       if (error) {
         throw error;
@@ -194,7 +343,7 @@ export default function Login() {
               </div>
             </div>
 
-            {mode === 'signin' ? (
+            {mode === 'signin' && (
               <>
                 <div className="mb-7">
                   <h2 className="font-display text-3xl font-bold">
@@ -280,27 +429,156 @@ export default function Login() {
                   </button>
                 </form>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('forgot');
-                    setError('');
-                    setSuccess('');
-                  }}
-                  className="w-full mt-5 text-sm text-muted hover:text-primary transition-all"
-                >
-                  Forgot your password?
-                </button>
+                <div className="mt-5 flex flex-col gap-3 text-center">
+                  <button
+                    type="button"
+                    onClick={() => switchMode('forgot')}
+                    className="text-sm text-muted hover:text-primary transition-all"
+                  >
+                    Forgot your password?
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => switchMode('signup')}
+                    className="inline-flex items-center justify-center gap-2 text-sm text-primary hover:text-accent transition-all"
+                  >
+                    <UserPlus size={15} />
+                    Create account
+                  </button>
+                </div>
               </>
-            ) : (
+            )}
+
+            {mode === 'signup' && (
               <>
                 <button
                   type="button"
-                  onClick={() => {
-                    setMode('signin');
-                    setError('');
-                    setSuccess('');
-                  }}
+                  onClick={() => switchMode('signin')}
+                  className="inline-flex items-center gap-2 text-sm text-muted hover:text-ink mb-6 transition-all"
+                >
+                  <ArrowLeft size={16} />
+                  Back to sign in
+                </button>
+
+                <div className="mb-7">
+                  <h2 className="font-display text-3xl font-bold">
+                    Create account
+                  </h2>
+                  <p className="text-sm text-muted mt-2">
+                    Use the email address registered by HR to activate your
+                    account.
+                  </p>
+                </div>
+
+                <form onSubmit={handleSignUp} className="space-y-4">
+                  <div>
+                    <label className="text-xs text-muted mb-1.5 block">
+                      Email address
+                    </label>
+
+                    <div className="relative">
+                      <Mail
+                        size={17}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 text-muted"
+                      />
+
+                      <input
+                        required
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@company.com"
+                        className="w-full bg-surface border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted mb-1.5 block">
+                      Password
+                    </label>
+
+                    <div className="relative">
+                      <Lock
+                        size={17}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 text-muted"
+                      />
+
+                      <input
+                        required
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Minimum 8 characters"
+                        className="w-full bg-surface border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted mb-1.5 block">
+                      Confirm password
+                    </label>
+
+                    <div className="relative">
+                      <Lock
+                        size={17}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 text-muted"
+                      />
+
+                      <input
+                        required
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Repeat your password"
+                        className="w-full bg-surface border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2">
+                    Password must include uppercase, lowercase and number.
+                  </p>
+
+                  {error && (
+                    <div className="flex items-start gap-2 rounded-xl border border-rose/20 bg-rose/10 px-3 py-2.5 text-sm text-rose">
+                      <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  {success && (
+                    <div className="flex items-start gap-2 rounded-xl border border-emerald/20 bg-emerald/10 px-3 py-2.5 text-sm text-emerald">
+                      <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+                      <span>{success}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-3 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                  >
+                    {loading ? (
+                      <Loader2 size={17} className="animate-spin" />
+                    ) : (
+                      <>
+                        Create account
+                        <ArrowRight size={17} />
+                      </>
+                    )}
+                  </button>
+                </form>
+              </>
+            )}
+
+            {mode === 'forgot' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => switchMode('signin')}
                   className="inline-flex items-center gap-2 text-sm text-muted hover:text-ink mb-6 transition-all"
                 >
                   <ArrowLeft size={16} />
