@@ -247,9 +247,17 @@ export default function Employees() {
     [visibleEmployees, search, deptFilter]
   );
 
-  const effectiveDepartment = isAdmin
+  const effectiveDepartment: string = isAdmin
     ? form.department
     : profile?.department ?? '';
+
+  const addDepartmentOptions = useMemo(() => {
+  if (isAdmin) {
+    return DEPARTMENT_OPTIONS;
+  }
+
+  return profile?.department ? [profile.department] : [];
+}, [isAdmin, profile?.department]);
 
   const handleOpenAdd = () => {
     setForm({
@@ -896,7 +904,7 @@ export default function Employees() {
 
                   <select
                     required
-                    value={effectiveDepartment}
+                    value={effectiveDepartment || ''}
                     onChange={(e) =>
                       setForm({ ...form, department: e.target.value })
                     }
@@ -907,10 +915,7 @@ export default function Employees() {
                       Select Department
                     </option>
 
-                    {(isAdmin
-                      ? DEPARTMENT_OPTIONS
-                      : [profile?.department].filter(Boolean)
-                    ).map((department) => (
+                    {addDepartmentOptions.map((department) => (
                       <option key={department} value={department}>
                         {department}
                       </option>
