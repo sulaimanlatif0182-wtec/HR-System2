@@ -10,7 +10,11 @@ import App from './App';
 // forward the user there WITH the hash intact so the
 // session can be established on the reset page.
 const hash = window.location.hash;
-if (hash.includes('type=recovery') && !window.location.pathname.startsWith('/reset-password')) {
+
+if (
+  hash.includes('type=recovery') &&
+  !window.location.pathname.startsWith('/reset-password')
+) {
   window.location.replace(`/reset-password${hash}`);
 }
 
