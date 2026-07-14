@@ -61,6 +61,21 @@ const LOCATION_OPTIONS = [
   'Factory 4',
 ];
 
+const ROLE_OPTIONS = [
+  {
+    label: 'Employee',
+    value: 'employee',
+  },
+  {
+    label: 'Manager',
+    value: 'manager',
+  },
+  {
+    label: 'Admin',
+    value: 'admin',
+  },
+] as const;
+
 function initials(name: string) {
   return name
     .split(' ')
@@ -130,6 +145,10 @@ export default function Employees() {
   const isManager = profile?.role === 'admin' || profile?.role === 'manager';
   const isAdmin = profile?.role === 'admin';
 
+  const availableRoleOptions = isAdmin
+    ? ROLE_OPTIONS
+    : ROLE_OPTIONS.filter((role) => role.value === 'employee');
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -139,20 +158,22 @@ export default function Employees() {
   const [deptFilter, setDeptFilter] = useState('all');
   const [selected, setSelected] = useState<Employee | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+
   const [form, setForm] = useState({
     name: '',
     email: '',
+    role: 'employee',
     title: '',
     department: '',
     phone: '',
     location: '',
   });
+
   const [saving, setSaving] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   const [formError, setFormError] = useState('');
   const [tab, setTab] = useState<'info' | 'documents' | 'performance'>('info');
 
-  // Keep local search in sync when arriving via global header search
   useEffect(() => {
     const q = searchParams.get('q');
 
@@ -212,13 +233,13 @@ export default function Employees() {
       ID: emp.id,
       Name: emp.name,
       Email: emp.email,
+      Role: emp.role,
       Title: emp.title ?? '',
       Department: emp.department ?? '',
       Status: emp.status,
       Phone: emp.phone ?? '',
       Location: emp.location ?? '',
       Join_Date: emp.join_date ?? '',
-      Role: emp.role,
       Salary: emp.salary ?? '',
     }));
 
@@ -226,76 +247,76 @@ export default function Employees() {
   };
 
   const handleDeactivateEmployee = async (employee: Employee) => {
-  if (!isAdmin) return;
+    if (!isAdmin) return;
 
-  if (employee.id === profile?.id) {
-    alert('You cannot deactivate your own admin profile.');
-    return;
-  }
-
-  if (employee.status === 'inactive') {
-    alert(`${employee.name} is already inactive.`);
-    return;
-  }
-
-  const confirmed = window.confirm(
-    `Are you sure you want to deactivate ${employee.name}? Their attendance, leave, and payroll history will be kept.`
-  );
-
-  if (!confirmed) return;
-
-  setDeactivating(true);
-
-  try {
-    const res = await fetch(`/api/employees?id=${employee.id}`, {
-      method: 'DELETE',
-    });
-
-    const data = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      throw new Error(data?.error || 'Failed to deactivate employee.');
+    if (employee.id === profile?.id) {
+      alert('You cannot deactivate your own admin profile.');
+      return;
     }
 
-    const updatedEmployee = data?.employee;
+    if (employee.status === 'inactive') {
+      alert(`${employee.name} is already inactive.`);
+      return;
+    }
 
-    if (updatedEmployee) {
-      setEmployees((prev) =>
-        prev.map((e) =>
-          e.id === employee.id
+    const confirmed = window.confirm(
+      `Are you sure you want to deactivate ${employee.name}? Their attendance, leave, and payroll history will be kept.`
+    );
+
+    if (!confirmed) return;
+
+    setDeactivating(true);
+
+    try {
+      const res = await fetch(`/api/employees?id=${employee.id}`, {
+        method: 'DELETE',
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to deactivate employee.');
+      }
+
+      const updatedEmployee = data?.employee;
+
+      if (updatedEmployee) {
+        setEmployees((prev) =>
+          prev.map((e) =>
+            e.id === employee.id
+              ? {
+                  ...e,
+                  status: updatedEmployee.status,
+                }
+              : e
+          )
+        );
+
+        setSelected((prev) =>
+          prev
             ? {
-                ...e,
+                ...prev,
                 status: updatedEmployee.status,
               }
-            : e
-        )
-      );
+            : prev
+        );
+      } else {
+        await fetchEmployees();
+      }
 
-      setSelected((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: updatedEmployee.status,
-            }
-          : prev
-      );
-    } else {
-      await fetchEmployees();
+      alert(`${employee.name} has been deactivated.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to deactivate employee.');
+    } finally {
+      setDeactivating(false);
     }
-
-    alert(`${employee.name} has been deactivated.`);
-  } catch (err) {
-    alert(err instanceof Error ? err.message : 'Failed to deactivate employee.');
-  } finally {
-    setDeactivating(false);
-  }
-};
+  };
 
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!form.name || !form.email || !form.department || !form.location) {
-      setFormError('Name, email, department and location are required.');
+    if (!form.name || !form.email || !form.role || !form.department || !form.location) {
+      setFormError('Name, email, role, department and location are required.');
       return;
     }
 
@@ -308,20 +329,23 @@ export default function Employees() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          role: 'employee',
+          role: isAdmin ? form.role : 'employee',
           status: 'active',
           join_date: new Date().toISOString().slice(0, 10),
         }),
       });
 
       if (!res.ok) {
-        throw new Error('Failed to add employee');
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || 'Failed to add employee');
       }
 
       setShowAdd(false);
+
       setForm({
         name: '',
         email: '',
+        role: 'employee',
         title: '',
         department: '',
         phone: '',
@@ -476,6 +500,7 @@ export default function Employees() {
             <thead>
               <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-white/5">
                 <th className="px-5 py-3.5 font-medium">Employee</th>
+                <th className="px-5 py-3.5 font-medium">Role</th>
                 <th className="px-5 py-3.5 font-medium">Department</th>
                 <th className="px-5 py-3.5 font-medium">Title</th>
                 <th className="px-5 py-3.5 font-medium">Status</th>
@@ -504,6 +529,20 @@ export default function Employees() {
                         <p className="text-xs text-muted">{emp.email}</p>
                       </div>
                     </div>
+                  </td>
+
+                  <td className="px-5 py-3.5">
+                    <Badge
+                      tone={
+                        emp.role === 'admin'
+                          ? 'danger'
+                          : emp.role === 'manager'
+                            ? 'warning'
+                            : 'default'
+                      }
+                    >
+                      {emp.role}
+                    </Badge>
                   </td>
 
                   <td className="px-5 py-3.5 text-muted">
@@ -568,7 +607,19 @@ export default function Employees() {
 
                   <p className="text-muted text-sm">{selected.title}</p>
 
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex flex-wrap justify-center gap-2 mt-3">
+                    <Badge
+                      tone={
+                        selected.role === 'admin'
+                          ? 'danger'
+                          : selected.role === 'manager'
+                            ? 'warning'
+                            : 'default'
+                      }
+                    >
+                      {selected.role}
+                    </Badge>
+
                     <Badge tone="info">{selected.department}</Badge>
 
                     <Badge tone={STATUS_TONE[selected.status] ?? 'default'}>
@@ -767,6 +818,22 @@ export default function Employees() {
                     className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                   />
 
+                  <select
+                    required
+                    value={form.role}
+                    onChange={(e) =>
+                      setForm({ ...form, role: e.target.value })
+                    }
+                    disabled={!isAdmin}
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {availableRoleOptions.map((role) => (
+                      <option key={role.value} value={role.value}>
+                        {role.label}
+                      </option>
+                    ))}
+                  </select>
+
                   <input
                     placeholder="Job title"
                     value={form.title}
@@ -794,6 +861,18 @@ export default function Employees() {
                       </option>
                     ))}
                   </select>
+
+                  {form.role === 'manager' && form.department && (
+                    <p className="text-xs text-amber bg-amber/10 border border-amber/20 rounded-lg px-3 py-2">
+                      This user will be assigned as Manager for {form.department}.
+                    </p>
+                  )}
+
+                  {form.role === 'admin' && (
+                    <p className="text-xs text-rose bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">
+                      This user will have full admin access.
+                    </p>
+                  )}
 
                   <div className="grid grid-cols-2 gap-3">
                     <input
