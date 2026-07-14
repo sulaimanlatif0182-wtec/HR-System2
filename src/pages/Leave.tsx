@@ -47,6 +47,25 @@ const BALANCE_TYPES = [
 const HALF_DAY_OPTIONS = ['Full Day', 'AM', 'PM'] as const;
 const TIME_OFF_PERIODS = ['AM', 'PM'] as const;
 
+type LeaveType = (typeof LEAVE_TYPES)[number];
+type HalfDayPeriod = (typeof HALF_DAY_OPTIONS)[number];
+type TimeOffPeriod = (typeof TIME_OFF_PERIODS)[number];
+
+interface LeaveFormState {
+  request_mode: 'leave' | 'time_off';
+  leave_type: LeaveType;
+  start_date: string;
+  end_date: string;
+  half_day_period: HalfDayPeriod;
+  time_off_date: string;
+  time_off_period: TimeOffPeriod;
+  time_off_start: string;
+  time_off_end: string;
+  reason: string;
+  duties_covered_by: string;
+  employee_acknowledged: boolean;
+}
+
 function daysBetween(start: string, end: string) {
   const s = new Date(start);
   const e = new Date(end);
@@ -192,7 +211,7 @@ export default function Leave() {
   const [filter, setFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<LeaveFormState>({
     request_mode: 'leave',
     leave_type: LEAVE_TYPES[0],
     start_date: '',
@@ -346,7 +365,7 @@ export default function Leave() {
   const resetForm = () => {
     setForm({
       request_mode: 'leave',
-      leave_type: LEAVE_TYPES[0],
+     leave_type: LEAVE_TYPES[0],
       start_date: '',
       end_date: '',
       half_day_period: 'Full Day',
@@ -356,8 +375,8 @@ export default function Leave() {
       time_off_end: '',
       reason: '',
       duties_covered_by: '',
-      employee_acknowledged: false,
-    });
+      mployee_acknowledged: false,
+  });
 
     setAttachmentFile(null);
     setFormError('');
@@ -1242,7 +1261,7 @@ export default function Leave() {
                         onChange={(e) =>
                           setForm({
                             ...form,
-                            leave_type: e.target.value as typeof LEAVE_TYPES[number],
+                            leave_type: e.target.value as LeaveType,
                           })
                         }
                         className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
@@ -1296,7 +1315,7 @@ export default function Leave() {
                         onChange={(e) =>
                           setForm({
                             ...form,
-                            half_day_period: e.target.value,
+                            half_day_period: e.target.value as HalfDayPeriod,
                           })
                         }
                         className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
@@ -1334,7 +1353,7 @@ export default function Leave() {
                         onChange={(e) =>
                           setForm({
                             ...form,
-                            time_off_period: e.target.value,
+                            time_off_period: e.target.value as TimeOffPeriod,
                           })
                         }
                         className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
