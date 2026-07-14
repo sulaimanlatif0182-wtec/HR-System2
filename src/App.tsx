@@ -1,7 +1,8 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
+
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
@@ -13,77 +14,107 @@ import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 
+function ProtectedPage({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <Layout>{children}</Layout>
+    </ProtectedRoute>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+
+          {/* Protected routes */}
           <Route
             path="/"
             element={
-              <ProtectedRoute>
-                <Layout><Dashboard /></Layout>
-              </ProtectedRoute>
+              <ProtectedPage>
+                <Dashboard />
+              </ProtectedPage>
             }
           />
+
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedPage>
+                <Dashboard />
+              </ProtectedPage>
+            }
+          />
+
           <Route
             path="/profile"
             element={
-              <ProtectedRoute>
-                <Layout><Profile /></Layout>
-              </ProtectedRoute>
+              <ProtectedPage>
+                <Profile />
+              </ProtectedPage>
             }
           />
+
           <Route
             path="/settings"
             element={
-              <ProtectedRoute>
-                <Layout><Settings /></Layout>
-              </ProtectedRoute>
+              <ProtectedPage>
+                <Settings />
+              </ProtectedPage>
             }
           />
+
           <Route
             path="/employees"
             element={
-              <ProtectedRoute>
-                <Layout><Employees /></Layout>
-              </ProtectedRoute>
+              <ProtectedPage>
+                <Employees />
+              </ProtectedPage>
             }
           />
+
           <Route
             path="/attendance"
             element={
-              <ProtectedRoute>
-                <Layout><Attendance /></Layout>
-              </ProtectedRoute>
+              <ProtectedPage>
+                <Attendance />
+              </ProtectedPage>
             }
           />
+
           <Route
             path="/leave"
             element={
-              <ProtectedRoute>
-                <Layout><Leave /></Layout>
-              </ProtectedRoute>
+              <ProtectedPage>
+                <Leave />
+              </ProtectedPage>
             }
           />
+
           <Route
             path="/payroll"
             element={
-              <ProtectedRoute>
-                <Layout><Payroll /></Layout>
-              </ProtectedRoute>
+              <ProtectedPage>
+                <Payroll />
+              </ProtectedPage>
             }
           />
+
           <Route
             path="/org-chart"
             element={
-              <ProtectedRoute>
-                <Layout><OrgChart /></Layout>
-              </ProtectedRoute>
+              <ProtectedPage>
+                <OrgChart />
+              </ProtectedPage>
             }
           />
+
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

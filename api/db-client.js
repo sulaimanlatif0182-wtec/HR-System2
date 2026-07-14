@@ -12,13 +12,13 @@ const supabaseServiceKey =
 
 if (!supabaseUrl) {
   throw new Error(
-    'Missing Supabase URL. Please set SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL in Vercel environment variables.'
+    'Missing Supabase URL. Please set SUPABASE_URL, NEXT_PUBLIC_SUPABASE_URL, or VITE_SUPABASE_URL in Vercel environment variables.'
   );
 }
 
 if (!supabaseServiceKey) {
   throw new Error(
-    'Missing Supabase service key. Please set SUPABASE_SERVICE_ROLE_KEY in Vercel environment variables.'
+    'Missing Supabase service key. Please set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY in Vercel environment variables.'
   );
 }
 
