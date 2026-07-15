@@ -1,6 +1,20 @@
 import { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { Wallet, TrendingUp, FileText, Download } from 'lucide-react';
+import type { FormEvent } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Wallet,
+  TrendingUp,
+  FileText,
+  Download,
+  Upload,
+  Plus,
+  Pencil,
+  X,
+  Loader2,
+  CheckCircle2,
+  Rocket,
+  Save,
+} from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -20,6 +34,13 @@ const PIE_COLORS = [
   '#6366f1',
 ];
 
+const PAYROLL_STATUSES = ['draft', 'reviewed', 'approved', 'released', 'paid'];
+
+function currentPeriod() {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
 interface PayRec {
   id: number;
   employee_id: number;
@@ -29,12 +50,95 @@ interface PayRec {
   deductions: number;
   net_pay: number;
   status: string;
+
+  gross_pay?: number | null;
+  ot_hours?: number | null;
+  ot_rate?: number | null;
+  ot_pay?: number | null;
+  claim_amount?: number | null;
+  leave_deduction?: number | null;
+  unpaid_leave_days?: number | null;
+
+  epf_employee?: number | null;
+  epf_employer?: number | null;
+  socso_employee?: number | null;
+  socso_employer?: number | null;
+  eis_employee?: number | null;
+  eis_employer?: number | null;
+  pcb?: number | null;
+
+  batch_id?: number | null;
+  released_at?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  remarks?: string | null;
 }
 
 interface Emp {
   id: number;
   name: string;
+  email?: string | null;
   department: string | null;
+}
+
+interface PayrollBatch {
+  id: number;
+  period: string;
+  status: string;
+  total_gross: number;
+  total_net: number;
+  total_epf_employee: number;
+  total_epf_employer: number;
+  total_socso_employee: number;
+  total_socso_employer: number;
+  total_eis_employee: number;
+  total_eis_employer: number;
+  total_pcb: number;
+  total_claims: number;
+  total_ot: number;
+  total_deductions: number;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  released_by?: string | null;
+  released_at?: string | null;
+}
+
+interface PayrollFormState {
+  id?: number | null;
+  employee_id: string;
+  period: string;
+  base_salary: string;
+  bonus: string;
+  deductions: string;
+  gross_pay: string;
+  ot_hours: string;
+  ot_rate: string;
+  ot_pay: string;
+  claim_amount: string;
+  leave_deduction: string;
+  unpaid_leave_days: string;
+  epf_employee: string;
+  epf_employer: string;
+  socso_employee: string;
+  socso_employer: string;
+  eis_employee: string;
+  eis_employer: string;
+  pcb: string;
+  net_pay: string;
+  status: string;
+  remarks: string;
+}
+
+function numberValue(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function money(value: unknown) {
+  return `RM ${Number(value ?? 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function escapeCsvValue(value: unknown) {
@@ -77,6 +181,124 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
   URL.revokeObjectURL(url);
 }
 
+function parseCsv(text: string) {
+  const rows: string[][] = [];
+  let current = '';
+  let row: string[] = [];
+  let insideQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === '"' && insideQuotes && next === '"') {
+      current += '"';
+      i++;
+      continue;
+    }
+
+    if (char === '"') {
+      insideQuotes = !insideQuotes;
+      continue;
+    }
+
+    if (char === ',' && !insideQuotes) {
+      row.push(current.trim());
+      current = '';
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !insideQuotes) {
+      if (char === '\r' && next === '\n') i++;
+      row.push(current.trim());
+      current = '';
+
+      if (row.some((cell) => cell !== '')) {
+        rows.push(row);
+      }
+
+      row = [];
+      continue;
+    }
+
+    current += char;
+  }
+
+  row.push(current.trim());
+
+  if (row.some((cell) => cell !== '')) {
+    rows.push(row);
+  }
+
+  const headers = rows[0] || [];
+
+  return rows.slice(1).map((values) => {
+    const item: Record<string, string> = {};
+
+    headers.forEach((header, index) => {
+      item[header.trim()] = values[index] ?? '';
+    });
+
+    return item;
+  });
+}
+
+function emptyPayrollForm(period = currentPeriod()): PayrollFormState {
+  return {
+    id: null,
+    employee_id: '',
+    period,
+    base_salary: '0',
+    bonus: '0',
+    deductions: '0',
+    gross_pay: '0',
+    ot_hours: '0',
+    ot_rate: '0',
+    ot_pay: '0',
+    claim_amount: '0',
+    leave_deduction: '0',
+    unpaid_leave_days: '0',
+    epf_employee: '0',
+    epf_employer: '0',
+    socso_employee: '0',
+    socso_employer: '0',
+    eis_employee: '0',
+    eis_employer: '0',
+    pcb: '0',
+    net_pay: '0',
+    status: 'draft',
+    remarks: '',
+  };
+}
+
+function formFromRecord(record: PayRec): PayrollFormState {
+  return {
+    id: record.id,
+    employee_id: String(record.employee_id),
+    period: record.period,
+    base_salary: String(record.base_salary ?? 0),
+    bonus: String(record.bonus ?? 0),
+    deductions: String(record.deductions ?? 0),
+    gross_pay: String(record.gross_pay ?? 0),
+    ot_hours: String(record.ot_hours ?? 0),
+    ot_rate: String(record.ot_rate ?? 0),
+    ot_pay: String(record.ot_pay ?? 0),
+    claim_amount: String(record.claim_amount ?? 0),
+    leave_deduction: String(record.leave_deduction ?? 0),
+    unpaid_leave_days: String(record.unpaid_leave_days ?? 0),
+    epf_employee: String(record.epf_employee ?? 0),
+    epf_employer: String(record.epf_employer ?? 0),
+    socso_employee: String(record.socso_employee ?? 0),
+    socso_employer: String(record.socso_employer ?? 0),
+    eis_employee: String(record.eis_employee ?? 0),
+    eis_employer: String(record.eis_employer ?? 0),
+    pcb: String(record.pcb ?? 0),
+    net_pay: String(record.net_pay ?? 0),
+    status: record.status ?? 'draft',
+    remarks: record.remarks ?? '',
+  };
+}
+
 export default function Payroll() {
   const { profile } = useAuth();
 
@@ -91,21 +313,32 @@ export default function Payroll() {
 
   const [records, setRecords] = useState<PayRec[]>([]);
   const [employees, setEmployees] = useState<Emp[]>([]);
+  const [batches, setBatches] = useState<PayrollBatch[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod());
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const [showForm, setShowForm] = useState(false);
+  const [payrollForm, setPayrollForm] = useState<PayrollFormState>(
+    emptyPayrollForm()
+  );
+  const [formError, setFormError] = useState('');
 
   const fetchAll = async () => {
     setLoading(true);
     setError('');
 
     try {
-      const [pay, emp] = await Promise.all([
+      const [pay, emp, batchData] = await Promise.all([
         fetch('/api/payroll').then((r) => r.json()),
         fetch('/api/employees').then((r) => r.json()),
+        fetch('/api/payroll?batches=true').then((r) => r.json()),
       ]);
 
       setRecords(Array.isArray(pay) ? pay : []);
       setEmployees(Array.isArray(emp) ? emp : []);
+      setBatches(Array.isArray(batchData) ? batchData : []);
     } catch {
       setError('Failed to load payroll data.');
     } finally {
@@ -148,15 +381,28 @@ export default function Payroll() {
     [visibleEmployees]
   );
 
+  const selectedBatch = useMemo(
+    () => batches.find((batch) => batch.period === selectedPeriod) || null,
+    [batches, selectedPeriod]
+  );
+
   const visible = useMemo(() => {
+    let list = records.filter((record) => record.period === selectedPeriod);
+
     if (isAdmin) {
-      return records;
+      return list;
     }
 
-    return records.filter((record) =>
-      visibleEmployeeIds.has(record.employee_id)
-    );
-  }, [records, visibleEmployeeIds, isAdmin]);
+    list = list.filter((record) => visibleEmployeeIds.has(record.employee_id));
+
+    if (!isAdminOrManager) {
+      list = list.filter(
+        (record) => record.status === 'released' || record.status === 'paid'
+      );
+    }
+
+    return list;
+  }, [records, selectedPeriod, visibleEmployeeIds, isAdmin, isAdminOrManager]);
 
   const deptSplit = useMemo(() => {
     const map: Record<string, number> = {};
@@ -172,9 +418,16 @@ export default function Payroll() {
     }));
   }, [visible, empMap]);
 
-  const total = visible.reduce((sum, r) => sum + Number(r.net_pay), 0);
-  const avg = visible.length ? total / visible.length : 0;
-  const paid = visible.filter((r) => r.status === 'paid').length;
+  const totalGross = visible.reduce((sum, r) => sum + numberValue(r.gross_pay), 0);
+  const totalNet = visible.reduce((sum, r) => sum + numberValue(r.net_pay), 0);
+  const totalOt = visible.reduce((sum, r) => sum + numberValue(r.ot_pay), 0);
+  const totalClaims = visible.reduce(
+    (sum, r) => sum + numberValue(r.claim_amount),
+    0
+  );
+  const paidOrReleased = visible.filter(
+    (r) => r.status === 'released' || r.status === 'paid'
+  ).length;
 
   const formatPayrollRow = (r: PayRec) => ({
     ID: r.id,
@@ -183,16 +436,30 @@ export default function Payroll() {
     Department: empMap[r.employee_id]?.department ?? '',
     Period: r.period,
     Base_Salary: r.base_salary,
+    Gross_Pay: r.gross_pay ?? '',
     Bonus: r.bonus,
+    OT_Hours: r.ot_hours ?? '',
+    OT_Rate: r.ot_rate ?? '',
+    OT_Pay: r.ot_pay ?? '',
+    Claim_Amount: r.claim_amount ?? '',
+    Leave_Deduction: r.leave_deduction ?? '',
+    Unpaid_Leave_Days: r.unpaid_leave_days ?? '',
+    EPF_Employee: r.epf_employee ?? '',
+    EPF_Employer: r.epf_employer ?? '',
+    SOCSO_Employee: r.socso_employee ?? '',
+    SOCSO_Employer: r.socso_employer ?? '',
+    EIS_Employee: r.eis_employee ?? '',
+    EIS_Employer: r.eis_employer ?? '',
+    PCB: r.pcb ?? '',
     Deductions: r.deductions,
     Net_Pay: r.net_pay,
     Status: r.status,
+    Remarks: r.remarks ?? '',
   });
 
   const handleExportCsv = () => {
     const rows = visible.map(formatPayrollRow);
-
-    downloadCsv('payroll.csv', rows);
+    downloadCsv(`payroll-${selectedPeriod}.csv`, rows);
   };
 
   const handleExportSinglePayslip = (record: PayRec) => {
@@ -207,6 +474,252 @@ export default function Payroll() {
     downloadCsv(`payslip-${safeEmployeeName}-${record.period}.csv`, [
       formatPayrollRow(record),
     ]);
+  };
+
+  const openCreateForm = () => {
+    setPayrollForm(emptyPayrollForm(selectedPeriod));
+    setFormError('');
+    setShowForm(true);
+  };
+
+  const openEditForm = (record: PayRec) => {
+    setPayrollForm(formFromRecord(record));
+    setFormError('');
+    setShowForm(true);
+  };
+
+  const updatePayrollForm = (key: keyof PayrollFormState, value: string) => {
+    const next = {
+      ...payrollForm,
+      [key]: value,
+    };
+
+    const gross =
+      numberValue(next.base_salary) +
+      numberValue(next.bonus) +
+      numberValue(next.ot_pay) +
+      numberValue(next.claim_amount);
+
+    const totalDeductions =
+      numberValue(next.deductions) +
+      numberValue(next.leave_deduction) +
+      numberValue(next.epf_employee) +
+      numberValue(next.socso_employee) +
+      numberValue(next.eis_employee) +
+      numberValue(next.pcb);
+
+    next.gross_pay = String(Math.round(gross * 100) / 100);
+    next.net_pay = String(Math.round((gross - totalDeductions) * 100) / 100);
+
+    setPayrollForm(next);
+  };
+
+  const savePayrollRecord = async (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!isAdmin) return;
+
+    if (!payrollForm.employee_id || !payrollForm.period) {
+      setFormError('Employee and period are required.');
+      return;
+    }
+
+    setActionLoading(true);
+    setFormError('');
+
+    try {
+      const payload = {
+        id: payrollForm.id,
+        employee_id: Number(payrollForm.employee_id),
+        period: payrollForm.period,
+        base_salary: numberValue(payrollForm.base_salary),
+        bonus: numberValue(payrollForm.bonus),
+        deductions: numberValue(payrollForm.deductions),
+        gross_pay: numberValue(payrollForm.gross_pay),
+        ot_hours: numberValue(payrollForm.ot_hours),
+        ot_rate: numberValue(payrollForm.ot_rate),
+        ot_pay: numberValue(payrollForm.ot_pay),
+        claim_amount: numberValue(payrollForm.claim_amount),
+        leave_deduction: numberValue(payrollForm.leave_deduction),
+        unpaid_leave_days: numberValue(payrollForm.unpaid_leave_days),
+        epf_employee: numberValue(payrollForm.epf_employee),
+        epf_employer: numberValue(payrollForm.epf_employer),
+        socso_employee: numberValue(payrollForm.socso_employee),
+        socso_employer: numberValue(payrollForm.socso_employer),
+        eis_employee: numberValue(payrollForm.eis_employee),
+        eis_employer: numberValue(payrollForm.eis_employer),
+        pcb: numberValue(payrollForm.pcb),
+        net_pay: numberValue(payrollForm.net_pay),
+        status: payrollForm.status,
+        remarks: payrollForm.remarks,
+      };
+
+      const res = await fetch('/api/payroll', {
+        method: payrollForm.id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to save payroll record.');
+      }
+
+      setShowForm(false);
+      await fetchAll();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to save record.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const createBatch = async () => {
+    if (!isAdmin) return;
+
+    setActionLoading(true);
+
+    try {
+      const res = await fetch('/api/payroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create_batch',
+          period: selectedPeriod,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to create batch.');
+      }
+
+      await fetchAll();
+      alert(`Payroll batch ${selectedPeriod} is ready.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to create batch.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const approveBatch = async () => {
+    if (!isAdmin || !profile) return;
+
+    const confirmed = window.confirm(
+      `Approve payroll batch ${selectedPeriod}?`
+    );
+
+    if (!confirmed) return;
+
+    setActionLoading(true);
+
+    try {
+      const res = await fetch('/api/payroll', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'approve_batch',
+          period: selectedPeriod,
+          approved_by: profile.name ?? profile.email ?? 'Admin',
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to approve batch.');
+      }
+
+      await fetchAll();
+      alert(`Payroll batch ${selectedPeriod} approved.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to approve batch.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const releaseBatch = async () => {
+    if (!isAdmin || !profile) return;
+
+    const confirmed = window.confirm(
+      `Release all payslips for ${selectedPeriod} to employees?`
+    );
+
+    if (!confirmed) return;
+
+    setActionLoading(true);
+
+    try {
+      const res = await fetch('/api/payroll', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'release_batch',
+          period: selectedPeriod,
+          released_by: profile.name ?? profile.email ?? 'Admin',
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to release payslips.');
+      }
+
+      await fetchAll();
+      alert(`Payslips for ${selectedPeriod} released.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to release payslips.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleImportCsv = async (file: File | null) => {
+    if (!isAdmin || !file) return;
+
+    setActionLoading(true);
+
+    try {
+      const text = await file.text();
+      const rows = parseCsv(text);
+
+      if (!rows.length) {
+        throw new Error('CSV file has no rows.');
+      }
+
+      const res = await fetch('/api/payroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'import_records',
+          period: selectedPeriod,
+          rows,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to import payroll CSV.');
+      }
+
+      await fetchAll();
+
+      alert(
+        `Import complete.\nInserted: ${data.inserted}\nUpdated: ${data.updated}\nSkipped: ${data.skipped}${
+          data.errors?.length ? `\n\nErrors:\n${data.errors.join('\n')}` : ''
+        }`
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to import CSV.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   if (loading) return <LoadingState label="Crunching payroll numbers…" />;
@@ -224,7 +737,7 @@ export default function Payroll() {
               ? `Compensation overview for ${
                   profile?.department ?? 'your department'
                 }.`
-              : 'Your payslip history.'
+              : 'Your released payslip history.'
         }
         action={
           isAdminOrManager ? (
@@ -241,26 +754,116 @@ export default function Payroll() {
         }
       />
 
+      <div className="glass rounded-2xl p-5 mb-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <p className="text-xs text-muted mb-1">Payroll Period</p>
+          <input
+            type="month"
+            value={selectedPeriod}
+            onChange={(e) => setSelectedPeriod(e.target.value)}
+            className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge
+            tone={
+              selectedBatch?.status === 'released'
+                ? 'success'
+                : selectedBatch?.status === 'approved'
+                  ? 'info'
+                  : 'warning'
+            }
+          >
+            Batch: {selectedBatch?.status ?? 'not created'}
+          </Badge>
+
+          {isAdmin && (
+            <>
+              <button
+                type="button"
+                onClick={createBatch}
+                disabled={actionLoading}
+                className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/10 disabled:opacity-50 transition-all"
+              >
+                <Plus size={16} />
+                Create Batch
+              </button>
+
+              <button
+                type="button"
+                onClick={openCreateForm}
+                disabled={actionLoading}
+                className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/10 disabled:opacity-50 transition-all"
+              >
+                <Pencil size={16} />
+                Add Record
+              </button>
+
+              <label className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/10 disabled:opacity-50 transition-all cursor-pointer">
+                <Upload size={16} />
+                Import CSV
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    handleImportCsv(e.target.files?.[0] ?? null);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={approveBatch}
+                disabled={actionLoading || visible.length === 0}
+                className="flex items-center gap-2 rounded-xl bg-accent/15 text-accent border border-accent/25 px-4 py-2.5 text-sm font-semibold hover:bg-accent/25 disabled:opacity-50 transition-all"
+              >
+                <CheckCircle2 size={16} />
+                Approve
+              </button>
+
+              <button
+                type="button"
+                onClick={releaseBatch}
+                disabled={actionLoading || visible.length === 0}
+                className="flex items-center gap-2 rounded-xl bg-emerald/15 text-emerald border border-emerald/25 px-4 py-2.5 text-sm font-semibold hover:bg-emerald/25 disabled:opacity-50 transition-all"
+              >
+                <Rocket size={16} />
+                Release Payslips
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
       {isAdminOrManager && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-5 mb-8">
           {[
             {
-              label: isAdmin ? 'Total Monthly Cost' : 'Department Monthly Cost',
-              value: `$${total.toLocaleString()}`,
+              label: isAdmin ? 'Total Gross Pay' : 'Department Gross Pay',
+              value: money(totalGross),
               icon: Wallet,
               grad: 'from-violet-500 to-fuchsia-500',
             },
             {
-              label: 'Average Net Pay',
-              value: `$${Math.round(avg).toLocaleString()}`,
+              label: 'Total Net Pay',
+              value: money(totalNet),
               icon: TrendingUp,
               grad: 'from-cyan-400 to-blue-500',
             },
             {
-              label: 'Payslips Processed',
-              value: `${paid}/${visible.length}`,
+              label: 'OT Pay',
+              value: money(totalOt),
               icon: FileText,
               grad: 'from-amber-400 to-orange-500',
+            },
+            {
+              label: 'Claims',
+              value: money(totalClaims),
+              icon: Wallet,
+              grad: 'from-emerald-400 to-teal-500',
             },
           ].map((c, i) => {
             const Icon = c.icon;
@@ -279,7 +882,7 @@ export default function Payroll() {
                     <Icon size={20} className="text-white" />
                   </div>
 
-                  <div className="font-display text-2xl font-bold">
+                  <div className="font-display text-xl font-bold">
                     {c.value}
                   </div>
 
@@ -309,32 +912,34 @@ export default function Payroll() {
                 ? 'Payslip Records'
                 : isManagerOnly
                   ? `${profile?.department ?? 'Department'} Payslip Records`
-                  : 'Your Payslips'}
+                  : 'Your Released Payslips'}
             </h3>
+
+            <span className="text-xs text-muted">
+              Released/Paid: {paidOrReleased}/{visible.length}
+            </span>
           </div>
 
           {visible.length === 0 ? (
-            <EmptyState label="No payroll records yet." />
+            <EmptyState label="No payroll records for this period." />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-white/5">
                     {isAdminOrManager && (
-                      <th className="px-6 py-3 font-medium">
-                        Employee
-                      </th>
+                      <th className="px-6 py-3 font-medium">Employee</th>
                     )}
 
                     {isAdminOrManager && (
-                      <th className="px-6 py-3 font-medium">
-                        Department
-                      </th>
+                      <th className="px-6 py-3 font-medium">Department</th>
                     )}
 
                     <th className="px-6 py-3 font-medium">Period</th>
                     <th className="px-6 py-3 font-medium">Base</th>
-                    <th className="px-6 py-3 font-medium">Bonus</th>
+                    <th className="px-6 py-3 font-medium">Gross</th>
+                    <th className="px-6 py-3 font-medium">OT</th>
+                    <th className="px-6 py-3 font-medium">Claims</th>
                     <th className="px-6 py-3 font-medium">Net Pay</th>
                     <th className="px-6 py-3 font-medium">Status</th>
 
@@ -362,25 +967,37 @@ export default function Payroll() {
                         </td>
                       )}
 
+                      <td className="px-6 py-3 text-muted">{r.period}</td>
+
                       <td className="px-6 py-3 text-muted">
-                        {r.period}
+                        {money(r.base_salary)}
                       </td>
 
                       <td className="px-6 py-3 text-muted">
-                        ${Number(r.base_salary).toLocaleString()}
+                        {money(r.gross_pay)}
+                      </td>
+
+                      <td className="px-6 py-3 text-amber">
+                        {money(r.ot_pay)}
                       </td>
 
                       <td className="px-6 py-3 text-emerald">
-                        +${Number(r.bonus).toLocaleString()}
+                        {money(r.claim_amount)}
                       </td>
 
                       <td className="px-6 py-3 font-semibold">
-                        ${Number(r.net_pay).toLocaleString()}
+                        {money(r.net_pay)}
                       </td>
 
                       <td className="px-6 py-3">
                         <Badge
-                          tone={r.status === 'paid' ? 'success' : 'warning'}
+                          tone={
+                            r.status === 'released' || r.status === 'paid'
+                              ? 'success'
+                              : r.status === 'approved'
+                                ? 'info'
+                                : 'warning'
+                          }
                         >
                           {r.status}
                         </Badge>
@@ -388,14 +1005,27 @@ export default function Payroll() {
 
                       {isAdminOrManager && (
                         <td className="px-6 py-3">
-                          <button
-                            type="button"
-                            onClick={() => handleExportSinglePayslip(r)}
-                            className="text-muted hover:text-primary transition-all"
-                            title="Download payslip CSV"
-                          >
-                            <Download size={15} />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => openEditForm(r)}
+                                className="text-muted hover:text-primary transition-all"
+                                title="Edit payroll"
+                              >
+                                <Pencil size={15} />
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleExportSinglePayslip(r)}
+                              className="text-muted hover:text-primary transition-all"
+                              title="Download payslip CSV"
+                            >
+                              <Download size={15} />
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -455,7 +1085,7 @@ export default function Payroll() {
                         borderRadius: 12,
                         fontSize: 12,
                       }}
-                      formatter={(v) => `$${Number(v ?? 0).toLocaleString()}`}
+                      formatter={(v) => money(v)}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -477,9 +1107,7 @@ export default function Payroll() {
                         {d.name}
                       </div>
 
-                      <span>
-                        ${d.value.toLocaleString()}
-                      </span>
+                      <span>{money(d.value)}</span>
                     </div>
                   ))}
                 </div>
@@ -488,6 +1116,185 @@ export default function Payroll() {
           </motion.div>
         )}
       </div>
+
+      <AnimatePresence>
+        {showForm && isAdmin && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 z-50"
+              onClick={() => setShowForm(false)}
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+            >
+              <div
+                className="glass-solid rounded-2xl p-6 w-full max-w-3xl pointer-events-auto max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="font-display text-lg font-bold">
+                    {payrollForm.id ? 'Edit Payroll Record' : 'Add Payroll Record'}
+                  </h3>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowForm(false)}
+                    className="text-muted hover:text-ink"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <form onSubmit={savePayrollRecord} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <select
+                      required
+                      value={payrollForm.employee_id}
+                      onChange={(e) =>
+                        updatePayrollForm('employee_id', e.target.value)
+                      }
+                      className="bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                    >
+                      <option value="">Select employee</option>
+                      {employees.map((employee) => (
+                        <option key={employee.id} value={employee.id}>
+                          {employee.name} · {employee.department ?? '—'}
+                        </option>
+                      ))}
+                    </select>
+
+                    <input
+                      required
+                      type="month"
+                      value={payrollForm.period}
+                      onChange={(e) =>
+                        updatePayrollForm('period', e.target.value)
+                      }
+                      className="bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                    />
+
+                    <select
+                      value={payrollForm.status}
+                      onChange={(e) =>
+                        updatePayrollForm('status', e.target.value)
+                      }
+                      className="bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                    >
+                      {PAYROLL_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    {[
+                      ['base_salary', 'Base Salary'],
+                      ['bonus', 'Bonus'],
+                      ['ot_hours', 'OT Hours'],
+                      ['ot_rate', 'OT Rate'],
+                      ['ot_pay', 'OT Pay'],
+                      ['claim_amount', 'Claims'],
+                      ['leave_deduction', 'Leave Deduction'],
+                      ['unpaid_leave_days', 'Unpaid Leave Days'],
+                      ['epf_employee', 'EPF Employee'],
+                      ['epf_employer', 'EPF Employer'],
+                      ['socso_employee', 'SOCSO Employee'],
+                      ['socso_employer', 'SOCSO Employer'],
+                      ['eis_employee', 'EIS Employee'],
+                      ['eis_employer', 'EIS Employer'],
+                      ['pcb', 'PCB'],
+                      ['deductions', 'Other Deductions'],
+                    ].map(([key, label]) => (
+                      <div key={key}>
+                        <label className="text-xs text-muted mb-1 block">
+                          {label}
+                        </label>
+
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={payrollForm[key as keyof PayrollFormState] as string}
+                          onChange={(e) =>
+                            updatePayrollForm(
+                              key as keyof PayrollFormState,
+                              e.target.value
+                            )
+                          }
+                          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted mb-1 block">
+                        Gross Pay
+                      </label>
+                      <input
+                        readOnly
+                        value={payrollForm.gross_pay}
+                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none text-muted"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-muted mb-1 block">
+                        Net Pay
+                      </label>
+                      <input
+                        readOnly
+                        value={payrollForm.net_pay}
+                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none text-muted"
+                      />
+                    </div>
+                  </div>
+
+                  <textarea
+                    placeholder="Remarks"
+                    value={payrollForm.remarks}
+                    onChange={(e) =>
+                      updatePayrollForm('remarks', e.target.value)
+                    }
+                    rows={3}
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 resize-none"
+                  />
+
+                  {formError && (
+                    <p className="text-rose text-xs bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">
+                      {formError}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold disabled:opacity-60"
+                  >
+                    {actionLoading ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <>
+                        <Save size={16} />
+                        Save Payroll
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
