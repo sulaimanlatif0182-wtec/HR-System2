@@ -17,6 +17,43 @@ import supabase from '../lib/supabase';
 
 type AuthMode = 'signin' | 'signup' | 'forgot';
 
+function getReadableError(err: unknown) {
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+
+  if (typeof err === 'string') {
+    return err;
+  }
+
+  if (err && typeof err === 'object') {
+    const errorObject = err as {
+      message?: string;
+      error?: string;
+      error_description?: string;
+      msg?: string;
+    };
+
+    const message =
+      errorObject.message ||
+      errorObject.error_description ||
+      errorObject.error ||
+      errorObject.msg;
+
+    if (message) {
+      return message;
+    }
+
+    const json = JSON.stringify(err);
+
+    if (json && json !== '{}') {
+      return json;
+    }
+  }
+
+  return 'Something went wrong. Please try again or contact IT support.';
+}
+
 function getFriendlyAuthError(message: string) {
   const lower = message.toLowerCase();
 
@@ -139,33 +176,33 @@ export default function Login() {
   };
 
   const checkEmployeeWhitelist = async (targetEmail: string) => {
-    const res = await fetch(
-      `/api/employees?email=${encodeURIComponent(targetEmail)}&t=${Date.now()}`,
-      {
-       method: 'GET',
-        cache: 'no-store',
-      }
+  const res = await fetch(
+    `/api/employees?email=${encodeURIComponent(targetEmail)}&t=${Date.now()}`,
+    {
+      method: 'GET',
+      cache: 'no-store',
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error('Unable to verify employee email. Please contact IT support.');
+  }
+
+  const rawData = await res.json();
+
+  const employeeProfile = Array.isArray(rawData) ? rawData[0] : rawData;
+
+  if (!employeeProfile || !employeeProfile.id) {
+    throw new Error(
+      'This email has not been registered by HR. Please contact your administrator.'
     );
+  }
 
-    if (!res.ok) {
-      throw new Error('Unable to verify employee email. Please contact IT support.');
-    }
-
-    const rawData = await res.json();
-
-    const employeeProfile = Array.isArray(rawData) ? rawData[0] : rawData;
-
-    if (!employeeProfile || !employeeProfile.id) {
-      throw new Error(
-       'This email has not been registered by HR. Please contact your administrator.'
-      );
-   }
-
-    if (String(employeeProfile.status || '').toLowerCase() === 'inactive') {
-      throw new Error(
-        'This employee account is inactive. Please contact your administrator.'
-      );
-    }
+  if (String(employeeProfile.status || '').toLowerCase() === 'inactive') {
+    throw new Error(
+      'This employee account is inactive. Please contact your administrator.'
+    );
+  }
 
   return employeeProfile;
 };
