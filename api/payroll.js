@@ -318,14 +318,14 @@ async function getLeaveEntitlements(employeeId) {
   return map;
 }
 
-async function getApprovedClaimsForPeriod(employeeId, startDate, endDate) {
+async function getApprovedClaimsForPeriod(employeeId, startDate, endDate, period) {
   const { data, error } = await supabase
     .from('claims')
     .select('id, amount, claim_type, claim_date, status, included_in_payroll, payroll_period')
     .eq('employee_id', employeeId)
     .eq('status', 'approved')
-    .gte('claim_date', startDate)
-    .lte('claim_date', endDate);
+    .lte('claim_date', endDate)
+    .or(`included_in_payroll.is.null,included_in_payroll.eq.false,payroll_period.eq.${period}`);
 
   if (error) throw error;
 
@@ -513,7 +513,8 @@ async function generatePayrollFromSources(period) {
       const claimsResult = await getApprovedClaimsForPeriod(
         employee.id,
         startDate,
-        endDate
+        endDate,
+        period
       );
 
       const bonus = toNumber(existing?.bonus);
