@@ -318,6 +318,43 @@ async function getLeaveEntitlements(employeeId) {
   return map;
 }
 
+async function getApprovedClaimsForPeriod(employeeId, startDate, endDate) {
+  const { data, error } = await supabase
+    .from('claims')
+    .select('id, amount, claim_type, claim_date, status, included_in_payroll, payroll_period')
+    .eq('employee_id', employeeId)
+    .eq('status', 'approved')
+    .gte('claim_date', startDate)
+    .lte('claim_date', endDate);
+
+  if (error) throw error;
+
+  const claims = data || [];
+
+  const total = claims.reduce((sum, claim) => sum + toNumber(claim.amount), 0);
+
+  return {
+    claims,
+    total: roundMoney(total),
+  };
+}
+
+async function markClaimsIncluded(claims, period) {
+  const ids = (claims || []).map((claim) => claim.id).filter(Boolean);
+
+  if (!ids.length) return;
+
+  const { error } = await supabase
+    .from('claims')
+    .update({
+      included_in_payroll: true,
+      payroll_period: period,
+    })
+    .in('id', ids);
+
+  if (error) throw error;
+}
+
 function isDateBefore(date, compareDate) {
   return String(date || '') < String(compareDate || '');
 }
@@ -383,9 +420,7 @@ function calculateLeaveDeductions({
       .reduce((sum, row) => sum + toNumber(row.days), 0);
 
     const balanceBefore = entitlement - usedBefore;
-
     const freeDaysRemaining = Math.max(balanceBefore, 0);
-
     const overusedThisPeriod = Math.max(usedThisPeriod - freeDaysRemaining, 0);
 
     negativeLeaveDays += overusedThisPeriod;
@@ -428,6 +463,14 @@ async function generatePayrollFromSources(period) {
     try {
       const existing = await getExistingPayroll(employee.id, period);
 
+      if (existing && ['released', 'paid'].includes(existing.status)) {
+        results.skipped += 1;
+        results.errors.push(
+          `${employee.name}: skipped because payroll is already ${existing.status}.`
+        );
+        continue;
+      }
+
       const baseSalary =
         existing?.base_salary !== undefined &&
         existing?.base_salary !== null &&
@@ -444,7 +487,7 @@ async function generatePayrollFromSources(period) {
       }
 
       const dailyRate = baseSalary / daysInMonth;
-      const hourlyRate = dailyRate / HOURS_PER_DAY;
+      const hourlyRate = dailyRate / 8;
 
       const otHours = await getAttendanceOtHours(
         employee.id,
@@ -467,9 +510,16 @@ async function generatePayrollFromSources(period) {
         hourlyRate,
       });
 
+      const claimsResult = await getApprovedClaimsForPeriod(
+        employee.id,
+        startDate,
+        endDate
+      );
+
       const bonus = toNumber(existing?.bonus);
       const deductions = toNumber(existing?.deductions);
-      const claimAmount = toNumber(existing?.claim_amount);
+
+      const claimAmount = toNumber(claimsResult.total);
 
       const epfEmployee = toNumber(existing?.epf_employee);
       const epfEmployer = toNumber(existing?.epf_employer);
@@ -522,9 +572,11 @@ async function generatePayrollFromSources(period) {
         status: existing?.status || 'draft',
         remarks: [
           existing?.remarks || '',
-          `Auto-generated from attendance/leave. OT ${roundMoney(
+          `Auto-generated from attendance/leave/claims. OT ${roundMoney(
             otHours
-          )}h. Leave deduction RM ${roundMoney(leaveResult.leaveDeduction)}.`,
+          )}h. Claims RM ${roundMoney(
+            claimAmount
+          )}. Leave deduction RM ${roundMoney(leaveResult.leaveDeduction)}.`,
         ]
           .filter(Boolean)
           .join('\n'),
@@ -546,6 +598,8 @@ async function generatePayrollFromSources(period) {
 
         results.created += 1;
       }
+
+      await markClaimsIncluded(claimsResult.claims, period);
     } catch (err) {
       results.skipped += 1;
       results.errors.push(
