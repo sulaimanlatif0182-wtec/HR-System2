@@ -2,6 +2,16 @@ import supabase from './db-client.js';
 
 const PAYROLL_STATUSES = ['draft', 'reviewed', 'approved', 'released', 'paid'];
 
+const BALANCE_TYPES = [
+  'Annual Leave',
+  'Sick Leave',
+  'Unpaid Leave',
+  'Maternity/Paternity',
+];
+
+const OT_MULTIPLIER = 1.5;
+const HOURS_PER_DAY = 8;
+
 function toNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -9,6 +19,38 @@ function toNumber(value, fallback = 0) {
 
 function cleanString(value) {
   return String(value ?? '').trim();
+}
+
+function roundMoney(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function getPeriodRange(period) {
+  const [yearRaw, monthRaw] = String(period).split('-');
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+
+  if (!year || !month) {
+    throw new Error('Invalid payroll period. Use YYYY-MM format.');
+  }
+
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  const end = new Date(Date.UTC(year, month, 0));
+
+  const daysInMonth = end.getUTCDate();
+
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(
+    daysInMonth
+  ).padStart(2, '0')}`;
+
+  return {
+    year,
+    month,
+    startDate,
+    endDate,
+    daysInMonth,
+  };
 }
 
 function calculatePayrollTotals(row) {
@@ -38,8 +80,8 @@ function calculatePayrollTotals(row) {
       : grossPay - totalDeductions;
 
   return {
-    gross_pay: Math.round(grossPay * 100) / 100,
-    net_pay: Math.round(netPay * 100) / 100,
+    gross_pay: roundMoney(grossPay),
+    net_pay: roundMoney(netPay),
   };
 }
 
@@ -216,6 +258,310 @@ async function recomputeBatch(period) {
   return data;
 }
 
+async function getExistingPayroll(employeeId, period) {
+  const { data, error } = await supabase
+    .from('payroll')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .eq('period', period)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data || null;
+}
+
+async function getAttendanceOtHours(employeeId, startDate, endDate) {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('overtime_hours')
+    .eq('employee_id', employeeId)
+    .gte('date', startDate)
+    .lte('date', endDate);
+
+  if (error) throw error;
+
+  return (data || []).reduce(
+    (sum, row) => sum + toNumber(row.overtime_hours),
+    0
+  );
+}
+
+async function getApprovedLeaveRows(employeeId) {
+  const { data, error } = await supabase
+    .from('leave_requests')
+    .select(
+      'id, employee_id, leave_type, start_date, end_date, days, status, request_mode, time_off_date, time_off_hours'
+    )
+    .eq('employee_id', employeeId)
+    .eq('status', 'approved');
+
+  if (error) throw error;
+
+  return data || [];
+}
+
+async function getLeaveEntitlements(employeeId) {
+  const { data, error } = await supabase
+    .from('leave_balances')
+    .select('leave_type, entitlement_days')
+    .eq('employee_id', employeeId);
+
+  if (error) throw error;
+
+  const map = {};
+
+  (data || []).forEach((row) => {
+    map[row.leave_type] = toNumber(row.entitlement_days);
+  });
+
+  return map;
+}
+
+function isDateBefore(date, compareDate) {
+  return String(date || '') < String(compareDate || '');
+}
+
+function isDateWithin(date, startDate, endDate) {
+  return String(date || '') >= startDate && String(date || '') <= endDate;
+}
+
+function calculateLeaveDeductions({
+  leaveRows,
+  entitlements,
+  startDate,
+  endDate,
+  dailyRate,
+  hourlyRate,
+}) {
+  let unpaidLeaveDays = 0;
+  let negativeLeaveDays = 0;
+  let timeOffHours = 0;
+
+  const leaveTypesForNegative = BALANCE_TYPES.filter(
+    (type) => type !== 'Unpaid Leave'
+  );
+
+  const rowsByType = {};
+
+  leaveRows.forEach((row) => {
+    const leaveType = row.leave_type;
+
+    if (!rowsByType[leaveType]) {
+      rowsByType[leaveType] = [];
+    }
+
+    rowsByType[leaveType].push(row);
+  });
+
+  const currentPeriodRows = leaveRows.filter((row) => {
+    const date = row.request_mode === 'time_off' ? row.time_off_date : row.start_date;
+
+    return isDateWithin(date, startDate, endDate);
+  });
+
+  currentPeriodRows.forEach((row) => {
+    if (row.leave_type === 'Unpaid Leave') {
+      unpaidLeaveDays += toNumber(row.days);
+    }
+
+    if (row.request_mode === 'time_off' || row.leave_type === 'Time Off') {
+      timeOffHours += toNumber(row.time_off_hours);
+    }
+  });
+
+  leaveTypesForNegative.forEach((leaveType) => {
+    const entitlement = toNumber(entitlements[leaveType]);
+    const rows = rowsByType[leaveType] || [];
+
+    const usedBefore = rows
+      .filter((row) => isDateBefore(row.start_date, startDate))
+      .reduce((sum, row) => sum + toNumber(row.days), 0);
+
+    const usedThisPeriod = rows
+      .filter((row) => isDateWithin(row.start_date, startDate, endDate))
+      .reduce((sum, row) => sum + toNumber(row.days), 0);
+
+    const balanceBefore = entitlement - usedBefore;
+
+    const freeDaysRemaining = Math.max(balanceBefore, 0);
+
+    const overusedThisPeriod = Math.max(usedThisPeriod - freeDaysRemaining, 0);
+
+    negativeLeaveDays += overusedThisPeriod;
+  });
+
+  const unpaidLeaveDeduction = unpaidLeaveDays * dailyRate;
+  const negativeLeaveDeduction = negativeLeaveDays * dailyRate;
+  const timeOffDeduction = timeOffHours * hourlyRate;
+
+  return {
+    unpaidLeaveDays: roundMoney(unpaidLeaveDays),
+    negativeLeaveDays: roundMoney(negativeLeaveDays),
+    timeOffHours: roundMoney(timeOffHours),
+    leaveDeduction: roundMoney(
+      unpaidLeaveDeduction + negativeLeaveDeduction + timeOffDeduction
+    ),
+  };
+}
+
+async function generatePayrollFromSources(period) {
+  const { startDate, endDate, daysInMonth } = getPeriodRange(period);
+  const batch = await getOrCreateBatch(period);
+
+  const { data: employees, error: employeeError } = await supabase
+    .from('employees')
+    .select('id, name, email, department, salary, status')
+    .neq('status', 'inactive')
+    .order('id', { ascending: true });
+
+  if (employeeError) throw employeeError;
+
+  const results = {
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    errors: [],
+  };
+
+  for (const employee of employees || []) {
+    try {
+      const existing = await getExistingPayroll(employee.id, period);
+
+      const baseSalary =
+        existing?.base_salary !== undefined &&
+        existing?.base_salary !== null &&
+        Number(existing.base_salary) > 0
+          ? toNumber(existing.base_salary)
+          : toNumber(employee.salary);
+
+      if (!baseSalary) {
+        results.skipped += 1;
+        results.errors.push(
+          `${employee.name}: skipped because employee salary is empty.`
+        );
+        continue;
+      }
+
+      const dailyRate = baseSalary / daysInMonth;
+      const hourlyRate = dailyRate / HOURS_PER_DAY;
+
+      const otHours = await getAttendanceOtHours(
+        employee.id,
+        startDate,
+        endDate
+      );
+
+      const otRate = hourlyRate * OT_MULTIPLIER;
+      const otPay = otHours * otRate;
+
+      const leaveRows = await getApprovedLeaveRows(employee.id);
+      const entitlements = await getLeaveEntitlements(employee.id);
+
+      const leaveResult = calculateLeaveDeductions({
+        leaveRows,
+        entitlements,
+        startDate,
+        endDate,
+        dailyRate,
+        hourlyRate,
+      });
+
+      const bonus = toNumber(existing?.bonus);
+      const deductions = toNumber(existing?.deductions);
+      const claimAmount = toNumber(existing?.claim_amount);
+
+      const epfEmployee = toNumber(existing?.epf_employee);
+      const epfEmployer = toNumber(existing?.epf_employer);
+      const socsoEmployee = toNumber(existing?.socso_employee);
+      const socsoEmployer = toNumber(existing?.socso_employer);
+      const eisEmployee = toNumber(existing?.eis_employee);
+      const eisEmployer = toNumber(existing?.eis_employer);
+      const pcb = toNumber(existing?.pcb);
+
+      const grossPay = baseSalary + bonus + otPay + claimAmount;
+
+      const totalDeductions =
+        deductions +
+        leaveResult.leaveDeduction +
+        epfEmployee +
+        socsoEmployee +
+        eisEmployee +
+        pcb;
+
+      const netPay = grossPay - totalDeductions;
+
+      const payload = {
+        employee_id: employee.id,
+        period,
+        batch_id: batch.id,
+        base_salary: roundMoney(baseSalary),
+        bonus: roundMoney(bonus),
+        deductions: roundMoney(deductions),
+
+        gross_pay: roundMoney(grossPay),
+        ot_hours: roundMoney(otHours),
+        ot_rate: roundMoney(otRate),
+        ot_pay: roundMoney(otPay),
+
+        claim_amount: roundMoney(claimAmount),
+        leave_deduction: roundMoney(leaveResult.leaveDeduction),
+        unpaid_leave_days: roundMoney(
+          leaveResult.unpaidLeaveDays + leaveResult.negativeLeaveDays
+        ),
+
+        epf_employee: roundMoney(epfEmployee),
+        epf_employer: roundMoney(epfEmployer),
+        socso_employee: roundMoney(socsoEmployee),
+        socso_employer: roundMoney(socsoEmployer),
+        eis_employee: roundMoney(eisEmployee),
+        eis_employer: roundMoney(eisEmployer),
+        pcb: roundMoney(pcb),
+
+        net_pay: roundMoney(netPay),
+        status: existing?.status || 'draft',
+        remarks: [
+          existing?.remarks || '',
+          `Auto-generated from attendance/leave. OT ${roundMoney(
+            otHours
+          )}h. Leave deduction RM ${roundMoney(leaveResult.leaveDeduction)}.`,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      };
+
+      if (existing) {
+        const { error } = await supabase
+          .from('payroll')
+          .update(payload)
+          .eq('id', existing.id);
+
+        if (error) throw error;
+
+        results.updated += 1;
+      } else {
+        const { error } = await supabase.from('payroll').insert(payload);
+
+        if (error) throw error;
+
+        results.created += 1;
+      }
+    } catch (err) {
+      results.skipped += 1;
+      results.errors.push(
+        `${employee.name}: ${err instanceof Error ? err.message : 'failed'}`
+      );
+    }
+  }
+
+  const summary = await recomputeBatch(period);
+
+  return {
+    ...results,
+    batch: summary,
+  };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -257,7 +603,7 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // POST: CREATE BATCH / IMPORT / CREATE RECORD
+    // POST: CREATE BATCH / IMPORT / GENERATE / CREATE RECORD
     // =========================
     if (req.method === 'POST') {
       const body = req.body || {};
@@ -268,6 +614,18 @@ export default async function handler(req, res) {
         const summary = await recomputeBatch(body.period);
 
         return res.status(201).json(summary || batch);
+      }
+
+      if (action === 'generate_from_sources') {
+        if (!body.period) {
+          return res.status(400).json({
+            error: 'period is required.',
+          });
+        }
+
+        const result = await generatePayrollFromSources(body.period);
+
+        return res.status(200).json(result);
       }
 
       if (action === 'import_records') {
@@ -357,7 +715,9 @@ export default async function handler(req, res) {
           } catch (err) {
             results.skipped += 1;
             results.errors.push(
-              `Row ${i + 1}: ${err instanceof Error ? err.message : 'Import failed'}`
+              `Row ${i + 1}: ${
+                err instanceof Error ? err.message : 'Import failed'
+              }`
             );
           }
         }

@@ -38,7 +38,11 @@ const PAYROLL_STATUSES = ['draft', 'reviewed', 'approved', 'released', 'paid'];
 
 function currentPeriod() {
   const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+    2,
+    '0'
+  )}`;
 }
 
 interface PayRec {
@@ -129,8 +133,30 @@ interface PayrollFormState {
   remarks: string;
 }
 
+type PayrollFormStringKey = Exclude<keyof PayrollFormState, 'id'>;
+
+const PAYROLL_NUMBER_FIELDS: Array<[PayrollFormStringKey, string]> = [
+  ['base_salary', 'Base Salary'],
+  ['bonus', 'Bonus'],
+  ['ot_hours', 'OT Hours'],
+  ['ot_rate', 'OT Rate'],
+  ['ot_pay', 'OT Pay'],
+  ['claim_amount', 'Claims'],
+  ['leave_deduction', 'Leave Deduction'],
+  ['unpaid_leave_days', 'Unpaid Leave Days'],
+  ['epf_employee', 'EPF Employee'],
+  ['epf_employer', 'EPF Employer'],
+  ['socso_employee', 'SOCSO Employee'],
+  ['socso_employer', 'SOCSO Employer'],
+  ['eis_employee', 'EIS Employee'],
+  ['eis_employer', 'EIS Employer'],
+  ['pcb', 'PCB'],
+  ['deductions', 'Other Deductions'],
+];
+
 function numberValue(value: unknown) {
   const number = Number(value);
+
   return Number.isFinite(number) ? number : 0;
 }
 
@@ -210,6 +236,7 @@ function parseCsv(text: string) {
 
     if ((char === '\n' || char === '\r') && !insideQuotes) {
       if (char === '\r' && next === '\n') i++;
+
       row.push(current.trim());
       current = '';
 
@@ -353,8 +380,8 @@ export default function Payroll() {
   const empMap = useMemo(() => {
     const m: Record<number, Emp> = {};
 
-    employees.forEach((e) => {
-      m[e.id] = e;
+    employees.forEach((employee) => {
+      m[employee.id] = employee;
     });
 
     return m;
@@ -407,9 +434,9 @@ export default function Payroll() {
   const deptSplit = useMemo(() => {
     const map: Record<string, number> = {};
 
-    visible.forEach((r) => {
-      const department = empMap[r.employee_id]?.department || 'Unassigned';
-      map[department] = (map[department] || 0) + Number(r.net_pay);
+    visible.forEach((record) => {
+      const department = empMap[record.employee_id]?.department || 'Unassigned';
+      map[department] = (map[department] || 0) + Number(record.net_pay);
     });
 
     return Object.entries(map).map(([name, value]) => ({
@@ -418,47 +445,61 @@ export default function Payroll() {
     }));
   }, [visible, empMap]);
 
-  const totalGross = visible.reduce((sum, r) => sum + numberValue(r.gross_pay), 0);
-  const totalNet = visible.reduce((sum, r) => sum + numberValue(r.net_pay), 0);
-  const totalOt = visible.reduce((sum, r) => sum + numberValue(r.ot_pay), 0);
-  const totalClaims = visible.reduce(
-    (sum, r) => sum + numberValue(r.claim_amount),
+  const totalGross = visible.reduce(
+    (sum, record) => sum + numberValue(record.gross_pay),
     0
   );
+
+  const totalNet = visible.reduce(
+    (sum, record) => sum + numberValue(record.net_pay),
+    0
+  );
+
+  const totalOt = visible.reduce(
+    (sum, record) => sum + numberValue(record.ot_pay),
+    0
+  );
+
+  const totalClaims = visible.reduce(
+    (sum, record) => sum + numberValue(record.claim_amount),
+    0
+  );
+
   const paidOrReleased = visible.filter(
-    (r) => r.status === 'released' || r.status === 'paid'
+    (record) => record.status === 'released' || record.status === 'paid'
   ).length;
 
-  const formatPayrollRow = (r: PayRec) => ({
-    ID: r.id,
-    Employee_ID: r.employee_id,
-    Employee_Name: empMap[r.employee_id]?.name ?? `#${r.employee_id}`,
-    Department: empMap[r.employee_id]?.department ?? '',
-    Period: r.period,
-    Base_Salary: r.base_salary,
-    Gross_Pay: r.gross_pay ?? '',
-    Bonus: r.bonus,
-    OT_Hours: r.ot_hours ?? '',
-    OT_Rate: r.ot_rate ?? '',
-    OT_Pay: r.ot_pay ?? '',
-    Claim_Amount: r.claim_amount ?? '',
-    Leave_Deduction: r.leave_deduction ?? '',
-    Unpaid_Leave_Days: r.unpaid_leave_days ?? '',
-    EPF_Employee: r.epf_employee ?? '',
-    EPF_Employer: r.epf_employer ?? '',
-    SOCSO_Employee: r.socso_employee ?? '',
-    SOCSO_Employer: r.socso_employer ?? '',
-    EIS_Employee: r.eis_employee ?? '',
-    EIS_Employer: r.eis_employer ?? '',
-    PCB: r.pcb ?? '',
-    Deductions: r.deductions,
-    Net_Pay: r.net_pay,
-    Status: r.status,
-    Remarks: r.remarks ?? '',
+  const formatPayrollRow = (record: PayRec) => ({
+    ID: record.id,
+    Employee_ID: record.employee_id,
+    Employee_Name: empMap[record.employee_id]?.name ?? `#${record.employee_id}`,
+    Department: empMap[record.employee_id]?.department ?? '',
+    Period: record.period,
+    Base_Salary: record.base_salary,
+    Gross_Pay: record.gross_pay ?? '',
+    Bonus: record.bonus,
+    OT_Hours: record.ot_hours ?? '',
+    OT_Rate: record.ot_rate ?? '',
+    OT_Pay: record.ot_pay ?? '',
+    Claim_Amount: record.claim_amount ?? '',
+    Leave_Deduction: record.leave_deduction ?? '',
+    Unpaid_Leave_Days: record.unpaid_leave_days ?? '',
+    EPF_Employee: record.epf_employee ?? '',
+    EPF_Employer: record.epf_employer ?? '',
+    SOCSO_Employee: record.socso_employee ?? '',
+    SOCSO_Employer: record.socso_employer ?? '',
+    EIS_Employee: record.eis_employee ?? '',
+    EIS_Employer: record.eis_employer ?? '',
+    PCB: record.pcb ?? '',
+    Deductions: record.deductions,
+    Net_Pay: record.net_pay,
+    Status: record.status,
+    Remarks: record.remarks ?? '',
   });
 
   const handleExportCsv = () => {
     const rows = visible.map(formatPayrollRow);
+
     downloadCsv(`payroll-${selectedPeriod}.csv`, rows);
   };
 
@@ -605,12 +646,54 @@ export default function Payroll() {
     }
   };
 
-  const approveBatch = async () => {
+  const generateFromSources = async () => {
     if (!isAdmin || !profile) return;
 
     const confirmed = window.confirm(
-      `Approve payroll batch ${selectedPeriod}?`
+      `Generate payroll for ${selectedPeriod} from Attendance OT and Leave deductions?\n\nThis will create/update payroll records for active employees.`
     );
+
+    if (!confirmed) return;
+
+    setActionLoading(true);
+
+    try {
+      const res = await fetch('/api/payroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate_from_sources',
+          period: selectedPeriod,
+          generated_by: profile.name ?? profile.email ?? 'Admin',
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to generate payroll.');
+      }
+
+      await fetchAll();
+
+      alert(
+        `Payroll generated from Attendance/Leave.\n\nCreated: ${
+          data.created
+        }\nUpdated: ${data.updated}\nSkipped: ${data.skipped}${
+          data.errors?.length ? `\n\nNotes:\n${data.errors.join('\n')}` : ''
+        }`
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to generate payroll.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const approveBatch = async () => {
+    if (!isAdmin || !profile) return;
+
+    const confirmed = window.confirm(`Approve payroll batch ${selectedPeriod}?`);
 
     if (!confirmed) return;
 
@@ -711,7 +794,9 @@ export default function Payroll() {
       await fetchAll();
 
       alert(
-        `Import complete.\nInserted: ${data.inserted}\nUpdated: ${data.updated}\nSkipped: ${data.skipped}${
+        `Import complete.\nInserted: ${data.inserted}\nUpdated: ${
+          data.updated
+        }\nSkipped: ${data.skipped}${
           data.errors?.length ? `\n\nErrors:\n${data.errors.join('\n')}` : ''
         }`
       );
@@ -792,6 +877,16 @@ export default function Payroll() {
 
               <button
                 type="button"
+                onClick={generateFromSources}
+                disabled={actionLoading}
+                className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/10 disabled:opacity-50 transition-all"
+              >
+                <FileText size={16} />
+                Generate Payroll
+              </button>
+
+              <button
+                type="button"
                 onClick={openCreateForm}
                 disabled={actionLoading}
                 className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/10 disabled:opacity-50 transition-all"
@@ -865,29 +960,29 @@ export default function Payroll() {
               icon: Wallet,
               grad: 'from-emerald-400 to-teal-500',
             },
-          ].map((c, i) => {
-            const Icon = c.icon;
+          ].map((card, index) => {
+            const Icon = card.icon;
 
             return (
               <motion.div
-                key={c.label}
+                key={card.label}
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.08 }}
+                transition={{ delay: index * 0.08 }}
               >
                 <div className="glass rounded-2xl p-5">
                   <div
-                    className={`w-11 h-11 rounded-xl bg-gradient-to-br ${c.grad} grid place-items-center shadow-lg mb-4`}
+                    className={`w-11 h-11 rounded-xl bg-gradient-to-br ${card.grad} grid place-items-center shadow-lg mb-4`}
                   >
                     <Icon size={20} className="text-white" />
                   </div>
 
                   <div className="font-display text-xl font-bold">
-                    {c.value}
+                    {card.value}
                   </div>
 
                   <div className="text-xs text-muted mt-1">
-                    {c.label}
+                    {card.label}
                   </div>
                 </div>
               </motion.div>
@@ -950,56 +1045,58 @@ export default function Payroll() {
                 </thead>
 
                 <tbody>
-                  {visible.map((r) => (
+                  {visible.map((record) => (
                     <tr
-                      key={r.id}
+                      key={record.id}
                       className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-all"
                     >
                       {isAdminOrManager && (
                         <td className="px-6 py-3">
-                          {empMap[r.employee_id]?.name ?? `#${r.employee_id}`}
+                          {empMap[record.employee_id]?.name ??
+                            `#${record.employee_id}`}
                         </td>
                       )}
 
                       {isAdminOrManager && (
                         <td className="px-6 py-3 text-muted">
-                          {empMap[r.employee_id]?.department ?? '—'}
+                          {empMap[record.employee_id]?.department ?? '—'}
                         </td>
                       )}
 
-                      <td className="px-6 py-3 text-muted">{r.period}</td>
+                      <td className="px-6 py-3 text-muted">{record.period}</td>
 
                       <td className="px-6 py-3 text-muted">
-                        {money(r.base_salary)}
+                        {money(record.base_salary)}
                       </td>
 
                       <td className="px-6 py-3 text-muted">
-                        {money(r.gross_pay)}
+                        {money(record.gross_pay)}
                       </td>
 
                       <td className="px-6 py-3 text-amber">
-                        {money(r.ot_pay)}
+                        {money(record.ot_pay)}
                       </td>
 
                       <td className="px-6 py-3 text-emerald">
-                        {money(r.claim_amount)}
+                        {money(record.claim_amount)}
                       </td>
 
                       <td className="px-6 py-3 font-semibold">
-                        {money(r.net_pay)}
+                        {money(record.net_pay)}
                       </td>
 
                       <td className="px-6 py-3">
                         <Badge
                           tone={
-                            r.status === 'released' || r.status === 'paid'
+                            record.status === 'released' ||
+                            record.status === 'paid'
                               ? 'success'
-                              : r.status === 'approved'
+                              : record.status === 'approved'
                                 ? 'info'
                                 : 'warning'
                           }
                         >
-                          {r.status}
+                          {record.status}
                         </Badge>
                       </td>
 
@@ -1009,7 +1106,7 @@ export default function Payroll() {
                             {isAdmin && (
                               <button
                                 type="button"
-                                onClick={() => openEditForm(r)}
+                                onClick={() => openEditForm(record)}
                                 className="text-muted hover:text-primary transition-all"
                                 title="Edit payroll"
                               >
@@ -1019,7 +1116,9 @@ export default function Payroll() {
 
                             <button
                               type="button"
-                              onClick={() => handleExportSinglePayslip(r)}
+                              onClick={() =>
+                                handleExportSinglePayslip(record)
+                              }
                               className="text-muted hover:text-primary transition-all"
                               title="Download payslip CSV"
                             >
@@ -1091,9 +1190,9 @@ export default function Payroll() {
                 </ResponsiveContainer>
 
                 <div className="space-y-1.5 mt-2">
-                  {deptSplit.map((d, i) => (
+                  {deptSplit.map((department, i) => (
                     <div
-                      key={d.name}
+                      key={department.name}
                       className="flex items-center justify-between text-xs"
                     >
                       <div className="flex items-center gap-1.5 text-muted truncate">
@@ -1104,10 +1203,10 @@ export default function Payroll() {
                           }}
                         />
 
-                        {d.name}
+                        {department.name}
                       </div>
 
-                      <span>{money(d.value)}</span>
+                      <span>{money(department.value)}</span>
                     </div>
                   ))}
                 </div>
@@ -1140,7 +1239,9 @@ export default function Payroll() {
               >
                 <div className="flex items-center justify-between mb-5">
                   <h3 className="font-display text-lg font-bold">
-                    {payrollForm.id ? 'Edit Payroll Record' : 'Add Payroll Record'}
+                    {payrollForm.id
+                      ? 'Edit Payroll Record'
+                      : 'Add Payroll Record'}
                   </h3>
 
                   <button
@@ -1196,24 +1297,7 @@ export default function Payroll() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                    {[
-                      ['base_salary', 'Base Salary'],
-                      ['bonus', 'Bonus'],
-                      ['ot_hours', 'OT Hours'],
-                      ['ot_rate', 'OT Rate'],
-                      ['ot_pay', 'OT Pay'],
-                      ['claim_amount', 'Claims'],
-                      ['leave_deduction', 'Leave Deduction'],
-                      ['unpaid_leave_days', 'Unpaid Leave Days'],
-                      ['epf_employee', 'EPF Employee'],
-                      ['epf_employer', 'EPF Employer'],
-                      ['socso_employee', 'SOCSO Employee'],
-                      ['socso_employer', 'SOCSO Employer'],
-                      ['eis_employee', 'EIS Employee'],
-                      ['eis_employer', 'EIS Employer'],
-                      ['pcb', 'PCB'],
-                      ['deductions', 'Other Deductions'],
-                    ].map(([key, label]) => (
+                    {PAYROLL_NUMBER_FIELDS.map(([key, label]) => (
                       <div key={key}>
                         <label className="text-xs text-muted mb-1 block">
                           {label}
@@ -1222,12 +1306,9 @@ export default function Payroll() {
                         <input
                           type="number"
                           step="0.01"
-                          value={payrollForm[key as keyof PayrollFormState] as string}
+                          value={payrollForm[key]}
                           onChange={(e) =>
-                            updatePayrollForm(
-                              key as keyof PayrollFormState,
-                              e.target.value
-                            )
+                            updatePayrollForm(key, e.target.value)
                           }
                           className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                         />
@@ -1240,6 +1321,7 @@ export default function Payroll() {
                       <label className="text-xs text-muted mb-1 block">
                         Gross Pay
                       </label>
+
                       <input
                         readOnly
                         value={payrollForm.gross_pay}
@@ -1251,6 +1333,7 @@ export default function Payroll() {
                       <label className="text-xs text-muted mb-1 block">
                         Net Pay
                       </label>
+
                       <input
                         readOnly
                         value={payrollForm.net_pay}
