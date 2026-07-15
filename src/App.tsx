@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
@@ -9,12 +10,13 @@ import Employees from './pages/Employees';
 import Attendance from './pages/Attendance';
 import Leave from './pages/Leave';
 import Payroll from './pages/Payroll';
+import Claims from './pages/Claims';
 import OrgChart from './pages/OrgChart';
 import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 
-function ProtectedPage({ children }: { children: React.ReactNode }) {
+function ProtectedPage({ children }: { children: ReactNode }) {
   return (
     <ProtectedRoute>
       <Layout>{children}</Layout>
@@ -27,11 +29,9 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* Protected routes */}
           <Route
             path="/"
             element={
@@ -105,6 +105,15 @@ function App() {
           />
 
           <Route
+            path="/claims"
+            element={
+              <ProtectedPage>
+                <Claims />
+              </ProtectedPage>
+            }
+          />
+
+          <Route
             path="/org-chart"
             element={
               <ProtectedPage>
@@ -113,7 +122,6 @@ function App() {
             }
           />
 
-          {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

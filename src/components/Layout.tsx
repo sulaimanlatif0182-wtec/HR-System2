@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, LayoutDashboard, Users, CalendarCheck, CalendarDays, Wallet, Network,
+  Sparkles, LayoutDashboard, Users, CalendarCheck, CalendarDays, Wallet, Network,ReceiptText,
   Search, ChevronDown, Settings, UserCircle, LogOut, PanelLeftClose, PanelLeftOpen, Menu, X,
   CornerDownLeft,
 } from 'lucide-react';
@@ -18,6 +18,7 @@ const NAV = [
   { to: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['admin', 'manager', 'employee'] },
   { to: '/leave', label: 'Leave', icon: CalendarDays, roles: ['admin', 'manager', 'employee'] },
   { to: '/payroll', label: 'Payroll', icon: Wallet, roles: ['admin', 'manager', 'employee'] },
+  { to: '/claims', label: 'Claims', icon: ReceiptText, roles: ['admin', 'manager', 'employee'] },
   { to: '/org-chart', label: 'Org Chart', icon: Network, roles: ['admin', 'manager', 'employee'] },
 ];
 
