@@ -264,16 +264,24 @@ export default function Claims() {
     empMap,
   ]);
 
-  const totalVisible = visible.reduce(
+  const activeVisible = useMemo(
+    () =>
+      visible.filter(
+        (claim) => claim.status !== 'rejected' && claim.status !== 'cancelled'
+      ),
+    [visible]
+  );
+
+  const totalVisible = activeVisible.reduce(
     (sum, claim) => sum + Number(claim.amount || 0),
     0
   );
 
-  const pendingManagerCount = visible.filter(
+  const pendingManagerCount = activeVisible.filter(
     (claim) => claim.status === 'pending_manager'
   ).length;
 
-  const pendingFinanceCount = visible.filter(
+  const pendingFinanceCount = activeVisible.filter(
     (claim) => claim.status === 'pending_finance'
   ).length;
 
@@ -567,8 +575,10 @@ export default function Claims() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
         <div className="glass rounded-2xl p-5">
-          <p className="text-xs text-muted">Visible Claims</p>
-          <p className="font-display text-2xl font-bold mt-1">{visible.length}</p>
+          <p className="text-xs text-muted">Active Claims</p>
+          <p className="font-display text-2xl font-bold mt-1">
+            {activeVisible.length}
+          </p>
         </div>
 
         <div className="glass rounded-2xl p-5">
@@ -579,7 +589,7 @@ export default function Claims() {
         </div>
 
         <div className="glass rounded-2xl p-5">
-          <p className="text-xs text-muted">Total Amount</p>
+          <p className="text-xs text-muted">Active Total Amount</p>
           <p className="font-display text-2xl font-bold mt-1">
             {money(totalVisible)}
           </p>
@@ -933,6 +943,7 @@ export default function Claims() {
                           value={form.odometer_start}
                           onChange={(e) => {
                             const nextStart = e.target.value;
+
                             setForm({
                               ...form,
                               odometer_start: nextStart,
@@ -952,6 +963,7 @@ export default function Claims() {
                           value={form.odometer_end}
                           onChange={(e) => {
                             const nextEnd = e.target.value;
+
                             setForm({
                               ...form,
                               odometer_end: nextEnd,
