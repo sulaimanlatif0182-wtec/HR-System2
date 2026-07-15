@@ -17,6 +17,7 @@ import {
   Loader2,
   Download,
   UserX,
+  IdCard,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -85,6 +86,14 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+function normalizeIdentityLast4(value: string, type: string) {
+  if (type === 'IC') {
+    return value.replace(/\D/g, '').slice(0, 4);
+  }
+
+  return value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4);
+}
+
 interface Employee {
   id: number;
   name: string;
@@ -97,6 +106,9 @@ interface Employee {
   join_date: string | null;
   role: string;
   salary: number | null;
+  date_of_birth?: string | null;
+  identity_type?: string | null;
+  identity_last4?: string | null;
 }
 
 function escapeCsvValue(value: unknown) {
@@ -173,6 +185,10 @@ export default function Employees() {
     department: '',
     phone: '',
     location: '',
+    date_of_birth: '',
+    identity_type: 'IC',
+    identity_last4: '',
+    salary: '',
   });
 
   const [saving, setSaving] = useState(false);
@@ -272,6 +288,10 @@ export default function Employees() {
       department: isAdmin ? '' : profile?.department ?? '',
       phone: '',
       location: '',
+      date_of_birth: '',
+      identity_type: 'IC',
+      identity_last4: '',
+      salary: '',
     });
 
     setFormError('');
@@ -291,6 +311,9 @@ export default function Employees() {
       Location: emp.location ?? '',
       Join_Date: emp.join_date ?? '',
       Salary: emp.salary ?? '',
+      Date_Of_Birth: emp.date_of_birth ?? '',
+      Identity_Type: emp.identity_type ?? '',
+      Identity_Last4: emp.identity_last4 ?? '',
     }));
 
     downloadCsv('employees.csv', rows);
@@ -365,8 +388,23 @@ export default function Employees() {
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!form.name || !form.email || !form.role || !effectiveDepartment || !form.location) {
-      setFormError('Name, email, role, department and location are required.');
+    if (
+      !form.name ||
+      !form.email ||
+      !form.role ||
+      !effectiveDepartment ||
+      !form.location ||
+      !form.date_of_birth ||
+      !form.identity_last4
+    ) {
+      setFormError(
+        'Name, email, role, department, location, birthday and identity last 4 digits are required.'
+      );
+      return;
+    }
+
+    if (form.identity_last4.length !== 4) {
+      setFormError('Identity last 4 must be exactly 4 characters.');
       return;
     }
 
@@ -381,6 +419,10 @@ export default function Employees() {
           ...form,
           role: isAdmin ? form.role : 'employee',
           department: effectiveDepartment,
+          salary: form.salary ? Number(form.salary) : null,
+          date_of_birth: form.date_of_birth,
+          identity_type: form.identity_type,
+          identity_last4: form.identity_last4,
           status: 'active',
           join_date: new Date().toISOString().slice(0, 10),
         }),
@@ -401,6 +443,10 @@ export default function Employees() {
         department: '',
         phone: '',
         location: '',
+        date_of_birth: '',
+        identity_type: 'IC',
+        identity_last4: '',
+        salary: '',
       });
 
       fetchEmployees();
@@ -748,6 +794,12 @@ export default function Employees() {
 
                       <InfoRow
                         icon={Calendar}
+                        label="Birthday"
+                        value={selected.date_of_birth ?? '—'}
+                      />
+
+                      <InfoRow
+                        icon={Calendar}
                         label="Joined"
                         value={selected.join_date ?? '—'}
                       />
@@ -758,11 +810,21 @@ export default function Employees() {
                         value={selected.role}
                       />
 
+                      <InfoRow
+                        icon={IdCard}
+                        label="Identity"
+                        value={`${selected.identity_type ?? '—'} · ${
+                          selected.identity_last4
+                            ? `Last 4: ${selected.identity_last4}`
+                            : 'Last 4: —'
+                        }`}
+                      />
+
                       {selected.salary && (
                         <InfoRow
                           icon={DollarSign}
-                          label="Annual Salary"
-                          value={`$${Number(
+                          label="Monthly Salary"
+                          value={`RM ${Number(
                             selected.salary
                           ).toLocaleString()}`}
                         />
@@ -842,7 +904,7 @@ export default function Employees() {
               className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
             >
               <div
-                className="glass-solid rounded-2xl p-6 w-full max-w-md pointer-events-auto"
+                className="glass-solid rounded-2xl p-6 w-full max-w-md pointer-events-auto max-h-[90vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between mb-5">
@@ -946,6 +1008,82 @@ export default function Employees() {
                       </span>
                     </p>
                   )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted mb-1 block">
+                        Birthday
+                      </label>
+
+                      <input
+                        required
+                        type="date"
+                        value={form.date_of_birth}
+                        onChange={(e) =>
+                          setForm({ ...form, date_of_birth: e.target.value })
+                        }
+                        className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-muted mb-1 block">
+                        Identity Type
+                      </label>
+
+                      <select
+                        required
+                        value={form.identity_type}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            identity_type: e.target.value,
+                            identity_last4: normalizeIdentityLast4(
+                              form.identity_last4,
+                              e.target.value
+                            ),
+                          })
+                        }
+                        className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+                      >
+                        <option value="IC">Malaysian IC</option>
+                        <option value="Passport">Passport</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <input
+                    required
+                    maxLength={4}
+                    placeholder="Last 4 digits/chars of IC or passport"
+                    value={form.identity_last4}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        identity_last4: normalizeIdentityLast4(
+                          e.target.value,
+                          form.identity_type
+                        ),
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                  />
+
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Monthly salary"
+                    value={form.salary}
+                    onChange={(e) =>
+                      setForm({ ...form, salary: e.target.value })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                  />
+
+                  <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
+                    Payslip PDF password will be birthday YYMMDD + last 4
+                    digits/chars. Example: 9508201234
+                  </p>
 
                   <div className="grid grid-cols-2 gap-3">
                     <input

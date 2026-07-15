@@ -503,18 +503,43 @@ export default function Payroll() {
     downloadCsv(`payroll-${selectedPeriod}.csv`, rows);
   };
 
-  const handleExportSinglePayslip = (record: PayRec) => {
-    const employeeName =
-      empMap[record.employee_id]?.name ?? `employee-${record.employee_id}`;
+  const handleExportSinglePayslip = async (record: PayRec) => {
+    try {
+      if (!['released', 'paid'].includes(String(record.status).toLowerCase())) {
+        alert('Payslip is not released yet.');
+        return;
+      }
 
-    const safeEmployeeName = employeeName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+      const res = await fetch(`/api/payslip?id=${record.id}`);
 
-    downloadCsv(`payslip-${safeEmployeeName}-${record.period}.csv`, [
-      formatPayrollRow(record),
-    ]);
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || 'Failed to download payslip.');
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+
+      const employeeName =
+        empMap[record.employee_id]?.name ?? `employee-${record.employee_id}`;
+
+      const safeEmployeeName = employeeName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `payslip-${safeEmployeeName}-${record.period}.pdf`;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to download payslip.');
+    }
   };
 
   const openCreateForm = () => {
@@ -1037,10 +1062,7 @@ export default function Payroll() {
                     <th className="px-6 py-3 font-medium">Claims</th>
                     <th className="px-6 py-3 font-medium">Net Pay</th>
                     <th className="px-6 py-3 font-medium">Status</th>
-
-                    {isAdminOrManager && (
-                      <th className="px-6 py-3 font-medium" />
-                    )}
+                    <th className="px-6 py-3 font-medium" />
                   </tr>
                 </thead>
 
@@ -1100,33 +1122,29 @@ export default function Payroll() {
                         </Badge>
                       </td>
 
-                      {isAdminOrManager && (
-                        <td className="px-6 py-3">
-                          <div className="flex items-center gap-2">
-                            {isAdmin && (
-                              <button
-                                type="button"
-                                onClick={() => openEditForm(record)}
-                                className="text-muted hover:text-primary transition-all"
-                                title="Edit payroll"
-                              >
-                                <Pencil size={15} />
-                              </button>
-                            )}
-
+                      <td className="px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          {isAdmin && (
                             <button
                               type="button"
-                              onClick={() =>
-                                handleExportSinglePayslip(record)
-                              }
+                              onClick={() => openEditForm(record)}
                               className="text-muted hover:text-primary transition-all"
-                              title="Download payslip CSV"
+                              title="Edit payroll"
                             >
-                              <Download size={15} />
+                              <Pencil size={15} />
                             </button>
-                          </div>
-                        </td>
-                      )}
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleExportSinglePayslip(record)}
+                            className="text-muted hover:text-primary transition-all"
+                            title="Download encrypted payslip PDF"
+                          >
+                            <Download size={15} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
