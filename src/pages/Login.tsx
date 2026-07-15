@@ -44,8 +44,14 @@ function getFriendlyAuthError(message: string) {
     return 'Too many attempts. Please wait and try again later.';
   }
 
-  if (lower.includes('error sending recovery email')) {
-    return 'Unable to send recovery email. Please contact IT support.';
+  if (
+    lower.includes('error sending confirmation email') ||
+    lower.includes('error sending recovery email') ||
+    lower.includes('smtp') ||
+    lower.includes('535') ||
+    lower.includes('authentication unsuccessful')
+  ) {
+    return 'Unable to send verification email. Please check SMTP settings or contact IT support.';
   }
 
   return message || 'Something went wrong. Please try again.';
@@ -136,7 +142,7 @@ export default function Login() {
     const res = await fetch(
       `/api/employees?email=${encodeURIComponent(targetEmail)}&t=${Date.now()}`,
       {
-        method: 'GET',
+       method: 'GET',
         cache: 'no-store',
       }
     );
@@ -145,22 +151,24 @@ export default function Login() {
       throw new Error('Unable to verify employee email. Please contact IT support.');
     }
 
-    const data = await res.json();
+    const rawData = await res.json();
 
-    if (!data) {
+    const employeeProfile = Array.isArray(rawData) ? rawData[0] : rawData;
+
+    if (!employeeProfile || !employeeProfile.id) {
       throw new Error(
-        'This email has not been registered by HR. Please contact your administrator.'
+       'This email has not been registered by HR. Please contact your administrator.'
       );
-    }
+   }
 
-    if (String(data.status || '').toLowerCase() === 'inactive') {
+    if (String(employeeProfile.status || '').toLowerCase() === 'inactive') {
       throw new Error(
         'This employee account is inactive. Please contact your administrator.'
       );
     }
 
-    return data;
-  };
+  return employeeProfile;
+};
 
   const handleSignIn = async (e: FormEvent) => {
     e.preventDefault();
@@ -188,11 +196,7 @@ export default function Login() {
 
       navigate('/', { replace: true });
     } catch (err) {
-      setError(
-        getFriendlyAuthError(
-          err instanceof Error ? err.message : 'Failed to sign in.'
-        )
-      );
+      setError(getFriendlyAuthError(getReadableError(err)));
     } finally {
       setLoading(false);
     }
@@ -255,11 +259,8 @@ export default function Login() {
       setPassword('');
       setConfirmPassword('');
     } catch (err) {
-      setError(
-        getFriendlyAuthError(
-          err instanceof Error ? err.message : 'Failed to create account.'
-        )
-      );
+      console.error('Signup error:', err);
+      setError(getFriendlyAuthError(getReadableError(err)));
     } finally {
       setLoading(false);
     }
@@ -294,13 +295,7 @@ export default function Login() {
         'If this email exists, a secure password reset link has been sent.'
       );
     } catch (err) {
-      setError(
-        getFriendlyAuthError(
-          err instanceof Error
-            ? err.message
-            : 'Error sending recovery email.'
-        )
-      );
+      setError(getFriendlyAuthError(getReadableError(err)));
     } finally {
       setLoading(false);
     }
