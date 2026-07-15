@@ -18,6 +18,8 @@ import {
   Download,
   UserX,
   IdCard,
+  Pencil,
+  Save,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -77,6 +79,8 @@ const ROLE_OPTIONS = [
   },
 ] as const;
 
+const STATUS_OPTIONS = ['active', 'on_leave', 'inactive'] as const;
+
 function initials(name: string) {
   return name
     .split(' ')
@@ -109,6 +113,55 @@ interface Employee {
   date_of_birth?: string | null;
   identity_type?: string | null;
   identity_last4?: string | null;
+}
+
+interface EmployeeFormState {
+  name: string;
+  email: string;
+  role: string;
+  title: string;
+  department: string;
+  phone: string;
+  location: string;
+  date_of_birth: string;
+  identity_type: string;
+  identity_last4: string;
+  salary: string;
+  status: string;
+}
+
+function emptyForm(): EmployeeFormState {
+  return {
+    name: '',
+    email: '',
+    role: 'employee',
+    title: '',
+    department: '',
+    phone: '',
+    location: '',
+    date_of_birth: '',
+    identity_type: 'IC',
+    identity_last4: '',
+    salary: '',
+    status: 'active',
+  };
+}
+
+function formFromEmployee(employee: Employee): EmployeeFormState {
+  return {
+    name: employee.name ?? '',
+    email: employee.email ?? '',
+    role: employee.role ?? 'employee',
+    title: employee.title ?? '',
+    department: employee.department ?? '',
+    phone: employee.phone ?? '',
+    location: employee.location ?? '',
+    date_of_birth: employee.date_of_birth ?? '',
+    identity_type: employee.identity_type ?? 'IC',
+    identity_last4: employee.identity_last4 ?? '',
+    salary: employee.salary !== null && employee.salary !== undefined ? String(employee.salary) : '',
+    status: employee.status ?? 'active',
+  };
 }
 
 function escapeCsvValue(value: unknown) {
@@ -175,25 +228,19 @@ export default function Employees() {
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [deptFilter, setDeptFilter] = useState('all');
   const [selected, setSelected] = useState<Employee | null>(null);
-  const [showAdd, setShowAdd] = useState(false);
 
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    role: 'employee',
-    title: '',
-    department: '',
-    phone: '',
-    location: '',
-    date_of_birth: '',
-    identity_type: 'IC',
-    identity_last4: '',
-    salary: '',
-  });
+  const [showAdd, setShowAdd] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+
+  const [form, setForm] = useState<EmployeeFormState>(emptyForm());
+  const [editForm, setEditForm] = useState<EmployeeFormState>(emptyForm());
 
   const [saving, setSaving] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   const [formError, setFormError] = useState('');
+  const [editError, setEditError] = useState('');
+
   const [tab, setTab] = useState<'info' | 'documents' | 'performance'>('info');
 
   useEffect(() => {
@@ -281,21 +328,20 @@ export default function Employees() {
 
   const handleOpenAdd = () => {
     setForm({
-      name: '',
-      email: '',
-      role: 'employee',
-      title: '',
+      ...emptyForm(),
       department: isAdmin ? '' : profile?.department ?? '',
-      phone: '',
-      location: '',
-      date_of_birth: '',
-      identity_type: 'IC',
-      identity_last4: '',
-      salary: '',
     });
 
     setFormError('');
     setShowAdd(true);
+  };
+
+  const handleOpenEdit = (employee: Employee) => {
+    if (!isAdmin) return;
+
+    setEditForm(formFromEmployee(employee));
+    setEditError('');
+    setShowEdit(true);
   };
 
   const handleExportCsv = () => {
@@ -317,6 +363,149 @@ export default function Employees() {
     }));
 
     downloadCsv('employees.csv', rows);
+  };
+
+  const validateEmployeeForm = (
+    values: EmployeeFormState,
+    department: string,
+    mode: 'add' | 'edit'
+  ) => {
+    if (
+      !values.name ||
+      !values.email ||
+      !values.role ||
+      !department ||
+      !values.location ||
+      !values.date_of_birth ||
+      !values.identity_last4
+    ) {
+      return 'Name, email, role, department, location, birthday and identity last 4 digits are required.';
+    }
+
+    if (values.identity_last4.length !== 4) {
+      return 'Identity last 4 must be exactly 4 characters.';
+    }
+
+    if (mode === 'edit' && !values.status) {
+      return 'Status is required.';
+    }
+
+    return '';
+  };
+
+  const handleAdd = async (e: FormEvent) => {
+    e.preventDefault();
+
+    const validationError = validateEmployeeForm(
+      form,
+      effectiveDepartment,
+      'add'
+    );
+
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+
+    setSaving(true);
+    setFormError('');
+
+    try {
+      const res = await fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          role: isAdmin ? form.role : 'employee',
+          department: effectiveDepartment,
+          salary: form.salary ? Number(form.salary) : null,
+          date_of_birth: form.date_of_birth,
+          identity_type: form.identity_type,
+          identity_last4: form.identity_last4,
+          status: 'active',
+          join_date: new Date().toISOString().slice(0, 10),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || 'Failed to add employee');
+      }
+
+      setShowAdd(false);
+      setForm(emptyForm());
+      fetchEmployees();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Something went wrong.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEdit = async (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!selected || !isAdmin) return;
+
+    const validationError = validateEmployeeForm(
+      editForm,
+      editForm.department,
+      'edit'
+    );
+
+    if (validationError) {
+      setEditError(validationError);
+      return;
+    }
+
+    if (selected.id === profile?.id && editForm.status === 'inactive') {
+      setEditError('You cannot set your own admin profile to inactive.');
+      return;
+    }
+
+    setSavingEdit(true);
+    setEditError('');
+
+    try {
+      const res = await fetch('/api/employees', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selected.id,
+          ...editForm,
+          salary: editForm.salary ? Number(editForm.salary) : null,
+          date_of_birth: editForm.date_of_birth,
+          identity_type: editForm.identity_type,
+          identity_last4: editForm.identity_last4,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to update employee.');
+      }
+
+      const updatedEmployee = data?.employee;
+
+      if (updatedEmployee) {
+        setEmployees((prev) =>
+          prev.map((employee) =>
+            employee.id === updatedEmployee.id ? updatedEmployee : employee
+          )
+        );
+
+        setSelected(updatedEmployee);
+      } else {
+        await fetchEmployees();
+      }
+
+      setShowEdit(false);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Failed to update employee.');
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const handleDeactivateEmployee = async (employee: Employee) => {
@@ -385,76 +574,222 @@ export default function Employees() {
     }
   };
 
-  const handleAdd = async (e: FormEvent) => {
-    e.preventDefault();
+  const updateFormIdentityType = (identityType: string) => {
+    setForm({
+      ...form,
+      identity_type: identityType,
+      identity_last4: normalizeIdentityLast4(form.identity_last4, identityType),
+    });
+  };
 
-    if (
-      !form.name ||
-      !form.email ||
-      !form.role ||
-      !effectiveDepartment ||
-      !form.location ||
-      !form.date_of_birth ||
-      !form.identity_last4
-    ) {
-      setFormError(
-        'Name, email, role, department, location, birthday and identity last 4 digits are required.'
-      );
-      return;
-    }
+  const updateEditIdentityType = (identityType: string) => {
+    setEditForm({
+      ...editForm,
+      identity_type: identityType,
+      identity_last4: normalizeIdentityLast4(
+        editForm.identity_last4,
+        identityType
+      ),
+    });
+  };
 
-    if (form.identity_last4.length !== 4) {
-      setFormError('Identity last 4 must be exactly 4 characters.');
-      return;
-    }
+  const renderEmployeeFormFields = (
+    values: EmployeeFormState,
+    setValues: (next: EmployeeFormState) => void,
+    mode: 'add' | 'edit'
+  ) => {
+    const departmentValue = mode === 'add' ? effectiveDepartment : values.department;
+    const departmentOptions =
+      mode === 'add' ? addDepartmentOptions : DEPARTMENT_OPTIONS;
 
-    setSaving(true);
-    setFormError('');
+    return (
+      <>
+        <input
+          required
+          placeholder="Full name"
+          value={values.name}
+          onChange={(e) => setValues({ ...values, name: e.target.value })}
+          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+        />
 
-    try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          role: isAdmin ? form.role : 'employee',
-          department: effectiveDepartment,
-          salary: form.salary ? Number(form.salary) : null,
-          date_of_birth: form.date_of_birth,
-          identity_type: form.identity_type,
-          identity_last4: form.identity_last4,
-          status: 'active',
-          join_date: new Date().toISOString().slice(0, 10),
-        }),
-      });
+        <input
+          required
+          type="email"
+          placeholder="Email"
+          value={values.email}
+          onChange={(e) => setValues({ ...values, email: e.target.value })}
+          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+        />
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || 'Failed to add employee');
-      }
+        <select
+          required
+          value={values.role}
+          onChange={(e) => setValues({ ...values, role: e.target.value })}
+          disabled={!isAdmin}
+          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {availableRoleOptions.map((role) => (
+            <option key={role.value} value={role.value}>
+              {role.label}
+            </option>
+          ))}
+        </select>
 
-      setShowAdd(false);
+        {mode === 'edit' && (
+          <select
+            required
+            value={values.status}
+            onChange={(e) => setValues({ ...values, status: e.target.value })}
+            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+          >
+            {STATUS_OPTIONS.map((status) => (
+              <option key={status} value={status}>
+                {status.replace('_', ' ')}
+              </option>
+            ))}
+          </select>
+        )}
 
-      setForm({
-        name: '',
-        email: '',
-        role: 'employee',
-        title: '',
-        department: '',
-        phone: '',
-        location: '',
-        date_of_birth: '',
-        identity_type: 'IC',
-        identity_last4: '',
-        salary: '',
-      });
+        <input
+          placeholder="Job title"
+          value={values.title}
+          onChange={(e) => setValues({ ...values, title: e.target.value })}
+          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+        />
 
-      fetchEmployees();
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Something went wrong.');
-    } finally {
-      setSaving(false);
-    }
+        <select
+          required
+          value={departmentValue || ''}
+          onChange={(e) => setValues({ ...values, department: e.target.value })}
+          disabled={mode === 'add' && !isAdmin}
+          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <option value="" disabled>
+            Select Department
+          </option>
+
+          {departmentOptions.map((department) => (
+            <option key={department} value={department}>
+              {department}
+            </option>
+          ))}
+        </select>
+
+        {values.role === 'manager' && departmentValue && (
+          <p className="text-xs text-amber bg-amber/10 border border-amber/20 rounded-lg px-3 py-2">
+            This user will be assigned as Manager for {departmentValue}.
+          </p>
+        )}
+
+        {values.role === 'admin' && (
+          <p className="text-xs text-rose bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">
+            This user will have full admin access.
+          </p>
+        )}
+
+        {mode === 'add' && !isAdmin && profile?.department && (
+          <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
+            As a manager, you can only add employees to your department:{' '}
+            <span className="text-ink font-medium">{profile.department}</span>
+          </p>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-muted mb-1 block">
+              Birthday
+            </label>
+
+            <input
+              required
+              type="date"
+              value={values.date_of_birth}
+              onChange={(e) =>
+                setValues({ ...values, date_of_birth: e.target.value })
+              }
+              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-muted mb-1 block">
+              Identity Type
+            </label>
+
+            <select
+              required
+              value={values.identity_type}
+              onChange={(e) =>
+                mode === 'add'
+                  ? updateFormIdentityType(e.target.value)
+                  : updateEditIdentityType(e.target.value)
+              }
+              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+            >
+              <option value="IC">Malaysian IC</option>
+              <option value="Passport">Passport</option>
+            </select>
+          </div>
+        </div>
+
+        <input
+          required
+          maxLength={4}
+          placeholder="Last 4 digits/chars of IC or passport"
+          value={values.identity_last4}
+          onChange={(e) =>
+            setValues({
+              ...values,
+              identity_last4: normalizeIdentityLast4(
+                e.target.value,
+                values.identity_type
+              ),
+            })
+          }
+          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+        />
+
+        <input
+          type="number"
+          step="0.01"
+          placeholder="Monthly salary"
+          value={values.salary}
+          onChange={(e) => setValues({ ...values, salary: e.target.value })}
+          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+        />
+
+        <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
+          Payslip PDF password will be birthday YYMMDD + last 4 digits/chars.
+          Example: 9508201234
+        </p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <input
+            placeholder="Phone"
+            value={values.phone}
+            onChange={(e) => setValues({ ...values, phone: e.target.value })}
+            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+          />
+
+          <select
+            required
+            value={values.location}
+            onChange={(e) => setValues({ ...values, location: e.target.value })}
+            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+          >
+            <option value="" disabled>
+              Select Location
+            </option>
+
+            {LOCATION_OPTIONS.map((location) => (
+              <option key={location} value={location}>
+                {location}
+              </option>
+            ))}
+          </select>
+        </div>
+      </>
+    );
   };
 
   if (loading) return <LoadingState label="Loading employee directory…" />;
@@ -736,21 +1071,34 @@ export default function Employees() {
                     </Badge>
                   </div>
 
-                  {isAdmin && selected.status !== 'inactive' && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeactivateEmployee(selected)}
-                      disabled={deactivating}
-                      className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-amber/25 bg-amber/10 px-4 py-2.5 text-sm font-semibold text-amber hover:bg-amber/20 disabled:cursor-not-allowed disabled:opacity-60 transition-all"
-                    >
-                      {deactivating ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <UserX size={16} />
-                      )}
+                  {isAdmin && (
+                    <div className="flex flex-wrap justify-center gap-2 mt-5">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(selected)}
+                        className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/10 transition-all"
+                      >
+                        <Pencil size={16} />
+                        Edit Profile
+                      </button>
 
-                      Deactivate Employee
-                    </button>
+                      {selected.status !== 'inactive' && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeactivateEmployee(selected)}
+                          disabled={deactivating}
+                          className="flex items-center justify-center gap-2 rounded-xl border border-amber/25 bg-amber/10 px-4 py-2.5 text-sm font-semibold text-amber hover:bg-amber/20 disabled:cursor-not-allowed disabled:opacity-60 transition-all"
+                        >
+                          {deactivating ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <UserX size={16} />
+                          )}
+
+                          Deactivate
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -922,198 +1270,7 @@ export default function Employees() {
                 </div>
 
                 <form onSubmit={handleAdd} className="space-y-3">
-                  <input
-                    required
-                    placeholder="Full name"
-                    value={form.name}
-                    onChange={(e) =>
-                      setForm({ ...form, name: e.target.value })
-                    }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-                  />
-
-                  <input
-                    required
-                    type="email"
-                    placeholder="Email"
-                    value={form.email}
-                    onChange={(e) =>
-                      setForm({ ...form, email: e.target.value })
-                    }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-                  />
-
-                  <select
-                    required
-                    value={form.role}
-                    onChange={(e) =>
-                      setForm({ ...form, role: e.target.value })
-                    }
-                    disabled={!isAdmin}
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {availableRoleOptions.map((role) => (
-                      <option key={role.value} value={role.value}>
-                        {role.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  <input
-                    placeholder="Job title"
-                    value={form.title}
-                    onChange={(e) =>
-                      setForm({ ...form, title: e.target.value })
-                    }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-                  />
-
-                  <select
-                    required
-                    value={effectiveDepartment || ''}
-                    onChange={(e) =>
-                      setForm({ ...form, department: e.target.value })
-                    }
-                    disabled={!isAdmin}
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <option value="" disabled>
-                      Select Department
-                    </option>
-
-                    {addDepartmentOptions.map((department) => (
-                      <option key={department} value={department}>
-                        {department}
-                      </option>
-                    ))}
-                  </select>
-
-                  {form.role === 'manager' && effectiveDepartment && (
-                    <p className="text-xs text-amber bg-amber/10 border border-amber/20 rounded-lg px-3 py-2">
-                      This user will be assigned as Manager for {effectiveDepartment}.
-                    </p>
-                  )}
-
-                  {form.role === 'admin' && (
-                    <p className="text-xs text-rose bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">
-                      This user will have full admin access.
-                    </p>
-                  )}
-
-                  {!isAdmin && profile?.department && (
-                    <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
-                      As a manager, you can only add employees to your department:{' '}
-                      <span className="text-ink font-medium">
-                        {profile.department}
-                      </span>
-                    </p>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-muted mb-1 block">
-                        Birthday
-                      </label>
-
-                      <input
-                        required
-                        type="date"
-                        value={form.date_of_birth}
-                        onChange={(e) =>
-                          setForm({ ...form, date_of_birth: e.target.value })
-                        }
-                        className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-muted mb-1 block">
-                        Identity Type
-                      </label>
-
-                      <select
-                        required
-                        value={form.identity_type}
-                        onChange={(e) =>
-                          setForm({
-                            ...form,
-                            identity_type: e.target.value,
-                            identity_last4: normalizeIdentityLast4(
-                              form.identity_last4,
-                              e.target.value
-                            ),
-                          })
-                        }
-                        className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
-                      >
-                        <option value="IC">Malaysian IC</option>
-                        <option value="Passport">Passport</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <input
-                    required
-                    maxLength={4}
-                    placeholder="Last 4 digits/chars of IC or passport"
-                    value={form.identity_last4}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        identity_last4: normalizeIdentityLast4(
-                          e.target.value,
-                          form.identity_type
-                        ),
-                      })
-                    }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-                  />
-
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="Monthly salary"
-                    value={form.salary}
-                    onChange={(e) =>
-                      setForm({ ...form, salary: e.target.value })
-                    }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-                  />
-
-                  <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
-                    Payslip PDF password will be birthday YYMMDD + last 4
-                    digits/chars. Example: 9508201234
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <input
-                      placeholder="Phone"
-                      value={form.phone}
-                      onChange={(e) =>
-                        setForm({ ...form, phone: e.target.value })
-                      }
-                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-                    />
-
-                    <select
-                      required
-                      value={form.location}
-                      onChange={(e) =>
-                        setForm({ ...form, location: e.target.value })
-                      }
-                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
-                    >
-                      <option value="" disabled>
-                        Select Location
-                      </option>
-
-                      {LOCATION_OPTIONS.map((location) => (
-                        <option key={location} value={location}>
-                          {location}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {renderEmployeeFormFields(form, setForm, 'add')}
 
                   {formError && (
                     <p className="text-rose text-xs bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">
@@ -1130,6 +1287,71 @@ export default function Employees() {
                       <Loader2 size={16} className="animate-spin" />
                     ) : (
                       'Add Employee'
+                    )}
+                  </button>
+                </form>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showEdit && selected && isAdmin && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 z-50"
+              onClick={() => setShowEdit(false)}
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+            >
+              <div
+                className="glass-solid rounded-2xl p-6 w-full max-w-md pointer-events-auto max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="font-display text-lg font-bold">
+                    Edit Employee
+                  </h3>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowEdit(false)}
+                    className="text-muted hover:text-ink"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <form onSubmit={handleEdit} className="space-y-3">
+                  {renderEmployeeFormFields(editForm, setEditForm, 'edit')}
+
+                  {editError && (
+                    <p className="text-rose text-xs bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">
+                      {editError}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={savingEdit}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold mt-2 disabled:opacity-60"
+                  >
+                    {savingEdit ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <>
+                        <Save size={16} />
+                        Save Changes
+                      </>
                     )}
                   </button>
                 </form>

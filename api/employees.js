@@ -1,9 +1,108 @@
 import supabase from './db-client.js';
 
+function cleanString(value) {
+  return String(value ?? '').trim();
+}
+
+function normalizeEmail(value) {
+  return cleanString(value).toLowerCase();
+}
+
+function normalizeIdentityLast4(value, type) {
+  const raw = cleanString(value);
+
+  if (type === 'IC') {
+    return raw.replace(/\D/g, '').slice(0, 4);
+  }
+
+  return raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4);
+}
+
+function toNullableNumber(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
+}
+
+function buildEmployeePayload(body, { partial = false } = {}) {
+  const payload = {};
+
+  const assign = (key, value) => {
+    if (partial) {
+      if (value !== undefined) payload[key] = value;
+    } else {
+      payload[key] = value;
+    }
+  };
+
+  assign('name', body.name ? cleanString(body.name) : partial ? undefined : '');
+  assign('email', body.email ? normalizeEmail(body.email) : partial ? undefined : '');
+  assign('title', body.title ? cleanString(body.title) : partial ? undefined : null);
+  assign(
+    'department',
+    body.department ? cleanString(body.department) : partial ? undefined : null
+  );
+  assign('phone', body.phone ? cleanString(body.phone) : partial ? undefined : null);
+  assign(
+    'location',
+    body.location ? cleanString(body.location) : partial ? undefined : null
+  );
+  assign('role', body.role ? cleanString(body.role) : partial ? undefined : 'employee');
+  assign(
+    'status',
+    body.status ? cleanString(body.status) : partial ? undefined : 'active'
+  );
+  assign(
+    'join_date',
+    body.join_date
+      ? cleanString(body.join_date)
+      : partial
+        ? undefined
+        : new Date().toISOString().slice(0, 10)
+  );
+
+  if (body.salary !== undefined || !partial) {
+    assign('salary', toNullableNumber(body.salary));
+  }
+
+  assign(
+    'date_of_birth',
+    body.date_of_birth
+      ? cleanString(body.date_of_birth)
+      : partial
+        ? undefined
+        : null
+  );
+
+  assign(
+    'identity_type',
+    body.identity_type ? cleanString(body.identity_type) : partial ? undefined : null
+  );
+
+  if (body.identity_last4 !== undefined || !partial) {
+    const identityType = body.identity_type ? cleanString(body.identity_type) : 'IC';
+
+    assign(
+      'identity_last4',
+      body.identity_last4
+        ? normalizeIdentityLast4(body.identity_last4, identityType)
+        : partial
+          ? undefined
+          : null
+    );
+  }
+
+  return payload;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
@@ -22,7 +121,7 @@ export default async function handler(req, res) {
       const { email, id } = req.query;
 
       if (email) {
-        const cleanEmail = String(email).trim();
+        const cleanEmail = normalizeEmail(email);
 
         const { data, error } = await supabase
           .from('employees')
@@ -81,37 +180,15 @@ export default async function handler(req, res) {
     // ADD EMPLOYEE
     // =========================
     if (req.method === 'POST') {
-      const {
-        name,
-        email,
-        title,
-        department,
-        phone,
-        location,
-        role,
-        status,
-        join_date,
-        salary,
-      } = req.body || {};
+      const body = req.body || {};
 
-      if (!name || !email) {
+      if (!body.name || !body.email) {
         return res.status(400).json({
           error: 'Name and email are required.',
         });
       }
 
-      const payload = {
-        name,
-        email: String(email).trim().toLowerCase(),
-        title: title || null,
-        department: department || null,
-        phone: phone || null,
-        location: location || null,
-        role: role || 'employee',
-        status: status || 'active',
-        join_date: join_date || new Date().toISOString().slice(0, 10),
-        salary: salary ?? null,
-      };
+      const payload = buildEmployeePayload(body, { partial: false });
 
       const { data, error } = await supabase
         .from('employees')
@@ -126,6 +203,65 @@ export default async function handler(req, res) {
       }
 
       return res.status(201).json(data);
+    }
+
+    // =========================
+    // EDIT EMPLOYEE
+    // Admin-only in UI; API updates provided fields
+    // =========================
+    if (req.method === 'PUT') {
+      const body = req.body || {};
+      const id = Number(body.id || req.query.id);
+
+      if (!id) {
+        return res.status(400).json({
+          error: 'Employee ID is required.',
+        });
+      }
+
+      const { data: existing, error: findError } = await supabase
+        .from('employees')
+        .select('id, email, role, status')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (findError) {
+        return res.status(500).json({
+          error: findError.message,
+        });
+      }
+
+      if (!existing) {
+        return res.status(404).json({
+          error: 'Employee not found.',
+        });
+      }
+
+      const payload = buildEmployeePayload(body, { partial: true });
+
+      if (Object.keys(payload).length === 0) {
+        return res.status(400).json({
+          error: 'No fields to update.',
+        });
+      }
+
+      const { data, error } = await supabase
+        .from('employees')
+        .update(payload)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return res.status(500).json({
+          error: error.message,
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        employee: data,
+      });
     }
 
     // =========================
