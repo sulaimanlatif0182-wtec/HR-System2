@@ -18,11 +18,13 @@ import supabase from '../lib/supabase';
 type AuthMode = 'signin' | 'signup' | 'forgot';
 
 function getReadableError(err: unknown) {
+  console.error('Auth error raw:', err);
+
   if (err instanceof Error && err.message) {
     return err.message;
   }
 
-  if (typeof err === 'string') {
+  if (typeof err === 'string' && err.trim()) {
     return err;
   }
 
@@ -32,26 +34,26 @@ function getReadableError(err: unknown) {
       error?: string;
       error_description?: string;
       msg?: string;
+      status?: number;
+      code?: string;
+      name?: string;
     };
 
     const message =
       errorObject.message ||
       errorObject.error_description ||
       errorObject.error ||
-      errorObject.msg;
+      errorObject.msg ||
+      errorObject.code ||
+      errorObject.name;
 
-    if (message) {
-      return message;
-    }
-
-    const json = JSON.stringify(err);
-
-    if (json && json !== '{}') {
-      return json;
+    if (message && String(message).trim() && message !== '{}') {
+      return String(message);
     }
   }
 
-  return 'Something went wrong. Please try again or contact IT support.';
+  return 'Unable to create account. Please check SMTP/email settings or contact IT support.';
+  
 }
 
 function getFriendlyAuthError(message: string) {
@@ -65,7 +67,7 @@ function getFriendlyAuthError(message: string) {
     return 'Please verify your email before signing in.';
   }
 
-  if (lower.includes('user already registered')) {
+  if (lower.includes('user already registered') || lower.includes('already registered')) {
     return 'This email is already registered. Please sign in instead.';
   }
 
@@ -86,12 +88,17 @@ function getFriendlyAuthError(message: string) {
     lower.includes('error sending recovery email') ||
     lower.includes('smtp') ||
     lower.includes('535') ||
-    lower.includes('authentication unsuccessful')
+    lower.includes('authentication unsuccessful') ||
+    lower.includes('unable to create account')
   ) {
     return 'Unable to send verification email. Please check SMTP settings or contact IT support.';
   }
 
-  return message || 'Something went wrong. Please try again.';
+  if (message === '{}' || !message.trim()) {
+    return 'Unable to create account. Please check SMTP/email settings or contact IT support.';
+  }
+
+  return message;
 }
 
 function validatePassword(password: string) {
@@ -296,8 +303,8 @@ export default function Login() {
       setPassword('');
       setConfirmPassword('');
     } catch (err) {
-      console.error('Signup error:', err);
-      setError(getFriendlyAuthError(getReadableError(err)));
+      const readable = getReadableError(err);
+      setError(getFriendlyAuthError(readable));
     } finally {
       setLoading(false);
     }
