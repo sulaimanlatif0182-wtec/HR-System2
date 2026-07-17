@@ -62,6 +62,8 @@ interface PayRec {
   claim_amount?: number | null;
   leave_deduction?: number | null;
   unpaid_leave_days?: number | null;
+  lunch_late_minutes?: number | null;
+  lunch_deduction?: number | null;
 
   epf_employee?: number | null;
   epf_employer?: number | null;
@@ -101,6 +103,7 @@ interface PayrollBatch {
   total_claims: number;
   total_ot: number;
   total_deductions: number;
+  total_lunch_deduction?: number | null;
   approved_by?: string | null;
   approved_at?: string | null;
   released_by?: string | null;
@@ -121,6 +124,8 @@ interface PayrollFormState {
   claim_amount: string;
   leave_deduction: string;
   unpaid_leave_days: string;
+  lunch_late_minutes: string;
+  lunch_deduction: string;
   epf_employee: string;
   epf_employer: string;
   socso_employee: string;
@@ -144,6 +149,8 @@ const PAYROLL_NUMBER_FIELDS: Array<[PayrollFormStringKey, string]> = [
   ['claim_amount', 'Claims'],
   ['leave_deduction', 'Leave Deduction'],
   ['unpaid_leave_days', 'Unpaid Leave Days'],
+  ['lunch_late_minutes', 'Lunch Late Minutes'],
+  ['lunch_deduction', 'Lunch Deduction'],
   ['epf_employee', 'EPF Employee'],
   ['epf_employer', 'EPF Employer'],
   ['socso_employee', 'SOCSO Employee'],
@@ -285,6 +292,8 @@ function emptyPayrollForm(period = currentPeriod()): PayrollFormState {
     claim_amount: '0',
     leave_deduction: '0',
     unpaid_leave_days: '0',
+    lunch_late_minutes: '0',
+    lunch_deduction: '0',
     epf_employee: '0',
     epf_employer: '0',
     socso_employee: '0',
@@ -313,6 +322,8 @@ function formFromRecord(record: PayRec): PayrollFormState {
     claim_amount: String(record.claim_amount ?? 0),
     leave_deduction: String(record.leave_deduction ?? 0),
     unpaid_leave_days: String(record.unpaid_leave_days ?? 0),
+    lunch_late_minutes: String(record.lunch_late_minutes ?? 0),
+    lunch_deduction: String(record.lunch_deduction ?? 0),
     epf_employee: String(record.epf_employee ?? 0),
     epf_employer: String(record.epf_employer ?? 0),
     socso_employee: String(record.socso_employee ?? 0),
@@ -465,6 +476,11 @@ export default function Payroll() {
     0
   );
 
+  const totalLunchDeduction = visible.reduce(
+    (sum, record) => sum + numberValue(record.lunch_deduction),
+    0
+  );
+
   const paidOrReleased = visible.filter(
     (record) => record.status === 'released' || record.status === 'paid'
   ).length;
@@ -484,6 +500,8 @@ export default function Payroll() {
     Claim_Amount: record.claim_amount ?? '',
     Leave_Deduction: record.leave_deduction ?? '',
     Unpaid_Leave_Days: record.unpaid_leave_days ?? '',
+    Lunch_Late_Minutes: record.lunch_late_minutes ?? '',
+    Lunch_Deduction: record.lunch_deduction ?? '',
     EPF_Employee: record.epf_employee ?? '',
     EPF_Employer: record.epf_employer ?? '',
     SOCSO_Employee: record.socso_employee ?? '',
@@ -569,6 +587,7 @@ export default function Payroll() {
     const totalDeductions =
       numberValue(next.deductions) +
       numberValue(next.leave_deduction) +
+      numberValue(next.lunch_deduction) +
       numberValue(next.epf_employee) +
       numberValue(next.socso_employee) +
       numberValue(next.eis_employee) +
@@ -608,6 +627,8 @@ export default function Payroll() {
         claim_amount: numberValue(payrollForm.claim_amount),
         leave_deduction: numberValue(payrollForm.leave_deduction),
         unpaid_leave_days: numberValue(payrollForm.unpaid_leave_days),
+        lunch_late_minutes: numberValue(payrollForm.lunch_late_minutes),
+        lunch_deduction: numberValue(payrollForm.lunch_deduction),
         epf_employee: numberValue(payrollForm.epf_employee),
         epf_employer: numberValue(payrollForm.epf_employer),
         socso_employee: numberValue(payrollForm.socso_employee),
@@ -675,7 +696,7 @@ export default function Payroll() {
     if (!isAdmin || !profile) return;
 
     const confirmed = window.confirm(
-      `Generate payroll for ${selectedPeriod} from Attendance OT and Leave deductions?\n\nThis will create/update payroll records for active employees.`
+      `Generate payroll for ${selectedPeriod} from Attendance OT, Lunch Break, Leave deductions and Claims?\n\nThis will create/update payroll records for active employees.`
     );
 
     if (!confirmed) return;
@@ -702,7 +723,7 @@ export default function Payroll() {
       await fetchAll();
 
       alert(
-        `Payroll generated from Attendance/Leave.\n\nCreated: ${
+        `Payroll generated from Attendance/Leave/Claims/Lunch.\n\nCreated: ${
           data.created
         }\nUpdated: ${data.updated}\nSkipped: ${data.skipped}${
           data.errors?.length ? `\n\nNotes:\n${data.errors.join('\n')}` : ''
@@ -959,7 +980,7 @@ export default function Payroll() {
       </div>
 
       {isAdminOrManager && (
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-5 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-5 mb-8">
           {[
             {
               label: isAdmin ? 'Total Gross Pay' : 'Department Gross Pay',
@@ -984,6 +1005,12 @@ export default function Payroll() {
               value: money(totalClaims),
               icon: Wallet,
               grad: 'from-emerald-400 to-teal-500',
+            },
+            {
+              label: 'Lunch Deduction',
+              value: money(totalLunchDeduction),
+              icon: FileText,
+              grad: 'from-rose-400 to-red-500',
             },
           ].map((card, index) => {
             const Icon = card.icon;
@@ -1060,6 +1087,7 @@ export default function Payroll() {
                     <th className="px-6 py-3 font-medium">Gross</th>
                     <th className="px-6 py-3 font-medium">OT</th>
                     <th className="px-6 py-3 font-medium">Claims</th>
+                    <th className="px-6 py-3 font-medium">Lunch Ded.</th>
                     <th className="px-6 py-3 font-medium">Net Pay</th>
                     <th className="px-6 py-3 font-medium">Status</th>
                     <th className="px-6 py-3 font-medium" />
@@ -1101,6 +1129,10 @@ export default function Payroll() {
 
                       <td className="px-6 py-3 text-emerald">
                         {money(record.claim_amount)}
+                      </td>
+
+                      <td className="px-6 py-3 text-rose">
+                        {money(record.lunch_deduction)}
                       </td>
 
                       <td className="px-6 py-3 font-semibold">

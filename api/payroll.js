@@ -34,9 +34,7 @@ function getPeriodRange(period) {
     throw new Error('Invalid payroll period. Use YYYY-MM format.');
   }
 
-  const start = new Date(Date.UTC(year, month - 1, 1));
   const end = new Date(Date.UTC(year, month, 0));
-
   const daysInMonth = end.getUTCDate();
 
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -60,6 +58,7 @@ function calculatePayrollTotals(row) {
   const claimAmount = toNumber(row.claim_amount);
 
   const leaveDeduction = toNumber(row.leave_deduction);
+  const lunchDeduction = toNumber(row.lunch_deduction);
   const deductions = toNumber(row.deductions);
   const epfEmployee = toNumber(row.epf_employee);
   const socsoEmployee = toNumber(row.socso_employee);
@@ -72,7 +71,13 @@ function calculatePayrollTotals(row) {
       : baseSalary + bonus + otPay + claimAmount;
 
   const totalDeductions =
-    deductions + leaveDeduction + epfEmployee + socsoEmployee + eisEmployee + pcb;
+    deductions +
+    leaveDeduction +
+    lunchDeduction +
+    epfEmployee +
+    socsoEmployee +
+    eisEmployee +
+    pcb;
 
   const netPay =
     row.net_pay !== undefined && row.net_pay !== null && row.net_pay !== ''
@@ -137,8 +142,11 @@ function normalizePayrollPayload(input) {
     ot_rate: toNumber(input.ot_rate),
     ot_pay: toNumber(input.ot_pay),
     claim_amount: toNumber(input.claim_amount),
+
     leave_deduction: toNumber(input.leave_deduction),
     unpaid_leave_days: toNumber(input.unpaid_leave_days),
+    lunch_late_minutes: toNumber(input.lunch_late_minutes),
+    lunch_deduction: toNumber(input.lunch_deduction),
 
     epf_employee: toNumber(input.epf_employee),
     epf_employer: toNumber(input.epf_employer),
@@ -218,9 +226,12 @@ async function recomputeBatch(period) {
       acc.total_pcb += toNumber(row.pcb);
       acc.total_claims += toNumber(row.claim_amount);
       acc.total_ot += toNumber(row.ot_pay);
+      acc.total_lunch_deduction += toNumber(row.lunch_deduction);
+
       acc.total_deductions +=
         toNumber(row.deductions) +
         toNumber(row.leave_deduction) +
+        toNumber(row.lunch_deduction) +
         toNumber(row.epf_employee) +
         toNumber(row.socso_employee) +
         toNumber(row.eis_employee) +
@@ -241,6 +252,7 @@ async function recomputeBatch(period) {
       total_claims: 0,
       total_ot: 0,
       total_deductions: 0,
+      total_lunch_deduction: 0,
     }
   );
 
@@ -287,6 +299,22 @@ async function getAttendanceOtHours(employeeId, startDate, endDate) {
   );
 }
 
+async function getAttendanceLunchLateMinutes(employeeId, startDate, endDate) {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('lunch_late_minutes')
+    .eq('employee_id', employeeId)
+    .gte('date', startDate)
+    .lte('date', endDate);
+
+  if (error) throw error;
+
+  return (data || []).reduce(
+    (sum, row) => sum + toNumber(row.lunch_late_minutes),
+    0
+  );
+}
+
 async function getApprovedLeaveRows(employeeId) {
   const { data, error } = await supabase
     .from('leave_requests')
@@ -318,19 +346,20 @@ async function getLeaveEntitlements(employeeId) {
   return map;
 }
 
-async function getApprovedClaimsForPeriod(employeeId, startDate, endDate, period) {
+async function getApprovedClaimsForPeriod(employeeId, startDate, endDate) {
   const { data, error } = await supabase
     .from('claims')
-    .select('id, amount, claim_type, claim_date, status, included_in_payroll, payroll_period')
+    .select(
+      'id, amount, claim_type, claim_date, status, included_in_payroll, payroll_period'
+    )
     .eq('employee_id', employeeId)
     .eq('status', 'approved')
-    .lte('claim_date', endDate)
-    .or(`included_in_payroll.is.null,included_in_payroll.eq.false,payroll_period.eq.${period}`);
+    .gte('claim_date', startDate)
+    .lte('claim_date', endDate);
 
   if (error) throw error;
 
   const claims = data || [];
-
   const total = claims.reduce((sum, claim) => sum + toNumber(claim.amount), 0);
 
   return {
@@ -495,8 +524,16 @@ async function generatePayrollFromSources(period) {
         endDate
       );
 
+      const lunchLateMinutes = await getAttendanceLunchLateMinutes(
+        employee.id,
+        startDate,
+        endDate
+      );
+
       const otRate = hourlyRate * OT_MULTIPLIER;
       const otPay = otHours * otRate;
+
+      const lunchDeduction = (lunchLateMinutes / 60) * hourlyRate;
 
       const leaveRows = await getApprovedLeaveRows(employee.id);
       const entitlements = await getLeaveEntitlements(employee.id);
@@ -513,8 +550,7 @@ async function generatePayrollFromSources(period) {
       const claimsResult = await getApprovedClaimsForPeriod(
         employee.id,
         startDate,
-        endDate,
-        period
+        endDate
       );
 
       const bonus = toNumber(existing?.bonus);
@@ -535,6 +571,7 @@ async function generatePayrollFromSources(period) {
       const totalDeductions =
         deductions +
         leaveResult.leaveDeduction +
+        lunchDeduction +
         epfEmployee +
         socsoEmployee +
         eisEmployee +
@@ -561,6 +598,9 @@ async function generatePayrollFromSources(period) {
           leaveResult.unpaidLeaveDays + leaveResult.negativeLeaveDays
         ),
 
+        lunch_late_minutes: roundMoney(lunchLateMinutes),
+        lunch_deduction: roundMoney(lunchDeduction),
+
         epf_employee: roundMoney(epfEmployee),
         epf_employer: roundMoney(epfEmployer),
         socso_employee: roundMoney(socsoEmployee),
@@ -573,11 +613,15 @@ async function generatePayrollFromSources(period) {
         status: existing?.status || 'draft',
         remarks: [
           existing?.remarks || '',
-          `Auto-generated from attendance/leave/claims. OT ${roundMoney(
+          `Auto-generated from attendance/leave/claims/lunch. OT ${roundMoney(
             otHours
           )}h. Claims RM ${roundMoney(
             claimAmount
-          )}. Leave deduction RM ${roundMoney(leaveResult.leaveDeduction)}.`,
+          )}. Leave deduction RM ${roundMoney(
+            leaveResult.leaveDeduction
+          )}. Lunch late ${roundMoney(
+            lunchLateMinutes
+          )} min, lunch deduction RM ${roundMoney(lunchDeduction)}.`,
         ]
           .filter(Boolean)
           .join('\n'),
@@ -625,9 +669,6 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {
-    // =========================
-    // GET PAYROLL / BATCHES
-    // =========================
     if (req.method === 'GET') {
       const { employee_id, period, batches } = req.query;
 
@@ -657,9 +698,6 @@ export default async function handler(req, res) {
       return res.status(200).json(data || []);
     }
 
-    // =========================
-    // POST: CREATE BATCH / IMPORT / GENERATE / CREATE RECORD
-    // =========================
     if (req.method === 'POST') {
       const body = req.body || {};
       const action = body.action;
@@ -728,6 +766,8 @@ export default async function handler(req, res) {
               claim_amount: row.claim_amount || row.Claim_Amount,
               leave_deduction: row.leave_deduction || row.Leave_Deduction,
               unpaid_leave_days: row.unpaid_leave_days || row.Unpaid_Leave_Days,
+              lunch_late_minutes: row.lunch_late_minutes || row.Lunch_Late_Minutes,
+              lunch_deduction: row.lunch_deduction || row.Lunch_Deduction,
               epf_employee: row.epf_employee || row.EPF_Employee,
               epf_employer: row.epf_employer || row.EPF_Employer,
               socso_employee: row.socso_employee || row.SOCSO_Employee,
@@ -810,9 +850,6 @@ export default async function handler(req, res) {
       return res.status(201).json(data);
     }
 
-    // =========================
-    // PUT: UPDATE RECORD / APPROVE BATCH / RELEASE BATCH
-    // =========================
     if (req.method === 'PUT') {
       const body = req.body || {};
       const action = body.action;
@@ -919,9 +956,6 @@ export default async function handler(req, res) {
       return res.status(200).json(data);
     }
 
-    // =========================
-    // DELETE RECORD
-    // =========================
     if (req.method === 'DELETE') {
       const { id } = req.body || {};
 
