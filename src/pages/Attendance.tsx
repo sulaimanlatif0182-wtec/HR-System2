@@ -10,6 +10,7 @@ import {
   MapPin,
   ShieldCheck,
   ShieldAlert,
+  Utensils,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -174,6 +175,50 @@ function getCheckOutWindow(date = new Date()) {
   };
 }
 
+function getLunchOutWindow(date = new Date()) {
+  const now = getMinutesFromDate(date);
+
+  const start = 12 * 60; // 12:00
+  const end = 13 * 60; // 13:00
+
+  if (now < start) {
+    return {
+      allowed: false,
+      label: 'Lunch Out opens at 12:00',
+    };
+  }
+
+  if (now <= end) {
+    return {
+      allowed: true,
+      label: 'Lunch Out',
+    };
+  }
+
+  return {
+    allowed: false,
+    label: 'Lunch Out window closed',
+  };
+}
+
+function getLunchInWindow(date = new Date()) {
+  const now = getMinutesFromDate(date);
+
+  const start = 13 * 60; // 13:00
+
+  if (now < start) {
+    return {
+      allowed: false,
+      label: 'Lunch In opens at 13:00',
+    };
+  }
+
+  return {
+    allowed: true,
+    label: 'Lunch In',
+  };
+}
+
 interface AttRec {
   id: number;
   employee_id: number;
@@ -186,6 +231,13 @@ interface AttRec {
   check_out_type?: string | null;
   overtime_hours?: number | null;
   is_late?: boolean | null;
+
+  lunch_out?: string | null;
+  lunch_in?: string | null;
+  lunch_expected_return?: string | null;
+  lunch_break_minutes?: number | null;
+  lunch_late_minutes?: number | null;
+  lunch_status?: string | null;
 
   check_in_latitude?: number | null;
   check_in_longitude?: number | null;
@@ -200,6 +252,14 @@ interface AttRec {
   check_out_site?: string | null;
   check_out_distance_meters?: number | null;
   check_out_verified?: boolean | null;
+
+  lunch_out_site?: string | null;
+  lunch_out_distance_meters?: number | null;
+  lunch_out_verified?: boolean | null;
+
+  lunch_in_site?: string | null;
+  lunch_in_distance_meters?: number | null;
+  lunch_in_verified?: boolean | null;
 }
 
 interface Emp {
@@ -316,6 +376,15 @@ function formatType(value?: string | null) {
   return value.replace('_', ' ');
 }
 
+function formatTime(value?: string | null) {
+  if (!value) return '—';
+
+  return new Date(value).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export default function Attendance() {
   const { profile } = useAuth();
 
@@ -338,6 +407,8 @@ export default function Attendance() {
 
   const checkInWindow = useMemo(() => getCheckInWindow(now), [now]);
   const checkOutWindow = useMemo(() => getCheckOutWindow(now), [now]);
+  const lunchOutWindow = useMemo(() => getLunchOutWindow(now), [now]);
+  const lunchInWindow = useMemo(() => getLunchInWindow(now), [now]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -446,6 +517,51 @@ export default function Attendance() {
 
   const recent = visibleRecords.slice(0, 30);
 
+  const getVerifiedLocation = async (label: string) => {
+    setGpsMessage(`Getting your GPS location for ${label}…`);
+
+    const position = await getBrowserLocation();
+
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
+    const accuracy = position.coords.accuracy;
+
+    if (accuracy > MAX_GPS_ACCURACY_METERS) {
+      throw new Error(
+        `Your GPS accuracy is too low (${Math.round(
+          accuracy
+        )}m). Please move near an open area or enable high accuracy GPS, then try again.`
+      );
+    }
+
+    const nearest = findNearestSite(latitude, longitude);
+
+    if (!nearest) {
+      throw new Error('No approved attendance site is configured.');
+    }
+
+    const distance = nearest.distanceMeters;
+    const site = nearest.site;
+
+    if (distance > site.radiusMeters) {
+      throw new Error(
+        `You are outside the approved ${label} area.\n\nNearest site: ${
+          site.name
+        }\nYour distance: ${Math.round(distance)}m\nAllowed radius: ${
+          site.radiusMeters
+        }m`
+      );
+    }
+
+    return {
+      latitude,
+      longitude,
+      accuracy,
+      distance,
+      site,
+    };
+  };
+
   const handleExportCsv = () => {
     const rows = visibleRecords.map((r) => ({
       ID: r.id,
@@ -460,6 +576,14 @@ export default function Attendance() {
       Is_Late: r.is_late ? 'Yes' : 'No',
       Check_Out_Type: r.check_out_type ?? '',
       Overtime_Hours: r.overtime_hours ?? 0,
+      Lunch_Out: r.lunch_out ? new Date(r.lunch_out).toLocaleString() : '',
+      Lunch_In: r.lunch_in ? new Date(r.lunch_in).toLocaleString() : '',
+      Lunch_Expected_Return: r.lunch_expected_return
+        ? new Date(r.lunch_expected_return).toLocaleString()
+        : '',
+      Lunch_Break_Minutes: r.lunch_break_minutes ?? 0,
+      Lunch_Late_Minutes: r.lunch_late_minutes ?? 0,
+      Lunch_Status: r.lunch_status ?? '',
 
       Check_In_Site: r.check_in_site ?? '',
       Check_In_Verified: r.check_in_verified ? 'Yes' : 'No',
@@ -474,6 +598,13 @@ export default function Attendance() {
       Check_Out_Accuracy_Meters: r.check_out_accuracy ?? '',
       Check_Out_Latitude: r.check_out_latitude ?? '',
       Check_Out_Longitude: r.check_out_longitude ?? '',
+
+      Lunch_Out_Site: r.lunch_out_site ?? '',
+      Lunch_Out_Verified: r.lunch_out_verified ? 'Yes' : 'No',
+      Lunch_Out_Distance_Meters: r.lunch_out_distance_meters ?? '',
+      Lunch_In_Site: r.lunch_in_site ?? '',
+      Lunch_In_Verified: r.lunch_in_verified ? 'Yes' : 'No',
+      Lunch_In_Distance_Meters: r.lunch_in_distance_meters ?? '',
     }));
 
     downloadCsv('attendance.csv', rows);
@@ -488,44 +619,14 @@ export default function Attendance() {
     }
 
     setBusy(true);
-    setGpsMessage('Getting your GPS location…');
 
     try {
-      const position = await getBrowserLocation();
-
-      const latitude = position.coords.latitude;
-      const longitude = position.coords.longitude;
-      const accuracy = position.coords.accuracy;
-
-      if (accuracy > MAX_GPS_ACCURACY_METERS) {
-        throw new Error(
-          `Your GPS accuracy is too low (${Math.round(
-            accuracy
-          )}m). Please move near an open area or enable high accuracy GPS, then try again.`
-        );
-      }
-
-      const nearest = findNearestSite(latitude, longitude);
-
-      if (!nearest) {
-        throw new Error('No approved attendance site is configured.');
-      }
-
-      const distance = nearest.distanceMeters;
-      const site = nearest.site;
-
-      if (distance > site.radiusMeters) {
-        throw new Error(
-          `You are outside the approved check-in area.\n\nNearest site: ${
-            site.name
-          }\nYour distance: ${Math.round(
-            distance
-          )}m\nAllowed radius: ${site.radiusMeters}m`
-        );
-      }
+      const location = await getVerifiedLocation('check-in');
 
       setGpsMessage(
-        `Location verified at ${site.name}. Distance: ${Math.round(distance)}m.`
+        `Location verified at ${location.site.name}. Distance: ${Math.round(
+          location.distance
+        )}m.`
       );
 
       const res = await fetch('/api/attendance', {
@@ -535,15 +636,9 @@ export default function Attendance() {
           employee_id: profile.id,
           date: formatLocalDate(),
           check_in: new Date().toISOString(),
-          status: checkInWindow.status,
-          check_in_type: checkInWindow.type,
-          is_late: checkInWindow.isLate,
-          check_in_latitude: latitude,
-          check_in_longitude: longitude,
-          check_in_accuracy: accuracy,
-          check_in_site: site.name,
-          check_in_distance_meters: Math.round(distance),
-          check_in_verified: true,
+          check_in_latitude: location.latitude,
+          check_in_longitude: location.longitude,
+          check_in_accuracy: location.accuracy,
         }),
       });
 
@@ -557,13 +652,105 @@ export default function Attendance() {
 
       alert(
         `Check-in successful.\n\nType: ${checkInWindow.label}\nSite: ${
-          site.name
-        }\nDistance: ${Math.round(distance)}m\nGPS accuracy: ${Math.round(
-          accuracy
-        )}m`
+          location.site.name
+        }\nDistance: ${Math.round(
+          location.distance
+        )}m\nGPS accuracy: ${Math.round(location.accuracy)}m`
       );
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to verify location.');
+    } finally {
+      setBusy(false);
+      setTimeout(() => setGpsMessage(''), 4000);
+    }
+  };
+
+  const lunchOut = async () => {
+    if (!myToday) return;
+
+    if (!lunchOutWindow.allowed) {
+      alert(lunchOutWindow.label);
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const location = await getVerifiedLocation('lunch-out');
+
+      const res = await fetch('/api/attendance', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: myToday.id,
+          action: 'lunch_out',
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to record Lunch Out.');
+      }
+
+      await fetchAll();
+
+      alert(
+        `Lunch Out recorded.\n\nExpected return is 1 hour from your Lunch Out time.`
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to record Lunch Out.');
+    } finally {
+      setBusy(false);
+      setTimeout(() => setGpsMessage(''), 4000);
+    }
+  };
+
+  const lunchIn = async () => {
+    if (!myToday) return;
+
+    if (!lunchInWindow.allowed) {
+      alert(lunchInWindow.label);
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const location = await getVerifiedLocation('lunch-in');
+
+      const res = await fetch('/api/attendance', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: myToday.id,
+          action: 'lunch_in',
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to record Lunch In.');
+      }
+
+      await fetchAll();
+
+      const lateMinutes = Number(data?.lunch_late_minutes ?? 0);
+
+      alert(
+        lateMinutes > 0
+          ? `Lunch In recorded.\n\nLate return: ${lateMinutes} minute(s).`
+          : 'Lunch In recorded on time.'
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to record Lunch In.');
     } finally {
       setBusy(false);
       setTimeout(() => setGpsMessage(''), 4000);
@@ -579,47 +766,9 @@ export default function Attendance() {
     }
 
     setBusy(true);
-    setGpsMessage('Getting your GPS location for check-out…');
 
     try {
-      const position = await getBrowserLocation();
-
-      const latitude = position.coords.latitude;
-      const longitude = position.coords.longitude;
-      const accuracy = position.coords.accuracy;
-
-      if (accuracy > MAX_GPS_ACCURACY_METERS) {
-        throw new Error(
-          `Your GPS accuracy is too low (${Math.round(
-            accuracy
-          )}m). Please move near an open area or enable high accuracy GPS, then try again.`
-        );
-      }
-
-      const nearest = findNearestSite(latitude, longitude);
-
-      if (!nearest) {
-        throw new Error('No approved attendance site is configured.');
-      }
-
-      const distance = nearest.distanceMeters;
-      const site = nearest.site;
-
-      if (distance > site.radiusMeters) {
-        throw new Error(
-          `You are outside the approved check-out area.\n\nNearest site: ${
-            site.name
-          }\nYour distance: ${Math.round(
-            distance
-          )}m\nAllowed radius: ${site.radiusMeters}m`
-        );
-      }
-
-      setGpsMessage(
-        `Check-out location verified at ${site.name}. Distance: ${Math.round(
-          distance
-        )}m.`
-      );
+      const location = await getVerifiedLocation('check-out');
 
       const res = await fetch('/api/attendance', {
         method: 'PUT',
@@ -627,14 +776,9 @@ export default function Attendance() {
         body: JSON.stringify({
           id: myToday.id,
           check_out: new Date().toISOString(),
-          check_out_type: checkOutWindow.type,
-          overtime_hours: checkOutWindow.overtimeHours,
-          check_out_latitude: latitude,
-          check_out_longitude: longitude,
-          check_out_accuracy: accuracy,
-          check_out_site: site.name,
-          check_out_distance_meters: Math.round(distance),
-          check_out_verified: true,
+          check_out_latitude: location.latitude,
+          check_out_longitude: location.longitude,
+          check_out_accuracy: location.accuracy,
         }),
       });
 
@@ -650,10 +794,10 @@ export default function Attendance() {
         `Check-out successful.\n\nType: ${
           checkOutWindow.label
         }\nOT Hours: ${checkOutWindow.overtimeHours}\nSite: ${
-          site.name
-        }\nDistance: ${Math.round(distance)}m\nGPS accuracy: ${Math.round(
-          accuracy
-        )}m`
+          location.site.name
+        }\nDistance: ${Math.round(
+          location.distance
+        )}m\nGPS accuracy: ${Math.round(location.accuracy)}m`
       );
     } catch (err) {
       alert(
@@ -700,7 +844,7 @@ export default function Attendance() {
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass rounded-2xl p-6 mb-6 flex flex-col sm:flex-row items-center justify-between gap-5"
+        className="glass rounded-2xl p-6 mb-6 flex flex-col xl:flex-row items-center justify-between gap-5"
       >
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-accent grid place-items-center shadow-lg shadow-primary/30">
@@ -718,25 +862,36 @@ export default function Attendance() {
 
             <p className="text-xs text-muted mt-0.5">
               {myToday?.check_in
-                ? `Checked in at ${new Date(myToday.check_in).toLocaleTimeString(
-                    [],
-                    {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    }
-                  )}`
+                ? `Checked in at ${formatTime(myToday.check_in)}`
                 : 'No check-in recorded yet today'}
 
               {myToday?.check_out
-                ? ` · Out at ${new Date(myToday.check_out).toLocaleTimeString(
-                    [],
-                    {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    }
-                  )}`
+                ? ` · Out at ${formatTime(myToday.check_out)}`
                 : ''}
             </p>
+
+            {myToday?.lunch_out && (
+              <p className="text-xs text-muted mt-1">
+                Lunch Out: {formatTime(myToday.lunch_out)} · Expected:{' '}
+                {formatTime(myToday.lunch_expected_return)}
+              </p>
+            )}
+
+            {myToday?.lunch_in && (
+              <p className="text-xs text-muted mt-1">
+                Lunch In: {formatTime(myToday.lunch_in)} · Break:{' '}
+                {myToday.lunch_break_minutes ?? 0} min · Late:{' '}
+                <span
+                  className={
+                    Number(myToday.lunch_late_minutes ?? 0) > 0
+                      ? 'text-rose'
+                      : 'text-emerald'
+                  }
+                >
+                  {myToday.lunch_late_minutes ?? 0} min
+                </span>
+              </p>
+            )}
 
             {myToday?.check_in_type && (
               <p className="text-xs text-muted mt-1">
@@ -782,19 +937,48 @@ export default function Attendance() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-wrap justify-center gap-3">
           <button
             type="button"
             onClick={checkIn}
             disabled={!!myToday?.check_in || busy || !checkInWindow.allowed}
             className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 px-4 py-2.5 text-sm font-semibold shadow-lg disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] transition-all"
           >
-            {busy ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <LogIn size={16} />
-            )}
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
             {checkInWindow.label}
+          </button>
+
+          <button
+            type="button"
+            onClick={lunchOut}
+            disabled={
+              !myToday?.check_in ||
+              !!myToday?.check_out ||
+              !!myToday?.lunch_out ||
+              busy ||
+              !lunchOutWindow.allowed
+            }
+            className="flex items-center justify-center gap-2 rounded-xl bg-amber/15 text-amber border border-amber/25 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-amber/25 transition-all"
+          >
+            <Utensils size={16} />
+            {lunchOutWindow.label}
+          </button>
+
+          <button
+            type="button"
+            onClick={lunchIn}
+            disabled={
+              !myToday?.check_in ||
+              !!myToday?.check_out ||
+              !myToday?.lunch_out ||
+              !!myToday?.lunch_in ||
+              busy ||
+              !lunchInWindow.allowed
+            }
+            className="flex items-center justify-center gap-2 rounded-xl bg-accent/15 text-accent border border-accent/25 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent/25 transition-all"
+          >
+            <Utensils size={16} />
+            {lunchInWindow.label}
           </button>
 
           <button
@@ -881,10 +1065,9 @@ export default function Attendance() {
                   <th className="px-6 py-3 font-medium">Department</th>
                   <th className="px-6 py-3 font-medium">Date</th>
                   <th className="px-6 py-3 font-medium">Check In</th>
+                  <th className="px-6 py-3 font-medium">Lunch</th>
                   <th className="px-6 py-3 font-medium">Check Out</th>
-                  <th className="px-6 py-3 font-medium">Type</th>
                   <th className="px-6 py-3 font-medium">OT</th>
-                  <th className="px-6 py-3 font-medium">Site</th>
                   <th className="px-6 py-3 font-medium">GPS</th>
                   <th className="px-6 py-3 font-medium">Status</th>
                 </tr>
@@ -907,39 +1090,32 @@ export default function Attendance() {
                     <td className="px-6 py-3 text-muted">{r.date}</td>
 
                     <td className="px-6 py-3 text-muted font-mono text-xs">
-                      {r.check_in
-                        ? new Date(r.check_in).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : '—'}
+                      {formatTime(r.check_in)}
+                    </td>
+
+                    <td className="px-6 py-3 text-muted text-xs">
+                      <p>Out: {formatTime(r.lunch_out)}</p>
+                      <p>In: {formatTime(r.lunch_in)}</p>
+                      <p>
+                        Late:{' '}
+                        <span
+                          className={
+                            Number(r.lunch_late_minutes ?? 0) > 0
+                              ? 'text-rose'
+                              : 'text-muted'
+                          }
+                        >
+                          {r.lunch_late_minutes ?? 0}m
+                        </span>
+                      </p>
                     </td>
 
                     <td className="px-6 py-3 text-muted font-mono text-xs">
-                      {r.check_out
-                        ? new Date(r.check_out).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : '—'}
-                    </td>
-
-                    <td className="px-6 py-3 text-muted">
-                      <div className="text-xs">
-                        <p>In: {formatType(r.check_in_type)}</p>
-                        <p>Out: {formatType(r.check_out_type)}</p>
-                      </div>
+                      {formatTime(r.check_out)}
                     </td>
 
                     <td className="px-6 py-3 text-muted">
                       {Number(r.overtime_hours ?? 0)}h
-                    </td>
-
-                    <td className="px-6 py-3 text-muted">
-                      <div className="text-xs">
-                        <p>In: {r.check_in_site ?? '—'}</p>
-                        <p>Out: {r.check_out_site ?? '—'}</p>
-                      </div>
                     </td>
 
                     <td className="px-6 py-3">
@@ -953,6 +1129,20 @@ export default function Attendance() {
                           <div className="flex items-center gap-1 text-muted text-xs">
                             <ShieldAlert size={14} />
                             In not verified
+                          </div>
+                        )}
+
+                        {r.lunch_out_verified && (
+                          <div className="flex items-center gap-1 text-emerald text-xs">
+                            <ShieldCheck size={14} />
+                            Lunch Out {formatMeters(r.lunch_out_distance_meters)}
+                          </div>
+                        )}
+
+                        {r.lunch_in_verified && (
+                          <div className="flex items-center gap-1 text-emerald text-xs">
+                            <ShieldCheck size={14} />
+                            Lunch In {formatMeters(r.lunch_in_distance_meters)}
                           </div>
                         )}
 

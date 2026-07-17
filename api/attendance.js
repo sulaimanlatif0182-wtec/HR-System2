@@ -84,9 +84,9 @@ function getCheckInWindow() {
 function getCheckOutWindow() {
   const now = getMalaysiaMinutesNow();
 
-  const normalStart = 17 * 60 + 30; // 17:30
-  const normalEnd = 17 * 60 + 45; // 17:45
-  const otStart = 17 * 60 + 46; // 17:46
+  const normalStart = 17 * 60 + 30;
+  const normalEnd = 17 * 60 + 45;
+  const otStart = 17 * 60 + 46;
 
   if (now < normalStart) {
     return {
@@ -149,6 +149,50 @@ function getCheckOutWindow() {
     type: 'closed',
     label: 'Check-out window closed',
     overtimeHours: 0,
+  };
+}
+
+function getLunchOutWindow() {
+  const now = getMalaysiaMinutesNow();
+
+  const lunchOutStart = 12 * 60; // 12:00
+  const lunchOutEnd = 13 * 60; // 13:00
+
+  if (now < lunchOutStart) {
+    return {
+      allowed: false,
+      label: 'Lunch Out opens at 12:00',
+    };
+  }
+
+  if (now <= lunchOutEnd) {
+    return {
+      allowed: true,
+      label: 'Lunch Out',
+    };
+  }
+
+  return {
+    allowed: false,
+    label: 'Lunch Out window closed',
+  };
+}
+
+function getLunchInWindow() {
+  const now = getMalaysiaMinutesNow();
+
+  const lunchInStart = 13 * 60; // 13:00
+
+  if (now < lunchInStart) {
+    return {
+      allowed: false,
+      label: 'Lunch In opens at 13:00',
+    };
+  }
+
+  return {
+    allowed: true,
+    label: 'Lunch In',
   };
 }
 
@@ -246,6 +290,14 @@ function validateLocation(latitude, longitude, accuracy, actionLabel) {
   };
 }
 
+function addMinutes(date, minutes) {
+  return new Date(date.getTime() + minutes * 60 * 1000);
+}
+
+function diffMinutes(later, earlier) {
+  return Math.max(0, Math.round((later.getTime() - earlier.getTime()) / 60000));
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -257,6 +309,9 @@ export default async function handler(req, res) {
   }
 
   try {
+    // =========================
+    // GET ATTENDANCE RECORDS
+    // =========================
     if (req.method === 'GET') {
       const { data, error } = await supabase
         .from('attendance')
@@ -273,6 +328,9 @@ export default async function handler(req, res) {
       return res.status(200).json(data || []);
     }
 
+    // =========================
+    // GPS VERIFIED CHECK IN
+    // =========================
     if (req.method === 'POST') {
       const {
         employee_id,
@@ -347,6 +405,9 @@ export default async function handler(req, res) {
         check_in_site: locationResult.site.name,
         check_in_distance_meters: Math.round(locationResult.distanceMeters),
         check_in_verified: true,
+        lunch_status: 'not_taken',
+        lunch_break_minutes: 0,
+        lunch_late_minutes: 0,
       };
 
       const { data, error } = await supabase
@@ -364,14 +425,229 @@ export default async function handler(req, res) {
       return res.status(201).json(data);
     }
 
+    // =========================
+    // PUT ACTIONS:
+    // CHECK OUT / LUNCH OUT / LUNCH IN
+    // =========================
     if (req.method === 'PUT') {
+      const body = req.body || {};
+      const action = body.action || 'check_out';
+
+      // =========================
+      // LUNCH OUT
+      // =========================
+      if (action === 'lunch_out') {
+        const { id, latitude, longitude, accuracy } = body;
+
+        if (!id) {
+          return res.status(400).json({
+            error: 'id is required.',
+          });
+        }
+
+        const lunchWindow = getLunchOutWindow();
+
+        if (!lunchWindow.allowed) {
+          return res.status(403).json({
+            error: lunchWindow.label,
+          });
+        }
+
+        const lat = toNumber(latitude);
+        const lng = toNumber(longitude);
+        const acc = toNumber(accuracy);
+
+        const locationResult = validateLocation(lat, lng, acc, 'lunch-out');
+
+        if (!locationResult.ok) {
+          return res.status(locationResult.status).json(locationResult);
+        }
+
+        const { data: existing, error: existingError } = await supabase
+          .from('attendance')
+          .select('id, check_in, check_out, lunch_out')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (existingError) {
+          return res.status(500).json({
+            error: existingError.message,
+          });
+        }
+
+        if (!existing) {
+          return res.status(404).json({
+            error: 'Attendance record not found.',
+          });
+        }
+
+        if (!existing.check_in) {
+          return res.status(400).json({
+            error: 'You must check in before lunch out.',
+          });
+        }
+
+        if (existing.check_out) {
+          return res.status(400).json({
+            error: 'You already checked out.',
+          });
+        }
+
+        if (existing.lunch_out) {
+          return res.status(409).json({
+            error: 'Lunch Out already recorded.',
+          });
+        }
+
+        const lunchOutDate = new Date();
+        const expectedReturn = addMinutes(lunchOutDate, 60);
+
+        const { data, error } = await supabase
+          .from('attendance')
+          .update({
+            lunch_out: lunchOutDate.toISOString(),
+            lunch_expected_return: expectedReturn.toISOString(),
+            lunch_status: 'out',
+            lunch_out_latitude: lat,
+            lunch_out_longitude: lng,
+            lunch_out_accuracy: acc,
+            lunch_out_site: locationResult.site.name,
+            lunch_out_distance_meters: Math.round(locationResult.distanceMeters),
+            lunch_out_verified: true,
+          })
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (error) {
+          return res.status(500).json({
+            error: error.message,
+          });
+        }
+
+        return res.status(200).json(data);
+      }
+
+      // =========================
+      // LUNCH IN
+      // =========================
+      if (action === 'lunch_in') {
+        const { id, latitude, longitude, accuracy } = body;
+
+        if (!id) {
+          return res.status(400).json({
+            error: 'id is required.',
+          });
+        }
+
+        const lunchWindow = getLunchInWindow();
+
+        if (!lunchWindow.allowed) {
+          return res.status(403).json({
+            error: lunchWindow.label,
+          });
+        }
+
+        const lat = toNumber(latitude);
+        const lng = toNumber(longitude);
+        const acc = toNumber(accuracy);
+
+        const locationResult = validateLocation(lat, lng, acc, 'lunch-in');
+
+        if (!locationResult.ok) {
+          return res.status(locationResult.status).json(locationResult);
+        }
+
+        const { data: existing, error: existingError } = await supabase
+          .from('attendance')
+          .select(
+            'id, check_in, check_out, lunch_out, lunch_in, lunch_expected_return'
+          )
+          .eq('id', id)
+          .maybeSingle();
+
+        if (existingError) {
+          return res.status(500).json({
+            error: existingError.message,
+          });
+        }
+
+        if (!existing) {
+          return res.status(404).json({
+            error: 'Attendance record not found.',
+          });
+        }
+
+        if (!existing.check_in) {
+          return res.status(400).json({
+            error: 'You must check in before lunch in.',
+          });
+        }
+
+        if (existing.check_out) {
+          return res.status(400).json({
+            error: 'You already checked out.',
+          });
+        }
+
+        if (!existing.lunch_out) {
+          return res.status(400).json({
+            error: 'You must Lunch Out before Lunch In.',
+          });
+        }
+
+        if (existing.lunch_in) {
+          return res.status(409).json({
+            error: 'Lunch In already recorded.',
+          });
+        }
+
+        const lunchInDate = new Date();
+        const lunchOutDate = new Date(existing.lunch_out);
+        const expectedReturnDate = existing.lunch_expected_return
+          ? new Date(existing.lunch_expected_return)
+          : addMinutes(lunchOutDate, 60);
+
+        const breakMinutes = diffMinutes(lunchInDate, lunchOutDate);
+        const lateMinutes = diffMinutes(lunchInDate, expectedReturnDate);
+
+        const { data, error } = await supabase
+          .from('attendance')
+          .update({
+            lunch_in: lunchInDate.toISOString(),
+            lunch_break_minutes: breakMinutes,
+            lunch_late_minutes: lateMinutes,
+            lunch_status: lateMinutes > 0 ? 'late_return' : 'returned',
+            lunch_in_latitude: lat,
+            lunch_in_longitude: lng,
+            lunch_in_accuracy: acc,
+            lunch_in_site: locationResult.site.name,
+            lunch_in_distance_meters: Math.round(locationResult.distanceMeters),
+            lunch_in_verified: true,
+          })
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (error) {
+          return res.status(500).json({
+            error: error.message,
+          });
+        }
+
+        return res.status(200).json(data);
+      }
+
+      // =========================
+      // CHECK OUT
+      // =========================
       const {
         id,
         check_out,
         check_out_latitude,
         check_out_longitude,
         check_out_accuracy,
-      } = req.body || {};
+      } = body;
 
       if (!id || !check_out) {
         return res.status(400).json({
@@ -404,7 +680,9 @@ export default async function handler(req, res) {
 
       const { data: existing, error: existingError } = await supabase
         .from('attendance')
-        .select('id, check_in, check_out')
+        .select(
+          'id, check_in, check_out, lunch_out, lunch_in, lunch_expected_return'
+        )
         .eq('id', id)
         .maybeSingle();
 
@@ -433,6 +711,34 @@ export default async function handler(req, res) {
         });
       }
 
+      let lunchBreakMinutes = 0;
+      let lunchLateMinutes = 0;
+      let lunchStatus = existing.lunch_out ? 'missing_lunch_in' : 'not_taken';
+
+      if (existing.lunch_out && existing.lunch_in) {
+        const lunchOutDate = new Date(existing.lunch_out);
+        const lunchInDate = new Date(existing.lunch_in);
+        const expectedReturnDate = existing.lunch_expected_return
+          ? new Date(existing.lunch_expected_return)
+          : addMinutes(lunchOutDate, 60);
+
+        lunchBreakMinutes = diffMinutes(lunchInDate, lunchOutDate);
+        lunchLateMinutes = diffMinutes(lunchInDate, expectedReturnDate);
+        lunchStatus = lunchLateMinutes > 0 ? 'late_return' : 'returned';
+      }
+
+      if (existing.lunch_out && !existing.lunch_in) {
+        const lunchOutDate = new Date(existing.lunch_out);
+        const checkOutDate = new Date(check_out);
+        const expectedReturnDate = existing.lunch_expected_return
+          ? new Date(existing.lunch_expected_return)
+          : addMinutes(lunchOutDate, 60);
+
+        lunchBreakMinutes = diffMinutes(checkOutDate, lunchOutDate);
+        lunchLateMinutes = diffMinutes(checkOutDate, expectedReturnDate);
+        lunchStatus = 'missing_lunch_in';
+      }
+
       const payload = {
         check_out,
         check_out_type: checkOutWindow.type,
@@ -443,6 +749,9 @@ export default async function handler(req, res) {
         check_out_site: locationResult.site.name,
         check_out_distance_meters: Math.round(locationResult.distanceMeters),
         check_out_verified: true,
+        lunch_break_minutes: lunchBreakMinutes,
+        lunch_late_minutes: lunchLateMinutes,
+        lunch_status: lunchStatus,
       };
 
       const { data, error } = await supabase
