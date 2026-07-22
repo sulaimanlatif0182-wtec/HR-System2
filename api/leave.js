@@ -1,4 +1,8 @@
 import supabase from './db-client.js';
+import {
+  notifyLeaveSubmitted,
+  notifyLeaveDecision,
+} from '../server/notify.js';
 
 const BALANCE_TYPES = [
   'Annual Leave',
@@ -91,6 +95,14 @@ function calculateTimeOffHours(start, end) {
   return Math.round((diffMinutes / 60) * 100) / 100;
 }
 
+async function safeNotify(fn, payload) {
+  try {
+    await fn(payload);
+  } catch (err) {
+    console.error('Notification error:', err instanceof Error ? err.message : err);
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader(
@@ -106,11 +118,7 @@ export default async function handler(req, res) {
     // GET LEAVE REQUESTS / BALANCES
     // =========================
     if (req.method === 'GET') {
-      const {
-        employee_id,
-        status,
-        balances,
-      } = req.query;
+      const { employee_id, status, balances } = req.query;
 
       if (balances === 'true') {
         if (!employee_id) {
@@ -273,6 +281,8 @@ export default async function handler(req, res) {
 
       if (error) throw error;
 
+      await safeNotify(notifyLeaveSubmitted, data);
+
       return res.status(201).json(data);
     }
 
@@ -386,6 +396,10 @@ export default async function handler(req, res) {
         .single();
 
       if (error) throw error;
+
+      if (status === 'approved' || status === 'rejected') {
+        await safeNotify(notifyLeaveDecision, data);
+      }
 
       return res.status(200).json(data);
     }
