@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import supabase from '../db-client.js';
+import supabase from '../api/db-client.js';
 
 function getSmtpConfig() {
   const host = process.env.SMTP_HOST;
