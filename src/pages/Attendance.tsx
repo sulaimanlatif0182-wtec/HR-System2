@@ -16,6 +16,9 @@ import {
   X,
   Save,
   Filter,
+  AlertTriangle,
+  Timer,
+  ListChecks,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -61,12 +64,33 @@ const LUNCH_STATUS_OPTIONS = [
   'missing_lunch_in',
 ];
 
+type ReportTab = 'history' | 'missing' | 'lunch' | 'ot';
+
 function formatLocalDate(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
 
   return `${year}-${month}-${day}`;
+}
+
+function getDatesBetween(start: string, end: string) {
+  if (!start || !end) return [];
+
+  const dates: string[] = [];
+  const current = new Date(`${start}T00:00:00`);
+  const last = new Date(`${end}T00:00:00`);
+
+  if (Number.isNaN(current.getTime()) || Number.isNaN(last.getTime())) {
+    return [];
+  }
+
+  while (current <= last) {
+    dates.push(formatLocalDate(current));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
 }
 
 function getMinutesFromDate(date = new Date()) {
@@ -279,6 +303,7 @@ interface Emp {
   id: number;
   name: string;
   department: string | null;
+  status?: string | null;
 }
 
 interface CorrectionForm {
@@ -294,6 +319,11 @@ interface CorrectionForm {
   lunch_late_minutes: string;
   lunch_status: string;
   reason: string;
+}
+
+interface MissingReportRow {
+  employee: Emp;
+  date: string;
 }
 
 function escapeCsvValue(value: unknown) {
@@ -445,6 +475,43 @@ function correctionFormFromRecord(record: AttRec): CorrectionForm {
   };
 }
 
+function recordToCsv(record: AttRec, empMap: Record<number, Emp>) {
+  return {
+    ID: record.id,
+    Employee_ID: record.employee_id,
+    Employee_Name: empMap[record.employee_id]?.name ?? `#${record.employee_id}`,
+    Department: empMap[record.employee_id]?.department ?? '',
+    Date: record.date,
+    Check_In: record.check_in ? new Date(record.check_in).toLocaleString() : '',
+    Check_Out: record.check_out
+      ? new Date(record.check_out).toLocaleString()
+      : '',
+    Status: record.status,
+    Check_In_Type: record.check_in_type ?? '',
+    Is_Late: record.is_late ? 'Yes' : 'No',
+    Check_Out_Type: record.check_out_type ?? '',
+    Overtime_Hours: record.overtime_hours ?? 0,
+    Lunch_Out: record.lunch_out
+      ? new Date(record.lunch_out).toLocaleString()
+      : '',
+    Lunch_In: record.lunch_in ? new Date(record.lunch_in).toLocaleString() : '',
+    Lunch_Expected_Return: record.lunch_expected_return
+      ? new Date(record.lunch_expected_return).toLocaleString()
+      : '',
+    Lunch_Break_Minutes: record.lunch_break_minutes ?? 0,
+    Lunch_Late_Minutes: record.lunch_late_minutes ?? 0,
+    Lunch_Status: record.lunch_status ?? '',
+    Check_In_Site: record.check_in_site ?? '',
+    Check_In_Verified: record.check_in_verified ? 'Yes' : 'No',
+    Check_Out_Site: record.check_out_site ?? '',
+    Check_Out_Verified: record.check_out_verified ? 'Yes' : 'No',
+    Lunch_Out_Site: record.lunch_out_site ?? '',
+    Lunch_Out_Verified: record.lunch_out_verified ? 'Yes' : 'No',
+    Lunch_In_Site: record.lunch_in_site ?? '',
+    Lunch_In_Verified: record.lunch_in_verified ? 'Yes' : 'No',
+  };
+}
+
 export default function Attendance() {
   const { profile } = useAuth();
 
@@ -472,6 +539,7 @@ export default function Attendance() {
   const [lunchStatusFilter, setLunchStatusFilter] = useState('all');
   const [otOnly, setOtOnly] = useState(false);
   const [missingLunchInOnly, setMissingLunchInOnly] = useState(false);
+  const [reportTab, setReportTab] = useState<ReportTab>('history');
 
   const [editingRecord, setEditingRecord] = useState<AttRec | null>(null);
   const [correctionForm, setCorrectionForm] = useState<CorrectionForm | null>(
@@ -540,6 +608,14 @@ export default function Attendance() {
     return employees.filter((employee) => employee.id === profile?.id);
   }, [employees, isAdmin, isManagerOnly, profile?.id, profileDepartment]);
 
+  const activeVisibleEmployees = useMemo(
+    () =>
+      visibleEmployees.filter(
+        (employee) => String(employee.status ?? 'active') !== 'inactive'
+      ),
+    [visibleEmployees]
+  );
+
   const visibleEmployeeIds = useMemo(
     () => new Set(visibleEmployees.map((employee) => employee.id)),
     [visibleEmployees]
@@ -597,6 +673,64 @@ export default function Attendance() {
     missingLunchInOnly,
   ]);
 
+  const reportStartDate = dateFrom || formatLocalDate();
+  const reportEndDate = dateTo || dateFrom || formatLocalDate();
+
+  const missingCheckInReport = useMemo<MissingReportRow[]>(() => {
+    if (!isAdminOrManager) return [];
+
+    const dates = getDatesBetween(reportStartDate, reportEndDate);
+
+    const rows: MissingReportRow[] = [];
+
+    for (const date of dates) {
+      for (const employee of activeVisibleEmployees) {
+        if (
+          employeeFilter !== 'all' &&
+          Number(employee.id) !== Number(employeeFilter)
+        ) {
+          continue;
+        }
+
+        const hasRecord = records.some(
+          (record) => record.employee_id === employee.id && record.date === date
+        );
+
+        if (!hasRecord) {
+          rows.push({
+            employee,
+            date,
+          });
+        }
+      }
+    }
+
+    return rows;
+  }, [
+    isAdminOrManager,
+    reportStartDate,
+    reportEndDate,
+    activeVisibleEmployees,
+    employeeFilter,
+    records,
+  ]);
+
+  const lunchReport = useMemo(() => {
+    return filteredRecords.filter(
+      (record) =>
+        record.lunch_out ||
+        record.lunch_in ||
+        Number(record.lunch_late_minutes ?? 0) > 0 ||
+        record.lunch_status === 'missing_lunch_in'
+    );
+  }, [filteredRecords]);
+
+  const otReport = useMemo(() => {
+    return filteredRecords.filter(
+      (record) => Number(record.overtime_hours ?? 0) > 0
+    );
+  }, [filteredRecords]);
+
   const myToday = useMemo(
     () =>
       (profile &&
@@ -633,7 +767,16 @@ export default function Attendance() {
 
   const maxCount = Math.max(...heatmap.map((d) => d.count), 1);
 
-  const recent = filteredRecords.slice(0, 50);
+  const currentReportRows =
+    reportTab === 'history'
+      ? filteredRecords
+      : reportTab === 'lunch'
+        ? lunchReport
+        : reportTab === 'ot'
+          ? otReport
+          : [];
+
+  const recent = currentReportRows.slice(0, 50);
 
   const getVerifiedLocation = async (label: string) => {
     setGpsMessage(`Getting your GPS location for ${label}…`);
@@ -681,44 +824,22 @@ export default function Attendance() {
   };
 
   const handleExportCsv = () => {
-    const rows = filteredRecords.map((record) => ({
-      ID: record.id,
-      Employee_ID: record.employee_id,
-      Employee_Name: empMap[record.employee_id]?.name ?? `#${record.employee_id}`,
-      Department: empMap[record.employee_id]?.department ?? '',
-      Date: record.date,
-      Check_In: record.check_in ? new Date(record.check_in).toLocaleString() : '',
-      Check_Out: record.check_out
-        ? new Date(record.check_out).toLocaleString()
-        : '',
-      Status: record.status,
-      Check_In_Type: record.check_in_type ?? '',
-      Is_Late: record.is_late ? 'Yes' : 'No',
-      Check_Out_Type: record.check_out_type ?? '',
-      Overtime_Hours: record.overtime_hours ?? 0,
-      Lunch_Out: record.lunch_out
-        ? new Date(record.lunch_out).toLocaleString()
-        : '',
-      Lunch_In: record.lunch_in
-        ? new Date(record.lunch_in).toLocaleString()
-        : '',
-      Lunch_Expected_Return: record.lunch_expected_return
-        ? new Date(record.lunch_expected_return).toLocaleString()
-        : '',
-      Lunch_Break_Minutes: record.lunch_break_minutes ?? 0,
-      Lunch_Late_Minutes: record.lunch_late_minutes ?? 0,
-      Lunch_Status: record.lunch_status ?? '',
-      Check_In_Site: record.check_in_site ?? '',
-      Check_In_Verified: record.check_in_verified ? 'Yes' : 'No',
-      Check_Out_Site: record.check_out_site ?? '',
-      Check_Out_Verified: record.check_out_verified ? 'Yes' : 'No',
-      Lunch_Out_Site: record.lunch_out_site ?? '',
-      Lunch_Out_Verified: record.lunch_out_verified ? 'Yes' : 'No',
-      Lunch_In_Site: record.lunch_in_site ?? '',
-      Lunch_In_Verified: record.lunch_in_verified ? 'Yes' : 'No',
-    }));
+    if (reportTab === 'missing') {
+      const rows = missingCheckInReport.map((row) => ({
+        Employee_ID: row.employee.id,
+        Employee_Name: row.employee.name,
+        Department: row.employee.department ?? '',
+        Date: row.date,
+        Report: 'Missing Check-In',
+      }));
 
-    downloadCsv('attendance.csv', rows);
+      downloadCsv('missing-check-in-report.csv', rows);
+      return;
+    }
+
+    const rows = currentReportRows.map((record) => recordToCsv(record, empMap));
+
+    downloadCsv(`attendance-${reportTab}.csv`, rows);
   };
 
   const checkIn = async () => {
@@ -989,6 +1110,38 @@ export default function Attendance() {
 
   if (error) return <ErrorState message={error} onRetry={fetchAll} />;
 
+  const reportTabs: Array<{
+    id: ReportTab;
+    label: string;
+    icon: typeof ListChecks;
+    count: number;
+  }> = [
+    {
+      id: 'history',
+      label: 'History',
+      icon: ListChecks,
+      count: filteredRecords.length,
+    },
+    {
+      id: 'missing',
+      label: 'Missing Check-In',
+      icon: AlertTriangle,
+      count: missingCheckInReport.length,
+    },
+    {
+      id: 'lunch',
+      label: 'Lunch Break',
+      icon: Utensils,
+      count: lunchReport.length,
+    },
+    {
+      id: 'ot',
+      label: 'OT Report',
+      icon: Timer,
+      count: otReport.length,
+    },
+  ];
+
   return (
     <div>
       <PageHeader
@@ -1005,7 +1158,11 @@ export default function Attendance() {
             <button
               type="button"
               onClick={handleExportCsv}
-              disabled={filteredRecords.length === 0}
+              disabled={
+                reportTab === 'missing'
+                  ? missingCheckInReport.length === 0
+                  : currentReportRows.length === 0
+              }
               className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
             >
               <Download size={16} />
@@ -1246,6 +1403,33 @@ export default function Attendance() {
         </div>
       </div>
 
+      {isAdminOrManager && (
+        <div className="flex gap-1 bg-surface border border-white/10 rounded-xl p-1 mb-6 w-fit overflow-x-auto">
+          {reportTabs.map((tab) => {
+            const Icon = tab.icon;
+
+            return (
+              <button
+                type="button"
+                key={tab.id}
+                onClick={() => setReportTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                  reportTab === tab.id
+                    ? 'bg-primary/20 text-primary'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                <Icon size={14} />
+                {tab.label}
+                <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px]">
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -1284,158 +1468,219 @@ export default function Attendance() {
         </div>
       </motion.div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 15 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="glass rounded-2xl overflow-hidden"
-      >
-        <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
-          <h3 className="font-display font-semibold">
-            {isAdmin
-              ? 'Recent History'
-              : isManagerOnly
-                ? `${profile?.department ?? 'Department'} Attendance History`
-                : 'Your Attendance History'}
-          </h3>
+      {reportTab === 'missing' && isAdminOrManager ? (
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="glass rounded-2xl overflow-hidden"
+        >
+          <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+            <h3 className="font-display font-semibold">
+              Missing Check-In Report
+            </h3>
 
-          <span className="text-xs text-muted">
-            Showing {recent.length} of {filteredRecords.length}
-          </span>
-        </div>
-
-        {recent.length === 0 ? (
-          <EmptyState label="No attendance records found." />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-white/5">
-                  <th className="px-6 py-3 font-medium">Employee</th>
-                  <th className="px-6 py-3 font-medium">Department</th>
-                  <th className="px-6 py-3 font-medium">Date</th>
-                  <th className="px-6 py-3 font-medium">Check In</th>
-                  <th className="px-6 py-3 font-medium">Lunch</th>
-                  <th className="px-6 py-3 font-medium">Check Out</th>
-                  <th className="px-6 py-3 font-medium">OT</th>
-                  <th className="px-6 py-3 font-medium">GPS</th>
-                  <th className="px-6 py-3 font-medium">Status</th>
-                  {isAdmin && <th className="px-6 py-3 font-medium" />}
-                </tr>
-              </thead>
-
-              <tbody>
-                {recent.map((record) => (
-                  <tr
-                    key={record.id}
-                    className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-all"
-                  >
-                    <td className="px-6 py-3">
-                      {empMap[record.employee_id]?.name ?? `#${record.employee_id}`}
-                    </td>
-
-                    <td className="px-6 py-3 text-muted">
-                      {empMap[record.employee_id]?.department ?? '—'}
-                    </td>
-
-                    <td className="px-6 py-3 text-muted">{record.date}</td>
-
-                    <td className="px-6 py-3 text-muted font-mono text-xs">
-                      {formatTime(record.check_in)}
-                    </td>
-
-                    <td className="px-6 py-3 text-muted text-xs">
-                      <p>Out: {formatTime(record.lunch_out)}</p>
-                      <p>In: {formatTime(record.lunch_in)}</p>
-                      <p>
-                        Late:{' '}
-                        <span
-                          className={
-                            Number(record.lunch_late_minutes ?? 0) > 0
-                              ? 'text-rose'
-                              : 'text-muted'
-                          }
-                        >
-                          {record.lunch_late_minutes ?? 0}m
-                        </span>
-                      </p>
-                    </td>
-
-                    <td className="px-6 py-3 text-muted font-mono text-xs">
-                      {formatTime(record.check_out)}
-                    </td>
-
-                    <td className="px-6 py-3 text-muted">
-                      {Number(record.overtime_hours ?? 0)}h
-                    </td>
-
-                    <td className="px-6 py-3">
-                      <div className="space-y-1">
-                        {record.check_in_verified ? (
-                          <div className="flex items-center gap-1 text-emerald text-xs">
-                            <ShieldCheck size={14} />
-                            In {formatMeters(record.check_in_distance_meters)}
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1 text-muted text-xs">
-                            <ShieldAlert size={14} />
-                            In not verified
-                          </div>
-                        )}
-
-                        {record.lunch_out_verified && (
-                          <div className="flex items-center gap-1 text-emerald text-xs">
-                            <ShieldCheck size={14} />
-                            Lunch Out {formatMeters(record.lunch_out_distance_meters)}
-                          </div>
-                        )}
-
-                        {record.lunch_in_verified && (
-                          <div className="flex items-center gap-1 text-emerald text-xs">
-                            <ShieldCheck size={14} />
-                            Lunch In {formatMeters(record.lunch_in_distance_meters)}
-                          </div>
-                        )}
-
-                        {record.check_out_verified ? (
-                          <div className="flex items-center gap-1 text-emerald text-xs">
-                            <ShieldCheck size={14} />
-                            Out {formatMeters(record.check_out_distance_meters)}
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1 text-muted text-xs">
-                            <ShieldAlert size={14} />
-                            Out not verified
-                          </div>
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="px-6 py-3">
-                      <Badge tone={STATUS_TONE[record.status] ?? 'default'}>
-                        {record.status}
-                      </Badge>
-                    </td>
-
-                    {isAdmin && (
-                      <td className="px-6 py-3">
-                        <button
-                          type="button"
-                          onClick={() => openCorrection(record)}
-                          className="text-muted hover:text-primary transition-all"
-                          title="Manual correction"
-                        >
-                          <Pencil size={15} />
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <span className="text-xs text-muted">
+              {reportStartDate} → {reportEndDate}
+            </span>
           </div>
-        )}
-      </motion.div>
+
+          {missingCheckInReport.length === 0 ? (
+            <EmptyState label="No missing check-ins found." />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-white/5">
+                    <th className="px-6 py-3 font-medium">Employee</th>
+                    <th className="px-6 py-3 font-medium">Department</th>
+                    <th className="px-6 py-3 font-medium">Date</th>
+                    <th className="px-6 py-3 font-medium">Report</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {missingCheckInReport.slice(0, 100).map((row) => (
+                    <tr
+                      key={`${row.employee.id}-${row.date}`}
+                      className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-all"
+                    >
+                      <td className="px-6 py-3">{row.employee.name}</td>
+                      <td className="px-6 py-3 text-muted">
+                        {row.employee.department ?? '—'}
+                      </td>
+                      <td className="px-6 py-3 text-muted">{row.date}</td>
+                      <td className="px-6 py-3">
+                        <Badge tone="danger">Missing Check-In</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </motion.div>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="glass rounded-2xl overflow-hidden"
+        >
+          <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+            <h3 className="font-display font-semibold">
+              {reportTab === 'history'
+                ? isAdmin
+                  ? 'Recent History'
+                  : isManagerOnly
+                    ? `${profile?.department ?? 'Department'} Attendance History`
+                    : 'Your Attendance History'
+                : reportTab === 'lunch'
+                  ? 'Lunch Break Report'
+                  : 'OT Report'}
+            </h3>
+
+            <span className="text-xs text-muted">
+              Showing {recent.length} of {currentReportRows.length}
+            </span>
+          </div>
+
+          {recent.length === 0 ? (
+            <EmptyState label="No attendance records found." />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-white/5">
+                    <th className="px-6 py-3 font-medium">Employee</th>
+                    <th className="px-6 py-3 font-medium">Department</th>
+                    <th className="px-6 py-3 font-medium">Date</th>
+                    <th className="px-6 py-3 font-medium">Check In</th>
+                    <th className="px-6 py-3 font-medium">Lunch</th>
+                    <th className="px-6 py-3 font-medium">Check Out</th>
+                    <th className="px-6 py-3 font-medium">OT</th>
+                    <th className="px-6 py-3 font-medium">GPS</th>
+                    <th className="px-6 py-3 font-medium">Status</th>
+                    {isAdmin && <th className="px-6 py-3 font-medium" />}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {recent.map((record) => (
+                    <tr
+                      key={record.id}
+                      className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-all"
+                    >
+                      <td className="px-6 py-3">
+                        {empMap[record.employee_id]?.name ??
+                          `#${record.employee_id}`}
+                      </td>
+
+                      <td className="px-6 py-3 text-muted">
+                        {empMap[record.employee_id]?.department ?? '—'}
+                      </td>
+
+                      <td className="px-6 py-3 text-muted">{record.date}</td>
+
+                      <td className="px-6 py-3 text-muted font-mono text-xs">
+                        {formatTime(record.check_in)}
+                      </td>
+
+                      <td className="px-6 py-3 text-muted text-xs">
+                        <p>Out: {formatTime(record.lunch_out)}</p>
+                        <p>In: {formatTime(record.lunch_in)}</p>
+                        <p>
+                          Late:{' '}
+                          <span
+                            className={
+                              Number(record.lunch_late_minutes ?? 0) > 0
+                                ? 'text-rose'
+                                : 'text-muted'
+                            }
+                          >
+                            {record.lunch_late_minutes ?? 0}m
+                          </span>
+                        </p>
+                      </td>
+
+                      <td className="px-6 py-3 text-muted font-mono text-xs">
+                        {formatTime(record.check_out)}
+                      </td>
+
+                      <td className="px-6 py-3 text-muted">
+                        {Number(record.overtime_hours ?? 0)}h
+                      </td>
+
+                      <td className="px-6 py-3">
+                        <div className="space-y-1">
+                          {record.check_in_verified ? (
+                            <div className="flex items-center gap-1 text-emerald text-xs">
+                              <ShieldCheck size={14} />
+                              In {formatMeters(record.check_in_distance_meters)}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 text-muted text-xs">
+                              <ShieldAlert size={14} />
+                              In not verified
+                            </div>
+                          )}
+
+                          {record.lunch_out_verified && (
+                            <div className="flex items-center gap-1 text-emerald text-xs">
+                              <ShieldCheck size={14} />
+                              Lunch Out{' '}
+                              {formatMeters(record.lunch_out_distance_meters)}
+                            </div>
+                          )}
+
+                          {record.lunch_in_verified && (
+                            <div className="flex items-center gap-1 text-emerald text-xs">
+                              <ShieldCheck size={14} />
+                              Lunch In{' '}
+                              {formatMeters(record.lunch_in_distance_meters)}
+                            </div>
+                          )}
+
+                          {record.check_out_verified ? (
+                            <div className="flex items-center gap-1 text-emerald text-xs">
+                              <ShieldCheck size={14} />
+                              Out {formatMeters(record.check_out_distance_meters)}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 text-muted text-xs">
+                              <ShieldAlert size={14} />
+                              Out not verified
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-3">
+                        <Badge tone={STATUS_TONE[record.status] ?? 'default'}>
+                          {record.status}
+                        </Badge>
+                      </td>
+
+                      {isAdmin && (
+                        <td className="px-6 py-3">
+                          <button
+                            type="button"
+                            onClick={() => openCorrection(record)}
+                            className="text-muted hover:text-primary transition-all"
+                            title="Manual correction"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </motion.div>
+      )}
 
       <div className="flex items-center gap-1.5 text-xs text-muted mt-2 justify-end">
         <Database size={12} />
