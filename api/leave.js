@@ -11,6 +11,17 @@ const BALANCE_TYPES = [
   'Maternity/Paternity',
 ];
 
+const BACKDATE_ALLOWED_LEAVE_TYPES = new Set([
+  'Unpaid Leave',
+  'Sick Leave',
+  'Maternity/Paternity',
+]);
+
+const ATTACHMENT_REQUIRED_LEAVE_TYPES = new Set([
+  'Sick Leave',
+  'Maternity/Paternity',
+]);
+
 function normalizeLeaveType(value) {
   return String(value || '').trim();
 }
@@ -18,6 +29,21 @@ function normalizeLeaveType(value) {
 function toNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function todayMalaysia() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kuala_Lumpur',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+
+  return `${year}-${month}-${day}`;
 }
 
 async function getEmployee(employeeId) {
@@ -155,6 +181,7 @@ export default async function handler(req, res) {
 
       const leaveType = normalizeLeaveType(body.leave_type);
       const requestMode = body.request_mode || 'leave';
+      const today = todayMalaysia();
 
       if (!body.employee_id) {
         return res.status(400).json({
@@ -183,6 +210,16 @@ export default async function handler(req, res) {
       if (!body.employee_acknowledged) {
         return res.status(400).json({
           error: 'Employee acknowledgement is required.',
+        });
+      }
+
+      if (
+        requestMode === 'leave' &&
+        ATTACHMENT_REQUIRED_LEAVE_TYPES.has(leaveType) &&
+        !body.attachment_url
+      ) {
+        return res.status(400).json({
+          error: `${leaveType} requires an attachment.`,
         });
       }
 
@@ -228,6 +265,12 @@ export default async function handler(req, res) {
           });
         }
 
+        if (body.time_off_date < today) {
+          return res.status(400).json({
+            error: 'Time Off cannot be submitted for a past date.',
+          });
+        }
+
         const hours = calculateTimeOffHours(
           body.time_off_start,
           body.time_off_end
@@ -253,6 +296,15 @@ export default async function handler(req, res) {
         if (!body.start_date || !body.end_date) {
           return res.status(400).json({
             error: 'Start date and end date are required.',
+          });
+        }
+
+        if (
+          !BACKDATE_ALLOWED_LEAVE_TYPES.has(leaveType) &&
+          body.start_date < today
+        ) {
+          return res.status(400).json({
+            error: 'This leave type cannot be submitted for a past date.',
           });
         }
 
@@ -431,7 +483,13 @@ export default async function handler(req, res) {
     console.error('API error:', err);
 
     return res.status(500).json({
-      error: err instanceof Error ? err.message : 'Internal server error.',
+      error:
+        err?.message ||
+        err?.details ||
+        err?.hint ||
+        err?.code ||
+        JSON.stringify(err) ||
+        'Internal server error.',
     });
   }
 }

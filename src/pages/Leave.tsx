@@ -47,6 +47,17 @@ const BALANCE_TYPES = [
 const HALF_DAY_OPTIONS = ['Full Day', 'AM', 'PM'] as const;
 const TIME_OFF_PERIODS = ['AM', 'PM'] as const;
 
+const BACKDATE_ALLOWED_LEAVE_TYPES = new Set([
+  'Unpaid Leave',
+  'Sick Leave',
+  'Maternity/Paternity',
+]);
+
+const ATTACHMENT_REQUIRED_LEAVE_TYPES = new Set([
+  'Sick Leave',
+  'Maternity/Paternity',
+]);
+
 type LeaveType = (typeof LEAVE_TYPES)[number];
 type HalfDayPeriod = (typeof HALF_DAY_OPTIONS)[number];
 type TimeOffPeriod = (typeof TIME_OFF_PERIODS)[number];
@@ -64,6 +75,10 @@ interface LeaveFormState {
   reason: string;
   duties_covered_by: string;
   employee_acknowledged: boolean;
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function daysBetween(start: string, end: string) {
@@ -190,6 +205,23 @@ interface LeaveBalance {
   balance_days: number;
 }
 
+function emptyLeaveForm(): LeaveFormState {
+  return {
+    request_mode: 'leave',
+    leave_type: LEAVE_TYPES[0],
+    start_date: '',
+    end_date: '',
+    half_day_period: 'Full Day',
+    time_off_date: '',
+    time_off_period: 'AM',
+    time_off_start: '',
+    time_off_end: '',
+    reason: '',
+    duties_covered_by: '',
+    employee_acknowledged: false,
+  };
+}
+
 export default function Leave() {
   const { profile } = useAuth();
 
@@ -211,20 +243,7 @@ export default function Leave() {
   const [filter, setFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
 
-  const [form, setForm] = useState<LeaveFormState>({
-    request_mode: 'leave',
-    leave_type: LEAVE_TYPES[0],
-    start_date: '',
-    end_date: '',
-    half_day_period: 'Full Day',
-    time_off_date: '',
-    time_off_period: 'AM',
-    time_off_start: '',
-    time_off_end: '',
-    reason: '',
-    duties_covered_by: '',
-    employee_acknowledged: false,
-  });
+  const [form, setForm] = useState<LeaveFormState>(emptyLeaveForm());
 
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -238,6 +257,16 @@ export default function Leave() {
   );
   const [savingBalances, setSavingBalances] = useState(false);
   const [balanceError, setBalanceError] = useState('');
+
+  const today = todayStr();
+
+  const canBackdateSelectedLeave =
+    form.request_mode === 'leave' &&
+    BACKDATE_ALLOWED_LEAVE_TYPES.has(form.leave_type);
+
+  const attachmentRequired =
+    form.request_mode === 'leave' &&
+    ATTACHMENT_REQUIRED_LEAVE_TYPES.has(form.leave_type);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -330,8 +359,6 @@ export default function Leave() {
     empMap,
   ]);
 
-  const currentEmployee = profile?.id ? empMap[profile.id] : null;
-
   const canApproveRequest = (request: LeaveReq) => {
     if (!profile) return false;
     if (request.status !== 'pending') return false;
@@ -363,21 +390,7 @@ export default function Leave() {
   };
 
   const resetForm = () => {
-    setForm({
-      request_mode: 'leave',
-     leave_type: LEAVE_TYPES[0],
-      start_date: '',
-      end_date: '',
-      half_day_period: 'Full Day',
-      time_off_date: '',
-      time_off_period: 'AM',
-      time_off_start: '',
-      time_off_end: '',
-      reason: '',
-      duties_covered_by: '',
-      employee_acknowledged: false,
-  });
-
+    setForm(emptyLeaveForm());
     setAttachmentFile(null);
     setFormError('');
   };
@@ -395,9 +408,7 @@ export default function Leave() {
       };
     }
 
-    const extension = attachmentFile.name.split('.').pop() || 'file';
     const safeName = attachmentFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-
     const filePath = `${profile.id}/${Date.now()}-${safeName}`;
 
     const { error: uploadError } = await supabase.storage
@@ -417,7 +428,7 @@ export default function Leave() {
 
     return {
       attachment_url: data.publicUrl,
-      attachment_name: `${safeName}.${extension}`.replace(`.${extension}.${extension}`, `.${extension}`),
+      attachment_name: safeName,
     };
   };
 
@@ -472,11 +483,21 @@ export default function Leave() {
       return;
     }
 
+    if (attachmentRequired && !attachmentFile) {
+      setFormError(`${form.leave_type} requires an attachment.`);
+      return;
+    }
+
     let days = 0;
 
     if (form.request_mode === 'leave') {
       if (!form.start_date || !form.end_date) {
         setFormError('Please select a date range.');
+        return;
+      }
+
+      if (!canBackdateSelectedLeave && form.start_date < today) {
+        setFormError('This leave type cannot be submitted for a past date.');
         return;
       }
 
@@ -502,6 +523,11 @@ export default function Leave() {
     if (form.request_mode === 'time_off') {
       if (!form.time_off_date || !form.time_off_start || !form.time_off_end) {
         setFormError('Time off date, start time and end time are required.');
+        return;
+      }
+
+      if (form.time_off_date < today) {
+        setFormError('Time Off cannot be submitted for a past date.');
         return;
       }
 
@@ -782,10 +808,6 @@ export default function Leave() {
 
     .signature-space {
       height: 70px;
-    }
-
-    .muted {
-      color: #444;
     }
 
     @media print {
@@ -1262,6 +1284,8 @@ export default function Leave() {
                           setForm({
                             ...form,
                             leave_type: e.target.value as LeaveType,
+                            start_date: '',
+                            end_date: '',
                           })
                         }
                         className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
@@ -1282,6 +1306,7 @@ export default function Leave() {
                           <input
                             required
                             type="date"
+                            min={canBackdateSelectedLeave ? undefined : today}
                             value={form.start_date}
                             onChange={(e) =>
                               setForm({
@@ -1301,6 +1326,10 @@ export default function Leave() {
                           <input
                             required
                             type="date"
+                            min={
+                              form.start_date ||
+                              (canBackdateSelectedLeave ? undefined : today)
+                            }
                             value={form.end_date}
                             onChange={(e) =>
                               setForm({ ...form, end_date: e.target.value })
@@ -1326,6 +1355,18 @@ export default function Leave() {
                           </option>
                         ))}
                       </select>
+
+                      {canBackdateSelectedLeave && (
+                        <p className="text-xs text-amber bg-amber/10 border border-amber/20 rounded-lg px-3 py-2">
+                          {form.leave_type} can be submitted for past dates.
+                        </p>
+                      )}
+
+                      {attachmentRequired && (
+                        <p className="text-xs text-amber bg-amber/10 border border-amber/20 rounded-lg px-3 py-2">
+                          {form.leave_type} requires supporting attachment.
+                        </p>
+                      )}
                     </>
                   ) : (
                     <>
@@ -1337,6 +1378,7 @@ export default function Leave() {
                         <input
                           required
                           type="date"
+                          min={today}
                           value={form.time_off_date}
                           onChange={(e) =>
                             setForm({
@@ -1406,7 +1448,8 @@ export default function Leave() {
                       </div>
 
                       <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
-                        Time Off is limited to maximum 2 hours.
+                        Time Off is limited to maximum 2 hours and cannot be
+                        submitted for a past date.
                       </p>
                     </>
                   )}
@@ -1437,16 +1480,25 @@ export default function Leave() {
 
                   <div>
                     <label className="text-xs text-muted mb-1 block">
-                      Attachment optional
+                      {attachmentRequired
+                        ? `Attachment required for ${form.leave_type}`
+                        : 'Attachment optional'}
                     </label>
 
                     <input
+                      required={attachmentRequired}
                       type="file"
                       onChange={(e) =>
                         setAttachmentFile(e.target.files?.[0] ?? null)
                       }
                       className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                     />
+
+                    {attachmentRequired && (
+                      <p className="text-xs text-amber mt-1">
+                        Please attach supporting document for {form.leave_type}.
+                      </p>
+                    )}
                   </div>
 
                   <label className="flex items-start gap-2 text-xs text-muted bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2">
