@@ -580,10 +580,7 @@ export default function Attendance() {
         return false;
       }
 
-      if (
-        missingLunchInOnly &&
-        !(record.lunch_out && !record.lunch_in)
-      ) {
+      if (missingLunchInOnly && !(record.lunch_out && !record.lunch_in)) {
         return false;
       }
 
@@ -1165,13 +1162,18 @@ export default function Attendance() {
           <h3 className="font-display font-semibold">Filters</h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-3">
+        <div
+          className={`grid grid-cols-1 gap-3 ${
+            isAdminOrManager
+              ? 'md:grid-cols-3 xl:grid-cols-7'
+              : 'sm:grid-cols-2 max-w-xl'
+          }`}
+        >
           <input
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
-            placeholder="Date from"
           />
 
           <input
@@ -1179,65 +1181,68 @@ export default function Attendance() {
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
             className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
-            placeholder="Date to"
           />
 
-          <select
-            value={employeeFilter}
-            onChange={(e) => setEmployeeFilter(e.target.value)}
-            className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
-          >
-            <option value="all">All Employees</option>
-            {visibleEmployees.map((employee) => (
-              <option key={employee.id} value={employee.id}>
-                {employee.name}
-              </option>
-            ))}
-          </select>
+          {isAdminOrManager && (
+            <>
+              <select
+                value={employeeFilter}
+                onChange={(e) => setEmployeeFilter(e.target.value)}
+                className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+              >
+                <option value="all">All Employees</option>
+                {visibleEmployees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.name}
+                  </option>
+                ))}
+              </select>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
-          >
-            <option value="all">All Status</option>
-            {STATUS_OPTIONS.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+              >
+                <option value="all">All Status</option>
+                {STATUS_OPTIONS.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
 
-          <select
-            value={lunchStatusFilter}
-            onChange={(e) => setLunchStatusFilter(e.target.value)}
-            className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
-          >
-            <option value="all">All Lunch</option>
-            {LUNCH_STATUS_OPTIONS.map((status) => (
-              <option key={status} value={status}>
-                {status.replace('_', ' ')}
-              </option>
-            ))}
-          </select>
+              <select
+                value={lunchStatusFilter}
+                onChange={(e) => setLunchStatusFilter(e.target.value)}
+                className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+              >
+                <option value="all">All Lunch</option>
+                {LUNCH_STATUS_OPTIONS.map((status) => (
+                  <option key={status} value={status}>
+                    {status.replace('_', ' ')}
+                  </option>
+                ))}
+              </select>
 
-          <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
-            <input
-              type="checkbox"
-              checked={otOnly}
-              onChange={(e) => setOtOnly(e.target.checked)}
-            />
-            OT only
-          </label>
+              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  checked={otOnly}
+                  onChange={(e) => setOtOnly(e.target.checked)}
+                />
+                OT only
+              </label>
 
-          <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
-            <input
-              type="checkbox"
-              checked={missingLunchInOnly}
-              onChange={(e) => setMissingLunchInOnly(e.target.checked)}
-            />
-            Missing Lunch In
-          </label>
+              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  checked={missingLunchInOnly}
+                  onChange={(e) => setMissingLunchInOnly(e.target.checked)}
+                />
+                Missing Lunch In
+              </label>
+            </>
+          )}
         </div>
       </div>
 
@@ -1247,9 +1252,7 @@ export default function Attendance() {
         transition={{ delay: 0.1 }}
         className="glass rounded-2xl p-6 mb-6"
       >
-        <h3 className="font-display font-semibold mb-1">
-          Presence Heatmap
-        </h3>
+        <h3 className="font-display font-semibold mb-1">Presence Heatmap</h3>
 
         <p className="text-xs text-muted mb-4">
           Last 42 days ·{' '}
