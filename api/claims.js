@@ -1,4 +1,9 @@
 import supabase from './db-client.js';
+import {
+  notifyClaimSubmitted,
+  notifyClaimPendingFinance,
+  notifyClaimDecision,
+} from '../server/notify.js';
 
 const ALLOWED_CLAIM_TYPES = [
   'Fuel',
@@ -69,6 +74,14 @@ function normalizeClaimType(value) {
   const claimType = cleanString(value);
 
   return ALLOWED_CLAIM_TYPES.includes(claimType) ? claimType : 'Other';
+}
+
+async function safeNotify(fn, payload) {
+  try {
+    await fn(payload);
+  } catch (err) {
+    console.error('Notification error:', err instanceof Error ? err.message : err);
+  }
 }
 
 export default async function handler(req, res) {
@@ -167,27 +180,33 @@ export default async function handler(req, res) {
         vehicle_no: claimType === 'Fuel' ? body.vehicle_no || null : null,
         from_location: body.from_location || null,
         to_location: body.to_location || null,
+
         odometer_start:
           claimType === 'Fuel' &&
           body.odometer_start !== undefined &&
           body.odometer_start !== ''
             ? toNumber(body.odometer_start)
             : null,
+
         odometer_end:
           claimType === 'Fuel' &&
           body.odometer_end !== undefined &&
           body.odometer_end !== ''
             ? toNumber(body.odometer_end)
             : null,
+
         distance_km: claimType === 'Fuel' && distanceKm ? distanceKm : null,
+
         fuel_liters:
           claimType === 'Fuel' &&
           body.fuel_liters !== undefined &&
           body.fuel_liters !== ''
             ? toNumber(body.fuel_liters)
             : null,
+
         petrol_station:
           claimType === 'Fuel' ? body.petrol_station || null : null,
+
         receipt_no: body.receipt_no || null,
 
         attachment_url: body.attachment_url,
@@ -204,6 +223,8 @@ export default async function handler(req, res) {
         .single();
 
       if (error) throw error;
+
+      await safeNotify(notifyClaimSubmitted, data);
 
       return res.status(201).json(data);
     }
@@ -332,6 +353,8 @@ export default async function handler(req, res) {
 
         if (error) throw error;
 
+        await safeNotify(notifyClaimPendingFinance, data);
+
         return res.status(200).json(data);
       }
 
@@ -360,6 +383,8 @@ export default async function handler(req, res) {
           .single();
 
         if (error) throw error;
+
+        await safeNotify(notifyClaimDecision, data);
 
         return res.status(200).json(data);
       }
@@ -392,6 +417,8 @@ export default async function handler(req, res) {
           .single();
 
         if (error) throw error;
+
+        await safeNotify(notifyClaimDecision, data);
 
         return res.status(200).json(data);
       }
