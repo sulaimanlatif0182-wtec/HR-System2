@@ -231,6 +231,25 @@ function findNearestSite(latitude, longitude) {
 
 function toNumber(value) {
   const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
+}
+
+function nullableTimestamp(value) {
+  if (value === null || value === undefined || value === '') return null;
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toISOString();
+}
+
+function nullableNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+
+  const number = Number(value);
+
   return Number.isFinite(number) ? number : null;
 }
 
@@ -296,22 +315,87 @@ function diffMinutes(later, earlier) {
   return Math.max(0, Math.round((later.getTime() - earlier.getTime()) / 60000));
 }
 
-function nullableTimestamp(value) {
-  if (value === null || value === undefined || value === '') return null;
+async function verifyDeviceAuthToken({ employeeId, token, purpose }) {
+  if (!employeeId || !token) {
+    return {
+      ok: false,
+      status: 403,
+      error:
+        'Approved attendance device verification is required before check-in.',
+    };
+  }
 
-  const date = new Date(value);
+  const { data: tokenRow, error: tokenError } = await supabase
+    .from('device_auth_tokens')
+    .select('*')
+    .eq('token', token)
+    .eq('employee_id', Number(employeeId))
+    .eq('purpose', purpose)
+    .is('used_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle();
 
-  if (Number.isNaN(date.getTime())) return null;
+  if (tokenError) {
+    return {
+      ok: false,
+      status: 500,
+      error: tokenError.message,
+    };
+  }
 
-  return date.toISOString();
-}
+  if (!tokenRow) {
+    return {
+      ok: false,
+      status: 403,
+      error: 'Device verification expired or invalid. Please try again.',
+    };
+  }
 
-function nullableNumber(value) {
-  if (value === null || value === undefined || value === '') return null;
+  const { data: device, error: deviceError } = await supabase
+    .from('employee_devices')
+    .select('*')
+    .eq('id', tokenRow.device_id)
+    .eq('employee_id', Number(employeeId))
+    .eq('status', 'approved')
+    .is('revoked_at', null)
+    .maybeSingle();
 
-  const number = Number(value);
+  if (deviceError) {
+    return {
+      ok: false,
+      status: 500,
+      error: deviceError.message,
+    };
+  }
 
-  return Number.isFinite(number) ? number : null;
+  if (!device) {
+    return {
+      ok: false,
+      status: 403,
+      error: 'Approved attendance device not found.',
+    };
+  }
+
+  const { error: updateError } = await supabase
+    .from('device_auth_tokens')
+    .update({
+      used_at: new Date().toISOString(),
+    })
+    .eq('id', tokenRow.id);
+
+  if (updateError) {
+    return {
+      ok: false,
+      status: 500,
+      error: updateError.message,
+    };
+  }
+
+  return {
+    ok: true,
+    device,
+    token: tokenRow,
+  };
 }
 
 export default async function handler(req, res) {
@@ -345,7 +429,7 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // GPS VERIFIED CHECK IN
+    // GPS + DEVICE VERIFIED CHECK IN
     // =========================
     if (req.method === 'POST') {
       const {
@@ -355,6 +439,7 @@ export default async function handler(req, res) {
         check_in_latitude,
         check_in_longitude,
         check_in_accuracy,
+        device_auth_token,
       } = req.body || {};
 
       if (!employee_id || !date || !check_in) {
@@ -368,6 +453,18 @@ export default async function handler(req, res) {
       if (!checkInWindow.allowed) {
         return res.status(403).json({
           error: checkInWindow.label,
+        });
+      }
+
+      const deviceResult = await verifyDeviceAuthToken({
+        employeeId: employee_id,
+        token: device_auth_token,
+        purpose: 'attendance_check_in',
+      });
+
+      if (!deviceResult.ok) {
+        return res.status(deviceResult.status).json({
+          error: deviceResult.error,
         });
       }
 
@@ -421,6 +518,8 @@ export default async function handler(req, res) {
         check_in_site: locationResult.site.name,
         check_in_distance_meters: Math.round(locationResult.distanceMeters),
         check_in_verified: true,
+        check_in_device_id: deviceResult.device.id,
+        check_in_webauthn_verified: true,
         lunch_status: 'not_taken',
         lunch_break_minutes: 0,
         lunch_late_minutes: 0,
@@ -505,13 +604,26 @@ export default async function handler(req, res) {
         if (date !== undefined) updatePayload.date = date;
         if (status !== undefined) updatePayload.status = status;
 
-        if (check_in !== undefined) updatePayload.check_in = nullableTimestamp(check_in);
-        if (lunch_out !== undefined) updatePayload.lunch_out = nullableTimestamp(lunch_out);
-        if (lunch_in !== undefined) updatePayload.lunch_in = nullableTimestamp(lunch_in);
-        if (lunch_expected_return !== undefined) {
-          updatePayload.lunch_expected_return = nullableTimestamp(lunch_expected_return);
+        if (check_in !== undefined) {
+          updatePayload.check_in = nullableTimestamp(check_in);
         }
-        if (check_out !== undefined) updatePayload.check_out = nullableTimestamp(check_out);
+
+        if (lunch_out !== undefined) {
+          updatePayload.lunch_out = nullableTimestamp(lunch_out);
+        }
+
+        if (lunch_in !== undefined) {
+          updatePayload.lunch_in = nullableTimestamp(lunch_in);
+        }
+
+        if (lunch_expected_return !== undefined) {
+          updatePayload.lunch_expected_return =
+            nullableTimestamp(lunch_expected_return);
+        }
+
+        if (check_out !== undefined) {
+          updatePayload.check_out = nullableTimestamp(check_out);
+        }
 
         if (overtime_hours !== undefined) {
           updatePayload.overtime_hours = nullableNumber(overtime_hours) ?? 0;
@@ -527,7 +639,9 @@ export default async function handler(req, res) {
             nullableNumber(lunch_late_minutes) ?? 0;
         }
 
-        if (lunch_status !== undefined) updatePayload.lunch_status = lunch_status;
+        if (lunch_status !== undefined) {
+          updatePayload.lunch_status = lunch_status;
+        }
 
         const { data, error } = await supabase
           .from('attendance')
