@@ -155,8 +155,8 @@ function getCheckOutWindow() {
 function getLunchOutWindow() {
   const now = getMalaysiaMinutesNow();
 
-  const lunchOutStart = 12 * 60; // 12:00
-  const lunchOutEnd = 13 * 60; // 13:00
+  const lunchOutStart = 12 * 60;
+  const lunchOutEnd = 13 * 60;
 
   if (now < lunchOutStart) {
     return {
@@ -181,7 +181,7 @@ function getLunchOutWindow() {
 function getLunchInWindow() {
   const now = getMalaysiaMinutesNow();
 
-  const lunchInStart = 13 * 60; // 13:00
+  const lunchInStart = 13 * 60;
 
   if (now < lunchInStart) {
     return {
@@ -198,7 +198,6 @@ function getLunchInWindow() {
 
 function getDistanceMeters(lat1, lon1, lat2, lon2) {
   const earthRadiusMeters = 6371000;
-
   const toRadians = (value) => (value * Math.PI) / 180;
 
   const dLat = toRadians(lat2 - lat1);
@@ -232,7 +231,6 @@ function findNearestSite(latitude, longitude) {
 
 function toNumber(value) {
   const number = Number(value);
-
   return Number.isFinite(number) ? number : null;
 }
 
@@ -296,6 +294,24 @@ function addMinutes(date, minutes) {
 
 function diffMinutes(later, earlier) {
   return Math.max(0, Math.round((later.getTime() - earlier.getTime()) / 60000));
+}
+
+function nullableTimestamp(value) {
+  if (value === null || value === undefined || value === '') return null;
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toISOString();
+}
+
+function nullableNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
 }
 
 export default async function handler(req, res) {
@@ -426,12 +442,119 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // PUT ACTIONS:
-    // CHECK OUT / LUNCH OUT / LUNCH IN
+    // PUT ACTIONS
     // =========================
     if (req.method === 'PUT') {
       const body = req.body || {};
       const action = body.action || 'check_out';
+
+      // =========================
+      // MANUAL CORRECTION
+      // =========================
+      if (action === 'manual_correction') {
+        const {
+          id,
+          changed_by,
+          changed_by_name,
+          reason,
+          date,
+          status,
+          check_in,
+          lunch_out,
+          lunch_in,
+          lunch_expected_return,
+          check_out,
+          overtime_hours,
+          lunch_break_minutes,
+          lunch_late_minutes,
+          lunch_status,
+        } = body;
+
+        if (!id) {
+          return res.status(400).json({
+            error: 'id is required.',
+          });
+        }
+
+        if (!reason || !String(reason).trim()) {
+          return res.status(400).json({
+            error: 'Correction reason is required.',
+          });
+        }
+
+        const { data: existing, error: existingError } = await supabase
+          .from('attendance')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (existingError) {
+          return res.status(500).json({
+            error: existingError.message,
+          });
+        }
+
+        if (!existing) {
+          return res.status(404).json({
+            error: 'Attendance record not found.',
+          });
+        }
+
+        const updatePayload = {};
+
+        if (date !== undefined) updatePayload.date = date;
+        if (status !== undefined) updatePayload.status = status;
+
+        if (check_in !== undefined) updatePayload.check_in = nullableTimestamp(check_in);
+        if (lunch_out !== undefined) updatePayload.lunch_out = nullableTimestamp(lunch_out);
+        if (lunch_in !== undefined) updatePayload.lunch_in = nullableTimestamp(lunch_in);
+        if (lunch_expected_return !== undefined) {
+          updatePayload.lunch_expected_return = nullableTimestamp(lunch_expected_return);
+        }
+        if (check_out !== undefined) updatePayload.check_out = nullableTimestamp(check_out);
+
+        if (overtime_hours !== undefined) {
+          updatePayload.overtime_hours = nullableNumber(overtime_hours) ?? 0;
+        }
+
+        if (lunch_break_minutes !== undefined) {
+          updatePayload.lunch_break_minutes =
+            nullableNumber(lunch_break_minutes) ?? 0;
+        }
+
+        if (lunch_late_minutes !== undefined) {
+          updatePayload.lunch_late_minutes =
+            nullableNumber(lunch_late_minutes) ?? 0;
+        }
+
+        if (lunch_status !== undefined) updatePayload.lunch_status = lunch_status;
+
+        const { data, error } = await supabase
+          .from('attendance')
+          .update(updatePayload)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (error) {
+          return res.status(500).json({
+            error: error.message,
+          });
+        }
+
+        await supabase.from('attendance_audit_logs').insert({
+          attendance_id: existing.id,
+          employee_id: existing.employee_id,
+          changed_by: changed_by || null,
+          changed_by_name: changed_by_name || null,
+          action: 'manual_correction',
+          old_data: existing,
+          new_data: data,
+          reason: String(reason).trim(),
+        });
+
+        return res.status(200).json(data);
+      }
 
       // =========================
       // LUNCH OUT
@@ -775,7 +898,13 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     return res.status(500).json({
-      error: err instanceof Error ? err.message : 'Internal server error.',
+      error:
+        err?.message ||
+        err?.details ||
+        err?.hint ||
+        err?.code ||
+        JSON.stringify(err) ||
+        'Internal server error.',
     });
   }
 }
