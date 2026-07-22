@@ -46,6 +46,14 @@ function todayMalaysia() {
   return `${year}-${month}-${day}`;
 }
 
+async function safeNotify(fn, payload) {
+  try {
+    await fn(payload);
+  } catch (err) {
+    console.error('Notification error:', err instanceof Error ? err.message : err);
+  }
+}
+
 async function getEmployee(employeeId) {
   if (!employeeId) return null;
 
@@ -73,36 +81,103 @@ async function getApprovedUsedDays(employeeId, leaveType) {
   return (data || []).reduce((sum, row) => sum + Number(row.days || 0), 0);
 }
 
-async function getBalances(employeeId) {
-  if (!employeeId) return [];
+async function getAdjustmentDays(employeeId, leaveType) {
+  const { data, error } = await supabase
+    .from('leave_adjustments')
+    .select('adjustment_days')
+    .eq('employee_id', employeeId)
+    .eq('leave_type', leaveType);
 
-  const { data: balances, error } = await supabase
+  if (error) throw error;
+
+  return (data || []).reduce(
+    (sum, row) => sum + Number(row.adjustment_days || 0),
+    0
+  );
+}
+
+async function getBalanceDetail(employeeId, leaveType) {
+  const { data: balance, error } = await supabase
     .from('leave_balances')
     .select('*')
     .eq('employee_id', employeeId)
-    .order('leave_type', { ascending: true });
+    .eq('leave_type', leaveType)
+    .maybeSingle();
 
   if (error) throw error;
+
+  const entitlementDays = Number(balance?.entitlement_days || 0);
+  const usedDays = await getApprovedUsedDays(employeeId, leaveType);
+  const adjustmentDays = await getAdjustmentDays(employeeId, leaveType);
+
+  return {
+    id: balance?.id ?? null,
+    employee_id: employeeId,
+    leave_type: leaveType,
+    entitlement_days: entitlementDays,
+    adjustment_days: adjustmentDays,
+    used_days: usedDays,
+    balance_days: entitlementDays + adjustmentDays - usedDays,
+  };
+}
+
+async function getBalances(employeeId) {
+  if (!employeeId) return [];
 
   const rows = [];
 
   for (const leaveType of BALANCE_TYPES) {
-    const existing = (balances || []).find((b) => b.leave_type === leaveType);
-
-    const entitlementDays = Number(existing?.entitlement_days || 0);
-    const usedDays = await getApprovedUsedDays(employeeId, leaveType);
-
-    rows.push({
-      id: existing?.id ?? null,
-      employee_id: employeeId,
-      leave_type: leaveType,
-      entitlement_days: entitlementDays,
-      used_days: usedDays,
-      balance_days: entitlementDays - usedDays,
-    });
+    rows.push(await getBalanceDetail(employeeId, leaveType));
   }
 
   return rows;
+}
+
+async function getAdjustments(employeeId) {
+  if (!employeeId) return [];
+
+  let query = supabase
+    .from('leave_adjustments')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (employeeId) {
+    query = query.eq('employee_id', employeeId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+
+  return data || [];
+}
+
+async function insertBalanceAudit({
+  employeeId,
+  leaveType,
+  changedBy,
+  changedByName,
+  oldBalance,
+  newBalance,
+  adjustmentDays = 0,
+  reason,
+}) {
+  const { error } = await supabase.from('leave_balance_audit_logs').insert({
+    employee_id: Number(employeeId),
+    leave_type: leaveType,
+    changed_by: changedBy || null,
+    changed_by_name: changedByName || null,
+    old_entitlement: oldBalance.entitlement_days,
+    new_entitlement: newBalance.entitlement_days,
+    old_used: oldBalance.used_days,
+    new_used: newBalance.used_days,
+    old_balance: oldBalance.balance_days,
+    new_balance: newBalance.balance_days,
+    adjustment_days: adjustmentDays,
+    reason: reason || null,
+  });
+
+  if (error) throw error;
 }
 
 function calculateTimeOffHours(start, end) {
@@ -121,14 +196,6 @@ function calculateTimeOffHours(start, end) {
   return Math.round((diffMinutes / 60) * 100) / 100;
 }
 
-async function safeNotify(fn, payload) {
-  try {
-    await fn(payload);
-  } catch (err) {
-    console.error('Notification error:', err instanceof Error ? err.message : err);
-  }
-}
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader(
@@ -141,10 +208,10 @@ export default async function handler(req, res) {
 
   try {
     // =========================
-    // GET LEAVE REQUESTS / BALANCES
+    // GET LEAVE REQUESTS / BALANCES / ADJUSTMENTS
     // =========================
     if (req.method === 'GET') {
-      const { employee_id, status, balances } = req.query;
+      const { employee_id, status, balances, adjustments } = req.query;
 
       if (balances === 'true') {
         if (!employee_id) {
@@ -154,6 +221,18 @@ export default async function handler(req, res) {
         }
 
         const data = await getBalances(Number(employee_id));
+
+        return res.status(200).json(data);
+      }
+
+      if (adjustments === 'true') {
+        if (!employee_id) {
+          return res.status(400).json({
+            error: 'employee_id is required for adjustments.',
+          });
+        }
+
+        const data = await getAdjustments(Number(employee_id));
 
         return res.status(200).json(data);
       }
@@ -174,11 +253,157 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // CREATE LEAVE REQUEST
+    // POST: CREATE LEAVE / UPDATE ENTITLEMENT / ADD ADJUSTMENT
     // =========================
     if (req.method === 'POST') {
       const body = req.body || {};
+      const action = body.action;
 
+      // =========================
+      // UPDATE ENTITLEMENT
+      // =========================
+      if (action === 'update_entitlement') {
+        const {
+          employee_id,
+          leave_type,
+          entitlement_days,
+          changed_by,
+          changed_by_name,
+          reason,
+        } = body;
+
+        if (!employee_id || !leave_type) {
+          return res.status(400).json({
+            error: 'employee_id and leave_type are required.',
+          });
+        }
+
+        if (!reason || !String(reason).trim()) {
+          return res.status(400).json({
+            error: 'Reason is required.',
+          });
+        }
+
+        const leaveType = normalizeLeaveType(leave_type);
+
+        if (!BALANCE_TYPES.includes(leaveType)) {
+          return res.status(400).json({
+            error: 'Invalid leave type.',
+          });
+        }
+
+        const oldBalance = await getBalanceDetail(Number(employee_id), leaveType);
+
+        const { error } = await supabase.from('leave_balances').upsert(
+          {
+            employee_id: Number(employee_id),
+            leave_type: leaveType,
+            entitlement_days: toNumber(entitlement_days),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: 'employee_id,leave_type',
+          }
+        );
+
+        if (error) throw error;
+
+        const newBalance = await getBalanceDetail(Number(employee_id), leaveType);
+
+        await insertBalanceAudit({
+          employeeId: Number(employee_id),
+          leaveType,
+          changedBy: changed_by,
+          changedByName: changed_by_name,
+          oldBalance,
+          newBalance,
+          adjustmentDays: 0,
+          reason,
+        });
+
+        return res.status(200).json(newBalance);
+      }
+
+      // =========================
+      // ADD ADJUSTMENT
+      // =========================
+      if (action === 'add_adjustment') {
+        const {
+          employee_id,
+          leave_type,
+          adjustment_days,
+          reason,
+          created_by,
+          created_by_name,
+        } = body;
+
+        if (!employee_id || !leave_type) {
+          return res.status(400).json({
+            error: 'employee_id and leave_type are required.',
+          });
+        }
+
+        if (!reason || !String(reason).trim()) {
+          return res.status(400).json({
+            error: 'Reason is required.',
+          });
+        }
+
+        const adjustmentDays = toNumber(adjustment_days);
+
+        if (adjustmentDays === 0) {
+          return res.status(400).json({
+            error: 'Adjustment days cannot be 0.',
+          });
+        }
+
+        const leaveType = normalizeLeaveType(leave_type);
+
+        if (!BALANCE_TYPES.includes(leaveType)) {
+          return res.status(400).json({
+            error: 'Invalid leave type.',
+          });
+        }
+
+        const oldBalance = await getBalanceDetail(Number(employee_id), leaveType);
+
+        const { data: adjustment, error } = await supabase
+          .from('leave_adjustments')
+          .insert({
+            employee_id: Number(employee_id),
+            leave_type: leaveType,
+            adjustment_days: adjustmentDays,
+            reason: String(reason).trim(),
+            created_by: created_by || null,
+            created_by_name: created_by_name || null,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        const newBalance = await getBalanceDetail(Number(employee_id), leaveType);
+
+        await insertBalanceAudit({
+          employeeId: Number(employee_id),
+          leaveType,
+          changedBy: created_by,
+          changedByName: created_by_name,
+          oldBalance,
+          newBalance,
+          adjustmentDays,
+          reason,
+        });
+
+        return res.status(201).json({
+          adjustment,
+          balance: newBalance,
+        });
+      }
+
+      // =========================
+      // CREATE LEAVE REQUEST
+      // =========================
       const leaveType = normalizeLeaveType(body.leave_type);
       const requestMode = body.request_mode || 'leave';
       const today = todayMalaysia();

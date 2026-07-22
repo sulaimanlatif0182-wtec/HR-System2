@@ -13,6 +13,7 @@ import {
   Printer,
   Pencil,
   Save,
+  History,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import supabase from '../lib/supabase';
@@ -59,6 +60,7 @@ const ATTACHMENT_REQUIRED_LEAVE_TYPES = new Set([
 ]);
 
 type LeaveType = (typeof LEAVE_TYPES)[number];
+type BalanceType = (typeof BALANCE_TYPES)[number];
 type HalfDayPeriod = (typeof HALF_DAY_OPTIONS)[number];
 type TimeOffPeriod = (typeof TIME_OFF_PERIODS)[number];
 
@@ -75,6 +77,67 @@ interface LeaveFormState {
   reason: string;
   duties_covered_by: string;
   employee_acknowledged: boolean;
+}
+
+interface LeaveReq {
+  id: number;
+  employee_id: number;
+  leave_type: string;
+  start_date: string;
+  end_date: string;
+  days: number;
+  status: string;
+  reason: string | null;
+  decided_by: string | null;
+  decided_role?: string | null;
+  decided_at?: string | null;
+  requested_at?: string | null;
+
+  half_day_period?: string | null;
+  duties_covered_by?: string | null;
+  attachment_url?: string | null;
+  attachment_name?: string | null;
+  employee_acknowledged?: boolean | null;
+  manager_remarks?: string | null;
+  admin_remarks?: string | null;
+  office_remarks?: string | null;
+
+  request_mode?: string | null;
+  time_off_date?: string | null;
+  time_off_period?: string | null;
+  time_off_start?: string | null;
+  time_off_end?: string | null;
+  time_off_hours?: number | null;
+}
+
+interface Emp {
+  id: number;
+  name: string;
+  email?: string | null;
+  department: string | null;
+  title?: string | null;
+  role?: string | null;
+}
+
+interface LeaveBalance {
+  id: number | null;
+  employee_id: number;
+  leave_type: string;
+  entitlement_days: number;
+  adjustment_days: number;
+  used_days: number;
+  balance_days: number;
+}
+
+interface LeaveAdjustment {
+  id: number;
+  employee_id: number;
+  leave_type: string;
+  adjustment_days: number;
+  reason: string;
+  created_by: number | null;
+  created_by_name: string | null;
+  created_at: string;
 }
 
 function todayStr() {
@@ -156,55 +219,6 @@ function escapeHtml(value: unknown) {
     .replaceAll("'", '&#039;');
 }
 
-interface LeaveReq {
-  id: number;
-  employee_id: number;
-  leave_type: string;
-  start_date: string;
-  end_date: string;
-  days: number;
-  status: string;
-  reason: string | null;
-  decided_by: string | null;
-  decided_role?: string | null;
-  decided_at?: string | null;
-  requested_at?: string | null;
-
-  half_day_period?: string | null;
-  duties_covered_by?: string | null;
-  attachment_url?: string | null;
-  attachment_name?: string | null;
-  employee_acknowledged?: boolean | null;
-  manager_remarks?: string | null;
-  admin_remarks?: string | null;
-  office_remarks?: string | null;
-
-  request_mode?: string | null;
-  time_off_date?: string | null;
-  time_off_period?: string | null;
-  time_off_start?: string | null;
-  time_off_end?: string | null;
-  time_off_hours?: number | null;
-}
-
-interface Emp {
-  id: number;
-  name: string;
-  email?: string | null;
-  department: string | null;
-  title?: string | null;
-  role?: string | null;
-}
-
-interface LeaveBalance {
-  id: number | null;
-  employee_id: number;
-  leave_type: string;
-  entitlement_days: number;
-  used_days: number;
-  balance_days: number;
-}
-
 function emptyLeaveForm(): LeaveFormState {
   return {
     request_mode: 'leave',
@@ -237,14 +251,15 @@ export default function Leave() {
   const [requests, setRequests] = useState<LeaveReq[]>([]);
   const [employees, setEmployees] = useState<Emp[]>([]);
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
+  const [adjustments, setAdjustments] = useState<LeaveAdjustment[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
+
   const [showModal, setShowModal] = useState(false);
-
   const [form, setForm] = useState<LeaveFormState>(emptyLeaveForm());
-
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -255,8 +270,15 @@ export default function Leave() {
   const [editableBalances, setEditableBalances] = useState<Record<string, string>>(
     {}
   );
+  const [balanceReason, setBalanceReason] = useState('');
   const [savingBalances, setSavingBalances] = useState(false);
   const [balanceError, setBalanceError] = useState('');
+
+  const [adjustmentForm, setAdjustmentForm] = useState({
+    leave_type: 'Annual Leave',
+    adjustment_days: '',
+    reason: '',
+  });
 
   const today = todayStr();
 
@@ -293,13 +315,20 @@ export default function Leave() {
     setBalanceLoading(true);
 
     try {
-      const data = await fetch(
-        `/api/leave?balances=true&employee_id=${employeeId}`
-      ).then((r) => r.json());
+      const [balanceData, adjustmentData] = await Promise.all([
+        fetch(`/api/leave?balances=true&employee_id=${employeeId}`).then((r) =>
+          r.json()
+        ),
+        fetch(`/api/leave?adjustments=true&employee_id=${employeeId}`).then((r) =>
+          r.json()
+        ),
+      ]);
 
-      setBalances(Array.isArray(data) ? data : []);
+      setBalances(Array.isArray(balanceData) ? balanceData : []);
+      setAdjustments(Array.isArray(adjustmentData) ? adjustmentData : []);
     } catch {
       setBalances([]);
+      setAdjustments([]);
     } finally {
       setBalanceLoading(false);
     }
@@ -641,6 +670,12 @@ export default function Leave() {
 
     setBalanceEmployeeId(firstEmployeeId);
     setEditableBalances({});
+    setBalanceReason('');
+    setAdjustmentForm({
+      leave_type: 'Annual Leave',
+      adjustment_days: '',
+      reason: '',
+    });
     setBalanceError('');
     setShowBalanceModal(true);
 
@@ -656,21 +691,27 @@ export default function Leave() {
     setBalanceError('');
 
     try {
-      const data = await fetch(
-        `/api/leave?balances=true&employee_id=${employeeId}`
-      ).then((r) => r.json());
+      const [balanceData, adjustmentData] = await Promise.all([
+        fetch(`/api/leave?balances=true&employee_id=${employeeId}`).then((r) =>
+          r.json()
+        ),
+        fetch(`/api/leave?adjustments=true&employee_id=${employeeId}`).then((r) =>
+          r.json()
+        ),
+      ]);
 
       const next: Record<string, string> = {};
 
       BALANCE_TYPES.forEach((type) => {
-        const row = Array.isArray(data)
-          ? data.find((balance) => balance.leave_type === type)
+        const row = Array.isArray(balanceData)
+          ? balanceData.find((balance) => balance.leave_type === type)
           : null;
 
         next[type] = String(row?.entitlement_days ?? 0);
       });
 
       setEditableBalances(next);
+      setAdjustments(Array.isArray(adjustmentData) ? adjustmentData : []);
     } catch {
       setBalanceError('Failed to load leave balances.');
     } finally {
@@ -679,7 +720,12 @@ export default function Leave() {
   };
 
   const saveEditableBalances = async () => {
-    if (!isAdmin || !balanceEmployeeId) return;
+    if (!isAdmin || !balanceEmployeeId || !profile) return;
+
+    if (!balanceReason.trim()) {
+      setBalanceError('Reason is required when updating entitlement.');
+      return;
+    }
 
     setSavingBalances(true);
     setBalanceError('');
@@ -688,20 +734,24 @@ export default function Leave() {
       for (const leaveType of BALANCE_TYPES) {
         const entitlement = Number(editableBalances[leaveType] || 0);
 
-        const { error } = await supabase.from('leave_balances').upsert(
-          {
+        const res = await fetch('/api/leave', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update_entitlement',
             employee_id: Number(balanceEmployeeId),
             leave_type: leaveType,
             entitlement_days: entitlement,
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: 'employee_id,leave_type',
-          }
-        );
+            changed_by: profile.id,
+            changed_by_name: profile.name,
+            reason: balanceReason,
+          }),
+        });
 
-        if (error) {
-          throw error;
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok) {
+          throw new Error(data?.error || `Failed to update ${leaveType}.`);
         }
       }
 
@@ -709,13 +759,74 @@ export default function Leave() {
         await fetchBalances(profile.id);
       }
 
+      await loadEditableBalances(balanceEmployeeId);
+
+      setBalanceReason('');
       alert('Leave balances updated.');
-      setShowBalanceModal(false);
     } catch (err) {
       setBalanceError(
         err instanceof Error
           ? err.message
           : 'Failed to update leave balances.'
+      );
+    } finally {
+      setSavingBalances(false);
+    }
+  };
+
+  const addAdjustment = async () => {
+    if (!isAdmin || !balanceEmployeeId || !profile) return;
+
+    if (!adjustmentForm.adjustment_days || Number(adjustmentForm.adjustment_days) === 0) {
+      setBalanceError('Adjustment days cannot be 0.');
+      return;
+    }
+
+    if (!adjustmentForm.reason.trim()) {
+      setBalanceError('Adjustment reason is required.');
+      return;
+    }
+
+    setSavingBalances(true);
+    setBalanceError('');
+
+    try {
+      const res = await fetch('/api/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add_adjustment',
+          employee_id: Number(balanceEmployeeId),
+          leave_type: adjustmentForm.leave_type,
+          adjustment_days: Number(adjustmentForm.adjustment_days),
+          reason: adjustmentForm.reason,
+          created_by: profile.id,
+          created_by_name: profile.name,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to add adjustment.');
+      }
+
+      setAdjustmentForm({
+        leave_type: 'Annual Leave',
+        adjustment_days: '',
+        reason: '',
+      });
+
+      if (profile.id) {
+        await fetchBalances(profile.id);
+      }
+
+      await loadEditableBalances(Number(balanceEmployeeId));
+
+      alert('Leave adjustment added.');
+    } catch (err) {
+      setBalanceError(
+        err instanceof Error ? err.message : 'Failed to add adjustment.'
       );
     } finally {
       setSavingBalances(false);
@@ -1036,8 +1147,11 @@ export default function Leave() {
             BALANCE_TYPES.map((type) => {
               const row = balances.find((b) => b.leave_type === type);
               const entitlement = Number(row?.entitlement_days ?? 0);
+              const adjustments = Number(row?.adjustment_days ?? 0);
               const used = Number(row?.used_days ?? 0);
-              const balance = Number(row?.balance_days ?? entitlement - used);
+              const balance = Number(
+                row?.balance_days ?? entitlement + adjustments - used
+              );
               const negative = balance < 0;
 
               return (
@@ -1051,7 +1165,8 @@ export default function Leave() {
                     {balance}
                   </p>
                   <p className="text-xs text-muted mt-1">
-                    Used {used} / Entitlement {entitlement}
+                    Entitlement {entitlement} · Adjust {adjustments} · Used{' '}
+                    {used}
                   </p>
                   {negative && (
                     <p className="text-xs text-rose mt-2">
@@ -1561,7 +1676,7 @@ export default function Leave() {
               className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
             >
               <div
-                className="glass-solid rounded-2xl p-6 w-full max-w-md pointer-events-auto"
+                className="glass-solid rounded-2xl p-6 w-full max-w-2xl pointer-events-auto max-h-[90vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between mb-5">
@@ -1578,7 +1693,7 @@ export default function Leave() {
                   </button>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <select
                     value={balanceEmployeeId}
                     onChange={async (e) => {
@@ -1596,52 +1711,177 @@ export default function Leave() {
                     ))}
                   </select>
 
-                  {balanceLoading ? (
-                    <p className="text-sm text-muted">Loading balances…</p>
-                  ) : (
-                    BALANCE_TYPES.map((type) => (
-                      <div key={type}>
-                        <label className="text-xs text-muted mb-1 block">
-                          {type} entitlement days
-                        </label>
+                  <div className="glass rounded-2xl p-4">
+                    <h4 className="font-display font-semibold text-sm mb-3">
+                      Entitlement Days
+                    </h4>
 
-                        <input
-                          type="number"
-                          step="0.5"
-                          value={editableBalances[type] ?? '0'}
-                          onChange={(e) =>
-                            setEditableBalances({
-                              ...editableBalances,
-                              [type]: e.target.value,
-                            })
-                          }
-                          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-                        />
+                    {balanceLoading ? (
+                      <p className="text-sm text-muted">Loading balances…</p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {BALANCE_TYPES.map((type) => (
+                          <div key={type}>
+                            <label className="text-xs text-muted mb-1 block">
+                              {type} entitlement days
+                            </label>
+
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={editableBalances[type] ?? '0'}
+                              onChange={(e) =>
+                                setEditableBalances({
+                                  ...editableBalances,
+                                  [type]: e.target.value,
+                                })
+                              }
+                              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                            />
+                          </div>
+                        ))}
                       </div>
-                    ))
-                  )}
+                    )}
+
+                    <textarea
+                      placeholder="Reason required for entitlement update"
+                      value={balanceReason}
+                      onChange={(e) => setBalanceReason(e.target.value)}
+                      rows={2}
+                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 resize-none mt-3"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={saveEditableBalances}
+                      disabled={savingBalances || !balanceEmployeeId}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold disabled:opacity-60 mt-3"
+                    >
+                      {savingBalances ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <>
+                          <Save size={16} />
+                          Save Entitlements
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="glass rounded-2xl p-4">
+                    <h4 className="font-display font-semibold text-sm mb-3">
+                      Add Adjustment
+                    </h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <select
+                        value={adjustmentForm.leave_type}
+                        onChange={(e) =>
+                          setAdjustmentForm({
+                            ...adjustmentForm,
+                            leave_type: e.target.value,
+                          })
+                        }
+                        className="bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                      >
+                        {BALANCE_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {type}
+                          </option>
+                        ))}
+                      </select>
+
+                      <input
+                        type="number"
+                        step="0.5"
+                        placeholder="+/- days"
+                        value={adjustmentForm.adjustment_days}
+                        onChange={(e) =>
+                          setAdjustmentForm({
+                            ...adjustmentForm,
+                            adjustment_days: e.target.value,
+                          })
+                        }
+                        className="bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                      />
+                    </div>
+
+                    <textarea
+                      placeholder="Adjustment reason required"
+                      value={adjustmentForm.reason}
+                      onChange={(e) =>
+                        setAdjustmentForm({
+                          ...adjustmentForm,
+                          reason: e.target.value,
+                        })
+                      }
+                      rows={2}
+                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 resize-none mt-3"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={addAdjustment}
+                      disabled={savingBalances || !balanceEmployeeId}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 py-2.5 text-sm font-semibold disabled:opacity-60 mt-3 hover:bg-white/10 transition-all"
+                    >
+                      <Plus size={16} />
+                      Add Adjustment
+                    </button>
+                  </div>
+
+                  <div className="glass rounded-2xl p-4">
+                    <h4 className="font-display font-semibold text-sm mb-3 flex items-center gap-2">
+                      <History size={15} />
+                      Adjustment History
+                    </h4>
+
+                    {adjustments.length === 0 ? (
+                      <p className="text-xs text-muted">
+                        No adjustments for selected employee.
+                      </p>
+                    ) : (
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {adjustments.map((adjustment) => (
+                          <div
+                            key={adjustment.id}
+                            className="rounded-xl bg-white/[0.03] border border-white/10 px-3 py-2 text-xs"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-medium">
+                                {adjustment.leave_type}
+                              </p>
+                              <p
+                                className={
+                                  Number(adjustment.adjustment_days) >= 0
+                                    ? 'text-emerald'
+                                    : 'text-rose'
+                                }
+                              >
+                                {Number(adjustment.adjustment_days) > 0
+                                  ? '+'
+                                  : ''}
+                                {adjustment.adjustment_days} day(s)
+                              </p>
+                            </div>
+                            <p className="text-muted mt-1">
+                              {adjustment.reason}
+                            </p>
+                            <p className="text-muted/70 mt-1">
+                              By {adjustment.created_by_name ?? '—'} ·{' '}
+                              {new Date(adjustment.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
                   {balanceError && (
                     <p className="text-rose text-xs bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">
                       {balanceError}
                     </p>
                   )}
-
-                  <button
-                    type="button"
-                    onClick={saveEditableBalances}
-                    disabled={savingBalances || !balanceEmployeeId}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold disabled:opacity-60"
-                  >
-                    {savingBalances ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <>
-                        <Save size={16} />
-                        Save Balances
-                      </>
-                    )}
-                  </button>
                 </div>
               </div>
             </motion.div>
