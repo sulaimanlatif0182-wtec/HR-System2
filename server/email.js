@@ -40,12 +40,13 @@ function createTransporter() {
 }
 
 export function getAppUrl(path = '/') {
-  const baseUrl =
-    process.env.APP_BASE_URL ||
-    process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}` ||
-    'https://hr-system2.vercel.app';
+  const baseUrl = (
+    process.env.APP_BASE_URL || 'https://hr-system2.vercel.app'
+  ).replace(/\/+$/, '');
 
-  return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  return `${baseUrl}${cleanPath}`;
 }
 
 export function buildEmailTemplate({ title, message, actionLabel, actionUrl }) {
