@@ -12,16 +12,50 @@ const RP_ID = process.env.WEBAUTHN_RP_ID || 'hr-system2.vercel.app';
 const ORIGIN =
   process.env.WEBAUTHN_ORIGIN || 'https://hr-system2.vercel.app';
 
-function toBase64Url(buffer) {
-  return Buffer.from(buffer).toString('base64url');
+function toBase64Url(value) {
+  if (!value) {
+    throw new Error('Missing credential value during device registration.');
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  return Buffer.from(value).toString('base64url');
 }
 
 function fromBase64Url(value) {
+  if (!value) {
+    throw new Error('Missing stored credential value.');
+  }
+
   return Buffer.from(value, 'base64url');
 }
 
 function expiresInMinutes(minutes) {
   return new Date(Date.now() + minutes * 60 * 1000).toISOString();
+}
+
+function getCredentialFromRegistrationInfo(registrationInfo) {
+  if (!registrationInfo) {
+    throw new Error('Missing registration information.');
+  }
+
+  // Newer @simplewebauthn/server versions
+  if (registrationInfo.credential) {
+    return {
+      credentialId: registrationInfo.credential.id,
+      publicKey: registrationInfo.credential.publicKey,
+      counter: registrationInfo.credential.counter || 0,
+    };
+  }
+
+  // Older @simplewebauthn/server versions
+  return {
+    credentialId: registrationInfo.credentialID,
+    publicKey: registrationInfo.credentialPublicKey,
+    counter: registrationInfo.counter || 0,
+  };
 }
 
 async function getEmployee(employeeId) {
@@ -37,12 +71,14 @@ async function getEmployee(employeeId) {
 }
 
 async function saveChallenge(employeeId, challenge, purpose) {
-  await supabase.from('webauthn_challenges').insert({
+  const { error } = await supabase.from('webauthn_challenges').insert({
     employee_id: Number(employeeId),
     challenge,
     purpose,
     expires_at: expiresInMinutes(5),
   });
+
+  if (error) throw error;
 }
 
 async function getLatestChallenge(employeeId, purpose) {
@@ -59,6 +95,44 @@ async function getLatestChallenge(employeeId, purpose) {
   if (error) throw error;
 
   return data || null;
+}
+
+async function verifyAuthenticationCompat({
+  response,
+  expectedChallenge,
+  device,
+}) {
+  const publicKey = fromBase64Url(device.public_key);
+
+  // Newer @simplewebauthn/server versions
+  try {
+    return await verifyAuthenticationResponse({
+      response,
+      expectedChallenge,
+      expectedOrigin: ORIGIN,
+      expectedRPID: RP_ID,
+      credential: {
+        id: device.credential_id,
+        publicKey,
+        counter: Number(device.counter || 0),
+      },
+      requireUserVerification: true,
+    });
+  } catch (err) {
+    // Older @simplewebauthn/server versions
+    return verifyAuthenticationResponse({
+      response,
+      expectedChallenge,
+      expectedOrigin: ORIGIN,
+      expectedRPID: RP_ID,
+      authenticator: {
+        credentialID: fromBase64Url(device.credential_id),
+        credentialPublicKey: publicKey,
+        counter: Number(device.counter || 0),
+      },
+      requireUserVerification: true,
+    });
+  }
 }
 
 export default async function handler(req, res) {
@@ -128,7 +202,8 @@ export default async function handler(req, res) {
         const { data: existingDevices, error: deviceError } = await supabase
           .from('employee_devices')
           .select('credential_id')
-          .eq('employee_id', employeeId);
+          .eq('employee_id', employeeId)
+          .neq('status', 'revoked');
 
         if (deviceError) throw deviceError;
 
@@ -145,7 +220,8 @@ export default async function handler(req, res) {
           })),
           authenticatorSelection: {
             authenticatorAttachment: 'platform',
-            residentKey: 'preferred',
+            residentKey: 'required',
+            requireResidentKey: true,
             userVerification: 'required',
           },
         });
@@ -192,11 +268,12 @@ export default async function handler(req, res) {
           });
         }
 
-        const { credentialID, credentialPublicKey, counter } =
-          verification.registrationInfo;
+        const credential = getCredentialFromRegistrationInfo(
+          verification.registrationInfo
+        );
 
-        const credentialId = toBase64Url(credentialID);
-        const publicKey = toBase64Url(credentialPublicKey);
+        const credentialId = toBase64Url(credential.credentialId);
+        const publicKey = toBase64Url(credential.publicKey);
 
         const { data, error } = await supabase
           .from('employee_devices')
@@ -204,7 +281,7 @@ export default async function handler(req, res) {
             employee_id: employeeId,
             credential_id: credentialId,
             public_key: publicKey,
-            counter: counter || 0,
+            counter: credential.counter || 0,
             device_name: deviceName,
             user_agent: userAgent,
             status: 'pending',
@@ -308,17 +385,10 @@ export default async function handler(req, res) {
           });
         }
 
-        const verification = await verifyAuthenticationResponse({
+        const verification = await verifyAuthenticationCompat({
           response,
           expectedChallenge: challengeRow.challenge,
-          expectedOrigin: ORIGIN,
-          expectedRPID: RP_ID,
-          authenticator: {
-            credentialID: fromBase64Url(device.credential_id),
-            credentialPublicKey: fromBase64Url(device.public_key),
-            counter: Number(device.counter || 0),
-          },
-          requireUserVerification: true,
+          device,
         });
 
         if (!verification.verified) {
@@ -327,10 +397,14 @@ export default async function handler(req, res) {
           });
         }
 
+        const newCounter =
+          verification.authenticationInfo?.newCounter ??
+          Number(device.counter || 0) + 1;
+
         await supabase
           .from('employee_devices')
           .update({
-            counter: verification.authenticationInfo.newCounter,
+            counter: newCounter,
           })
           .eq('id', device.id);
 
