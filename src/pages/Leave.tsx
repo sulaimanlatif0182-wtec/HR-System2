@@ -140,18 +140,64 @@ interface LeaveAdjustment {
   created_at: string;
 }
 
+interface HolidayRecord {
+  id: number;
+  holiday_date: string;
+  name: string;
+  type: string;
+  is_working_day?: boolean | null;
+}
+
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function daysBetween(start: string, end: string) {
-  const s = new Date(start);
-  const e = new Date(end);
+function getLocalDateFromString(value: string) {
+  return new Date(`${value}T00:00:00`);
+}
 
-  return Math.max(
-    1,
-    Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1
-  );
+function dateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function countWorkingLeaveDays(
+  start: string,
+  end: string,
+  holidayMap: Record<string, HolidayRecord>
+) {
+  if (!start || !end) return 0;
+
+  const current = getLocalDateFromString(start);
+  const last = getLocalDateFromString(end);
+
+  if (Number.isNaN(current.getTime()) || Number.isNaN(last.getTime())) {
+    return 0;
+  }
+
+  if (last < current) return 0;
+
+  let total = 0;
+
+  while (current <= last) {
+    const key = dateKey(current);
+    const holiday = holidayMap[key];
+    const day = current.getDay();
+
+    // Company rule selected by user:
+    // Monday-Saturday are working days; Sunday is not counted.
+    // Holidays are not counted unless marked as working day.
+    if (day !== 0 && (!holiday || holiday.is_working_day)) {
+      total += 1;
+    }
+
+    current.setDate(current.getDate() + 1);
+  }
+
+  return total;
 }
 
 function calculateTimeOffHours(start: string, end: string) {
@@ -250,6 +296,7 @@ export default function Leave() {
 
   const [requests, setRequests] = useState<LeaveReq[]>([]);
   const [employees, setEmployees] = useState<Emp[]>([]);
+  const [holidays, setHolidays] = useState<HolidayRecord[]>([]);
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
   const [adjustments, setAdjustments] = useState<LeaveAdjustment[]>([]);
 
@@ -295,13 +342,15 @@ export default function Leave() {
     setError('');
 
     try {
-      const [lv, emp] = await Promise.all([
+      const [lv, emp, holidayRows] = await Promise.all([
         fetch('/api/leave').then((r) => r.json()),
         fetch('/api/employees').then((r) => r.json()),
+        fetch('/api/attendance?holidays=1').then((r) => r.json()),
       ]);
 
       setRequests(Array.isArray(lv) ? lv : []);
       setEmployees(Array.isArray(emp) ? emp : []);
+      setHolidays(Array.isArray(holidayRows) ? holidayRows : []);
     } catch {
       setError('Failed to load leave requests.');
     } finally {
@@ -353,6 +402,28 @@ export default function Leave() {
 
     return m;
   }, [employees]);
+
+  const holidayMap = useMemo(() => {
+    const m: Record<string, HolidayRecord> = {};
+
+    holidays.forEach((holiday) => {
+      m[holiday.holiday_date] = holiday;
+    });
+
+    return m;
+  }, [holidays]);
+
+  const leaveDayPreview = useMemo(() => {
+    if (form.request_mode !== 'leave' || !form.start_date || !form.end_date) {
+      return 0;
+    }
+
+    if (form.half_day_period === 'AM' || form.half_day_period === 'PM') {
+      return 0.5;
+    }
+
+    return countWorkingLeaveDays(form.start_date, form.end_date, holidayMap);
+  }, [form, holidayMap]);
 
   const visible = useMemo(() => {
     let list = requests;
@@ -546,7 +617,14 @@ export default function Leave() {
       days =
         form.half_day_period === 'AM' || form.half_day_period === 'PM'
           ? 0.5
-          : daysBetween(form.start_date, form.end_date);
+          : countWorkingLeaveDays(form.start_date, form.end_date, holidayMap);
+
+      if (days <= 0) {
+        setFormError(
+          'Selected date range has no working leave day after excluding Sundays and holidays.'
+        );
+        return;
+      }
     }
 
     if (form.request_mode === 'time_off') {
@@ -1470,6 +1548,14 @@ export default function Leave() {
                           </option>
                         ))}
                       </select>
+
+                      {form.start_date && form.end_date && (
+                        <p className="text-xs text-primary bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
+                          Calculated leave days: {leaveDayPreview} day(s).
+                          Sundays and public/company holidays are excluded.
+                          Saturday counts as 1 day.
+                        </p>
+                      )}
 
                       {canBackdateSelectedLeave && (
                         <p className="text-xs text-amber bg-amber/10 border border-amber/20 rounded-lg px-3 py-2">

@@ -46,6 +46,64 @@ function todayMalaysia() {
   return `${year}-${month}-${day}`;
 }
 
+function dateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+async function getCompanyHolidayMap(startDate, endDate) {
+  const { data, error } = await supabase
+    .from('company_holidays')
+    .select('holiday_date, name, type, is_working_day')
+    .gte('holiday_date', startDate)
+    .lte('holiday_date', endDate);
+
+  if (error) {
+    // If table is not created yet, do not block leave submission.
+    return {};
+  }
+
+  const map = {};
+
+  (data || []).forEach((holiday) => {
+    map[holiday.holiday_date] = holiday;
+  });
+
+  return map;
+}
+
+function countWorkingLeaveDays(startDate, endDate, holidayMap = {}) {
+  const current = new Date(`${startDate}T00:00:00`);
+  const last = new Date(`${endDate}T00:00:00`);
+
+  if (Number.isNaN(current.getTime()) || Number.isNaN(last.getTime())) {
+    return 0;
+  }
+
+  if (last < current) return 0;
+
+  let total = 0;
+
+  while (current <= last) {
+    const key = dateKey(current);
+    const holiday = holidayMap[key];
+    const day = current.getDay();
+
+    // Company rule: Monday-Saturday count, Sunday excluded.
+    // Holiday excluded unless marked as working day.
+    if (day !== 0 && (!holiday || holiday.is_working_day)) {
+      total += 1;
+    }
+
+    current.setDate(current.getDate() + 1);
+  }
+
+  return total;
+}
+
 async function safeNotify(fn, payload) {
   try {
     await fn(payload);
@@ -541,6 +599,24 @@ export default async function handler(req, res) {
 
         if (body.half_day_period === 'AM' || body.half_day_period === 'PM') {
           payload.days = 0.5;
+        } else {
+          const holidayMap = await getCompanyHolidayMap(
+            body.start_date,
+            body.end_date
+          );
+
+          payload.days = countWorkingLeaveDays(
+            body.start_date,
+            body.end_date,
+            holidayMap
+          );
+
+          if (payload.days <= 0) {
+            return res.status(400).json({
+              error:
+                'Selected date range has no working leave day after excluding Sundays and holidays.',
+            });
+          }
         }
 
         if (leaveType === 'Time Off') {

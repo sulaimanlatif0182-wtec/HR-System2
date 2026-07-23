@@ -118,7 +118,31 @@ export default async function handler(req, res) {
     // /api/employees?id=1
     // =========================
     if (req.method === 'GET') {
-      const { email, id } = req.query;
+      const { email, id, documents, employee_id } = req.query;
+
+      if (documents === 'true') {
+        const employeeId = Number(employee_id || id);
+
+        if (!employeeId) {
+          return res.status(400).json({
+            error: 'employee_id is required for documents.',
+          });
+        }
+
+        const { data, error } = await supabase
+          .from('employee_documents')
+          .select('*')
+          .eq('employee_id', employeeId)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          return res.status(500).json({
+            error: error.message,
+          });
+        }
+
+        return res.status(200).json(data || []);
+      }
 
       if (email) {
         const cleanEmail = normalizeEmail(email);
@@ -181,6 +205,39 @@ export default async function handler(req, res) {
     // =========================
     if (req.method === 'POST') {
       const body = req.body || {};
+
+      if (body.action === 'document_create') {
+        const employeeId = Number(body.employee_id);
+
+        if (!employeeId || !body.title || !body.file_url) {
+          return res.status(400).json({
+            error: 'employee_id, title and file_url are required.',
+          });
+        }
+
+        const { data, error } = await supabase
+          .from('employee_documents')
+          .insert({
+            employee_id: employeeId,
+            document_type: body.document_type || 'Other HR Document',
+            title: cleanString(body.title),
+            file_url: body.file_url,
+            file_path: body.file_path || null,
+            visibility: body.visibility || 'hr_only',
+            uploaded_by: body.uploaded_by || null,
+            uploaded_by_name: body.uploaded_by_name || null,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          return res.status(500).json({
+            error: error.message,
+          });
+        }
+
+        return res.status(201).json(data);
+      }
 
       if (!body.name || !body.email) {
         return res.status(400).json({
@@ -270,6 +327,23 @@ export default async function handler(req, res) {
     // Only changes status to inactive.
     // =========================
     if (req.method === 'DELETE') {
+      const documentId = Number(req.query.document_id);
+
+      if (documentId) {
+        const { error } = await supabase
+          .from('employee_documents')
+          .delete()
+          .eq('id', documentId);
+
+        if (error) {
+          return res.status(500).json({
+            error: error.message,
+          });
+        }
+
+        return res.status(200).json({ success: true });
+      }
+
       const id = Number(req.query.id);
 
       if (!id) {

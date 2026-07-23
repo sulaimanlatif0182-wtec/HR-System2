@@ -20,8 +20,12 @@ import {
   IdCard,
   Pencil,
   Save,
+  Upload,
+  FileText,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import supabase from '../lib/supabase';
 import {
   PageHeader,
   Badge,
@@ -129,6 +133,31 @@ interface EmployeeFormState {
   salary: string;
   status: string;
 }
+
+interface EmployeeDocument {
+  id: number;
+  employee_id: number;
+  document_type: string;
+  title: string;
+  file_url: string;
+  file_path?: string | null;
+  visibility?: string | null;
+  uploaded_by?: number | null;
+  uploaded_by_name?: string | null;
+  created_at?: string | null;
+}
+
+const DOCUMENT_TYPES = [
+  'IC Copy',
+  'Offer Letter',
+  'Employment Contract',
+  'Certificate',
+  'Warning Letter',
+  'Promotion Letter',
+  'Appraisal File',
+  'Medical Document',
+  'Other HR Document',
+];
 
 function emptyForm(): EmployeeFormState {
   return {
@@ -242,6 +271,14 @@ export default function Employees() {
   const [editError, setEditError] = useState('');
 
   const [tab, setTab] = useState<'info' | 'documents' | 'performance'>('info');
+  const [employeeDocuments, setEmployeeDocuments] = useState<EmployeeDocument[]>([]);
+  const [documentLoading, setDocumentLoading] = useState(false);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentTitle, setDocumentTitle] = useState('');
+  const [documentType, setDocumentType] = useState(DOCUMENT_TYPES[0]);
+  const [documentVisibility, setDocumentVisibility] = useState('hr_only');
+  const [documentError, setDocumentError] = useState('');
+  const [uploadingDocument, setUploadingDocument] = useState(false);
 
   useEffect(() => {
     const q = searchParams.get('q');
@@ -266,9 +303,135 @@ export default function Employees() {
     }
   };
 
+  const fetchEmployeeDocuments = async (employeeId: number) => {
+    setDocumentLoading(true);
+    setDocumentError('');
+
+    try {
+      const data = await fetch(
+        `/api/employees?documents=true&employee_id=${employeeId}`
+      ).then((r) => r.json());
+
+      setEmployeeDocuments(Array.isArray(data) ? data : []);
+    } catch {
+      setEmployeeDocuments([]);
+      setDocumentError('Failed to load employee documents.');
+    } finally {
+      setDocumentLoading(false);
+    }
+  };
+
+  const resetDocumentForm = () => {
+    setDocumentFile(null);
+    setDocumentTitle('');
+    setDocumentType(DOCUMENT_TYPES[0]);
+    setDocumentVisibility('hr_only');
+    setDocumentError('');
+  };
+
+  const uploadEmployeeDocument = async () => {
+    if (!selected || !profile || !documentFile) return;
+
+    if (!documentTitle.trim()) {
+      setDocumentError('Document title is required.');
+      return;
+    }
+
+    setUploadingDocument(true);
+    setDocumentError('');
+
+    try {
+      const safeName = documentFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filePath = `${selected.id}/${Date.now()}-${safeName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('employee-documents')
+        .upload(filePath, documentFile, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw new Error(uploadError.message || 'Failed to upload document.');
+      }
+
+      const { data } = supabase.storage
+        .from('employee-documents')
+        .getPublicUrl(filePath);
+
+      const res = await fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'document_create',
+          employee_id: selected.id,
+          document_type: documentType,
+          title: documentTitle.trim(),
+          file_url: data.publicUrl,
+          file_path: filePath,
+          visibility: documentVisibility,
+          uploaded_by: profile.id,
+          uploaded_by_name: profile.name,
+        }),
+      });
+
+      const result = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(result?.error || 'Failed to save document.');
+      }
+
+      resetDocumentForm();
+      await fetchEmployeeDocuments(selected.id);
+    } catch (err) {
+      setDocumentError(
+        err instanceof Error ? err.message : 'Failed to upload document.'
+      );
+    } finally {
+      setUploadingDocument(false);
+    }
+  };
+
+  const deleteEmployeeDocument = async (document: EmployeeDocument) => {
+    if (!selected) return;
+
+    const confirmed = window.confirm(`Delete document "${document.title}"?`);
+
+    if (!confirmed) return;
+
+    setDocumentLoading(true);
+    setDocumentError('');
+
+    try {
+      const res = await fetch(`/api/employees?document_id=${document.id}`, {
+        method: 'DELETE',
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to delete document.');
+      }
+
+      await fetchEmployeeDocuments(selected.id);
+    } catch (err) {
+      setDocumentError(
+        err instanceof Error ? err.message : 'Failed to delete document.'
+      );
+    } finally {
+      setDocumentLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchEmployees();
   }, []);
+
+  useEffect(() => {
+    if (selected && tab === 'documents') {
+      fetchEmployeeDocuments(selected.id);
+    }
+  }, [selected?.id, tab]);
 
   const visibleEmployees = useMemo(() => {
     if (isAdmin) {
@@ -1181,20 +1344,129 @@ export default function Employees() {
                   )}
 
                   {tab === 'documents' && (
-                    <div className="space-y-2">
-                      {[
-                        'Employment Contract.pdf',
-                        'ID Verification.pdf',
-                        'Tax Form W-4.pdf',
-                      ].map((doc) => (
-                        <div
-                          key={doc}
-                          className="flex items-center justify-between glass rounded-xl px-4 py-3 text-sm"
-                        >
-                          <span>{doc}</span>
-                          <span className="text-xs text-muted">2.1 MB</span>
+                    <div className="space-y-4">
+                      {isAdminOrManager && (
+                        <div className="glass rounded-xl p-4 space-y-3">
+                          <p className="text-sm font-semibold">Upload HR Document</p>
+
+                          <div className="grid grid-cols-1 gap-2">
+                            <input
+                              type="text"
+                              value={documentTitle}
+                              onChange={(e) => setDocumentTitle(e.target.value)}
+                              placeholder="Document title"
+                              className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+                            />
+
+                            <select
+                              value={documentType}
+                              onChange={(e) => setDocumentType(e.target.value)}
+                              className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+                            >
+                              {DOCUMENT_TYPES.map((type) => (
+                                <option key={type} value={type}>
+                                  {type}
+                                </option>
+                              ))}
+                            </select>
+
+                            <select
+                              value={documentVisibility}
+                              onChange={(e) =>
+                                setDocumentVisibility(e.target.value)
+                              }
+                              className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+                            >
+                              <option value="hr_only">HR/Admin only</option>
+                              <option value="employee_visible">Employee visible</option>
+                            </select>
+
+                            <input
+                              type="file"
+                              onChange={(e) =>
+                                setDocumentFile(e.target.files?.[0] ?? null)
+                              }
+                              className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+                            />
+                          </div>
+
+                          {documentError && (
+                            <p className="text-xs text-rose bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">
+                              {documentError}
+                            </p>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={uploadEmployeeDocument}
+                            disabled={uploadingDocument || !documentFile}
+                            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                          >
+                            {uploadingDocument ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Upload size={16} />
+                            )}
+                            Upload Document
+                          </button>
                         </div>
-                      ))}
+                      )}
+
+                      {documentLoading ? (
+                        <div className="flex items-center gap-2 text-sm text-muted">
+                          <Loader2 size={16} className="animate-spin" />
+                          Loading documents…
+                        </div>
+                      ) : employeeDocuments.length === 0 ? (
+                        <EmptyState label="No employee documents uploaded yet." />
+                      ) : (
+                        <div className="space-y-2">
+                          {employeeDocuments.map((doc) => (
+                            <div
+                              key={doc.id}
+                              className="glass rounded-xl px-4 py-3 text-sm"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="font-semibold flex items-center gap-2">
+                                    <FileText size={14} />
+                                    {doc.title}
+                                  </p>
+                                  <p className="text-xs text-muted mt-1">
+                                    {doc.document_type} · {doc.visibility || 'hr_only'}
+                                  </p>
+                                  <p className="text-xs text-muted mt-1">
+                                    Uploaded by {doc.uploaded_by_name || '—'}
+                                  </p>
+                                </div>
+
+                                <div className="flex gap-1 shrink-0">
+                                  <a
+                                    href={doc.file_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                                    title="Open document"
+                                  >
+                                    <Download size={13} />
+                                  </a>
+
+                                  {isAdminOrManager && (
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteEmployeeDocument(doc)}
+                                      className="rounded-lg border border-rose/20 bg-rose/10 p-2 text-rose hover:bg-rose/20"
+                                      title="Delete document"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 

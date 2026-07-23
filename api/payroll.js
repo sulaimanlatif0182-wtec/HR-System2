@@ -25,6 +25,23 @@ function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
 
+function calculateStatutoryContributions(baseSalary) {
+  const salary = toNumber(baseSalary);
+  const epfEmployeeRate = 0.11;
+  const epfEmployerRate = salary <= 5000 ? 0.13 : 0.12;
+  const socsoWage = Math.min(salary, 5000);
+  const eisWage = Math.min(salary, 5000);
+
+  return {
+    epf_employee: roundMoney(salary * epfEmployeeRate),
+    epf_employer: roundMoney(salary * epfEmployerRate),
+    socso_employee: roundMoney(socsoWage * 0.005),
+    socso_employer: roundMoney(socsoWage * 0.0175),
+    eis_employee: roundMoney(eisWage * 0.002),
+    eis_employer: roundMoney(eisWage * 0.002),
+  };
+}
+
 function getPeriodRange(period) {
   const [yearRaw, monthRaw] = String(period).split('-');
   const year = Number(yearRaw);
@@ -558,12 +575,13 @@ async function generatePayrollFromSources(period) {
 
       const claimAmount = toNumber(claimsResult.total);
 
-      const epfEmployee = toNumber(existing?.epf_employee);
-      const epfEmployer = toNumber(existing?.epf_employer);
-      const socsoEmployee = toNumber(existing?.socso_employee);
-      const socsoEmployer = toNumber(existing?.socso_employer);
-      const eisEmployee = toNumber(existing?.eis_employee);
-      const eisEmployer = toNumber(existing?.eis_employer);
+      const statutory = calculateStatutoryContributions(baseSalary);
+      const epfEmployee = statutory.epf_employee;
+      const epfEmployer = statutory.epf_employer;
+      const socsoEmployee = statutory.socso_employee;
+      const socsoEmployer = statutory.socso_employer;
+      const eisEmployee = statutory.eis_employee;
+      const eisEmployer = statutory.eis_employer;
       const pcb = toNumber(existing?.pcb);
 
       const grossPay = baseSalary + bonus + otPay + claimAmount;
