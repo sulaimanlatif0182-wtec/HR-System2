@@ -212,6 +212,10 @@ function getMinutesFromDate(date = new Date()) {
   return date.getHours() * 60 + date.getMinutes();
 }
 
+function isSaturday(date = new Date()) {
+  return date.getDay() === 6;
+}
+
 function getCheckInWindow(date = new Date()) {
   if (ATTENDANCE_TEST_MODE) {
     return {
@@ -270,6 +274,36 @@ function getCheckInWindow(date = new Date()) {
 
 function getCheckOutWindow(date = new Date()) {
   const now = getMinutesFromDate(date);
+
+  if (isSaturday(date)) {
+    const saturdayStart = 12 * 60;
+    const saturdayEnd = 20 * 60;
+
+    if (now < saturdayStart) {
+      return {
+        allowed: false,
+        type: 'not_open',
+        label: 'Saturday check-out opens at 12:00',
+        overtimeHours: 0,
+      };
+    }
+
+    if (now <= saturdayEnd) {
+      return {
+        allowed: true,
+        type: 'saturday',
+        label: 'Saturday Check Out',
+        overtimeHours: 0,
+      };
+    }
+
+    return {
+      allowed: false,
+      type: 'closed',
+      label: 'Saturday check-out window closed at 20:00',
+      overtimeHours: 0,
+    };
+  }
 
   const normalStart = 17 * 60 + 30;
   const normalEnd = 17 * 60 + 45;
@@ -367,6 +401,7 @@ function getLunchOutWindow(date = new Date()) {
 function getLunchInWindow(date = new Date()) {
   const now = getMinutesFromDate(date);
   const start = 13 * 60;
+  const end = 14 * 60 + 30;
 
   if (now < start) {
     return {
@@ -375,9 +410,16 @@ function getLunchInWindow(date = new Date()) {
     };
   }
 
+  if (now <= end) {
+    return {
+      allowed: true,
+      label: 'Lunch In',
+    };
+  }
+
   return {
-    allowed: true,
-    label: 'Lunch In',
+    allowed: false,
+    label: 'Lunch In window closed at 14:30',
   };
 }
 
