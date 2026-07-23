@@ -1,5 +1,23 @@
 import supabase from './db-client.js';
 
+async function safeInsertSystemAudit(payload) {
+  try {
+    await supabase.from('system_audit_logs').insert({
+      module: payload.module || 'general',
+      action: payload.action || 'unknown',
+      record_id: payload.record_id || null,
+      employee_id: payload.employee_id || null,
+      changed_by: payload.changed_by || null,
+      changed_by_name: payload.changed_by_name || null,
+      old_data: payload.old_data || null,
+      new_data: payload.new_data || null,
+      reason: payload.reason || null,
+    });
+  } catch (err) {
+    console.error('System audit insert failed:', err?.message || err);
+  }
+}
+
 const PAYROLL_STATUSES = ['draft', 'reviewed', 'approved', 'released', 'paid'];
 
 const BALANCE_TYPES = [
@@ -1097,6 +1115,15 @@ export default async function handler(req, res) {
 
         if (error) throw error;
 
+        await safeInsertSystemAudit({
+          module: 'payroll',
+          action: 'settings_update',
+          record_id: data?.id || 1,
+          changed_by: body.changed_by || body.updated_by || null,
+          changed_by_name: body.changed_by_name || body.updated_by_name || null,
+          new_data: data,
+        });
+
         return res.status(200).json(normalizePayrollSettings(data));
       }
 
@@ -1117,6 +1144,16 @@ export default async function handler(req, res) {
 
         if (error) throw error;
 
+        await safeInsertSystemAudit({
+          module: 'payroll',
+          action: 'employee_profile_update',
+          record_id: data?.id || null,
+          employee_id: data?.employee_id || null,
+          changed_by: body.changed_by || body.updated_by || null,
+          changed_by_name: body.changed_by_name || body.updated_by_name || null,
+          new_data: data,
+        });
+
         return res.status(200).json(data);
       }
 
@@ -1133,6 +1170,15 @@ export default async function handler(req, res) {
 
           if (error) throw error;
 
+          await safeInsertSystemAudit({
+            module: 'payroll',
+            action: 'wage_table_update',
+            record_id: data?.id || Number(body.id),
+            changed_by: body.changed_by || body.updated_by || null,
+            changed_by_name: body.changed_by_name || body.updated_by_name || null,
+            new_data: data,
+          });
+
           return res.status(200).json(data);
         }
 
@@ -1148,6 +1194,15 @@ export default async function handler(req, res) {
 
         if (error) throw error;
 
+        await safeInsertSystemAudit({
+          module: 'payroll',
+          action: 'wage_table_create',
+          record_id: data?.id || null,
+          changed_by: body.changed_by || body.updated_by || null,
+          changed_by_name: body.changed_by_name || body.updated_by_name || null,
+          new_data: data,
+        });
+
         return res.status(201).json(data);
       }
 
@@ -1162,6 +1217,15 @@ export default async function handler(req, res) {
           .eq('id', Number(body.id));
 
         if (error) throw error;
+
+        await safeInsertSystemAudit({
+          module: 'payroll',
+          action: 'wage_table_delete',
+          record_id: Number(body.id),
+          changed_by: body.changed_by || body.updated_by || null,
+          changed_by_name: body.changed_by_name || body.updated_by_name || null,
+          old_data: { id: Number(body.id) },
+        });
 
         return res.status(200).json({ ok: true });
       }

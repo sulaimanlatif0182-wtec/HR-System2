@@ -1,5 +1,23 @@
 import supabase from './db-client.js';
 
+async function safeInsertSystemAudit(payload) {
+  try {
+    await supabase.from('system_audit_logs').insert({
+      module: payload.module || 'general',
+      action: payload.action || 'unknown',
+      record_id: payload.record_id || null,
+      employee_id: payload.employee_id || null,
+      changed_by: payload.changed_by || null,
+      changed_by_name: payload.changed_by_name || null,
+      old_data: payload.old_data || null,
+      new_data: payload.new_data || null,
+      reason: payload.reason || null,
+    });
+  } catch (err) {
+    console.error('System audit insert failed:', err?.message || err);
+  }
+}
+
 const GEOFENCE_RADIUS_METERS = 100;
 const MAX_GPS_ACCURACY_METERS = 250;
 
@@ -630,6 +648,105 @@ async function verifyDeviceAuthToken({ employeeId, token, purpose }) {
   };
 }
 
+async function selectAuditRows(table, select = '*', orderColumn = 'created_at') {
+  const { data, error } = await supabase
+    .from(table)
+    .select(select)
+    .order(orderColumn, { ascending: false })
+    .limit(500);
+
+  if (error) return [];
+
+  return data || [];
+}
+
+async function buildAuditLogs() {
+  const [systemRows, attendanceRows, leaveBalanceRows, leaveAdjustmentRows] =
+    await Promise.all([
+      selectAuditRows('system_audit_logs'),
+      selectAuditRows('attendance_audit_logs'),
+      selectAuditRows('leave_balance_audit_logs'),
+      selectAuditRows('leave_adjustments'),
+    ]);
+
+  const systemLogs = systemRows.map((row) => ({
+    id: `system-${row.id}`,
+    source_table: 'system_audit_logs',
+    module: row.module || 'general',
+    action: row.action || 'unknown',
+    record_id: row.record_id || null,
+    employee_id: row.employee_id || null,
+    changed_by: row.changed_by || null,
+    changed_by_name: row.changed_by_name || null,
+    old_data: row.old_data || null,
+    new_data: row.new_data || null,
+    reason: row.reason || null,
+    created_at: row.created_at,
+  }));
+
+  const attendanceLogs = attendanceRows.map((row) => ({
+    id: `attendance-${row.id}`,
+    source_table: 'attendance_audit_logs',
+    module: 'attendance',
+    action: row.action || 'manual_correction',
+    record_id: row.attendance_id || null,
+    employee_id: row.employee_id || null,
+    changed_by: row.changed_by || null,
+    changed_by_name: row.changed_by_name || null,
+    old_data: row.old_data || null,
+    new_data: row.new_data || null,
+    reason: row.reason || null,
+    created_at: row.created_at,
+  }));
+
+  const leaveBalanceLogs = leaveBalanceRows.map((row) => ({
+    id: `leave-balance-${row.id}`,
+    source_table: 'leave_balance_audit_logs',
+    module: 'leave',
+    action: 'balance_update',
+    record_id: row.id || null,
+    employee_id: row.employee_id || null,
+    changed_by: row.changed_by || null,
+    changed_by_name: row.changed_by_name || null,
+    old_data: {
+      entitlement: row.old_entitlement,
+      used: row.old_used,
+      balance: row.old_balance,
+    },
+    new_data: {
+      entitlement: row.new_entitlement,
+      used: row.new_used,
+      balance: row.new_balance,
+      leave_type: row.leave_type,
+    },
+    reason: row.reason || null,
+    created_at: row.created_at,
+  }));
+
+  const leaveAdjustmentLogs = leaveAdjustmentRows.map((row) => ({
+    id: `leave-adjustment-${row.id}`,
+    source_table: 'leave_adjustments',
+    module: 'leave',
+    action: 'balance_adjustment',
+    record_id: row.id || null,
+    employee_id: row.employee_id || null,
+    changed_by: row.created_by || null,
+    changed_by_name: row.created_by_name || null,
+    old_data: null,
+    new_data: {
+      leave_type: row.leave_type,
+      adjustment_days: row.adjustment_days,
+    },
+    reason: row.reason || null,
+    created_at: row.created_at,
+  }));
+
+  return [...systemLogs, ...attendanceLogs, ...leaveBalanceLogs, ...leaveAdjustmentLogs]
+    .filter((row) => row.created_at)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 1000);
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -645,6 +762,12 @@ export default async function handler(req, res) {
     // GET ATTENDANCE RECORDS
     // =========================
     if (req.method === 'GET') {
+      if (req.query?.audit_logs === '1') {
+        const logs = await buildAuditLogs();
+
+        return res.status(200).json(logs);
+      }
+
       if (req.query?.settings === '1') {
         const settings = await getAttendanceSettings();
 
@@ -823,6 +946,15 @@ export default async function handler(req, res) {
           });
         }
 
+        await safeInsertSystemAudit({
+          module: 'attendance',
+          action: 'settings_update',
+          record_id: data?.id || 1,
+          changed_by: body.changed_by || null,
+          changed_by_name: body.changed_by_name || null,
+          new_data: data,
+        });
+
         return res.status(200).json(normalizeAttendanceSettings(data));
       }
 
@@ -879,6 +1011,15 @@ export default async function handler(req, res) {
           });
         }
 
+        await safeInsertSystemAudit({
+          module: 'holiday',
+          action: id ? 'holiday_update' : 'holiday_create',
+          record_id: data?.id || null,
+          changed_by: changed_by || null,
+          changed_by_name: changed_by_name || null,
+          new_data: data,
+        });
+
         return res.status(200).json(data);
       }
 
@@ -904,6 +1045,15 @@ export default async function handler(req, res) {
             error: error.message,
           });
         }
+
+        await safeInsertSystemAudit({
+          module: 'holiday',
+          action: 'holiday_delete',
+          record_id: Number(id),
+          changed_by: body.changed_by || null,
+          changed_by_name: body.changed_by_name || null,
+          old_data: { id: Number(id) },
+        });
 
         return res.status(200).json({ ok: true });
       }

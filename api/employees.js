@@ -1,5 +1,23 @@
 import supabase from './db-client.js';
 
+async function safeInsertSystemAudit(payload) {
+  try {
+    await supabase.from('system_audit_logs').insert({
+      module: payload.module || 'general',
+      action: payload.action || 'unknown',
+      record_id: payload.record_id || null,
+      employee_id: payload.employee_id || null,
+      changed_by: payload.changed_by || null,
+      changed_by_name: payload.changed_by_name || null,
+      old_data: payload.old_data || null,
+      new_data: payload.new_data || null,
+      reason: payload.reason || null,
+    });
+  } catch (err) {
+    console.error('System audit insert failed:', err?.message || err);
+  }
+}
+
 function cleanString(value) {
   return String(value ?? '').trim();
 }
@@ -294,6 +312,16 @@ export default async function handler(req, res) {
           });
         }
 
+        await safeInsertSystemAudit({
+          module: 'employee_documents',
+          action: 'document_upload',
+          record_id: data?.id || null,
+          employee_id: data?.employee_id || employeeId,
+          changed_by: body.uploaded_by || null,
+          changed_by_name: body.uploaded_by_name || null,
+          new_data: data,
+        });
+
         return res.status(201).json(data);
       }
 
@@ -390,7 +418,7 @@ export default async function handler(req, res) {
       if (documentId) {
         const { data: documentRow, error: findError } = await supabase
           .from('employee_documents')
-          .select('id, file_path')
+          .select('*')
           .eq('id', documentId)
           .maybeSingle();
 
@@ -422,6 +450,16 @@ export default async function handler(req, res) {
             .from('employee-documents')
             .remove([documentRow.file_path]);
         }
+
+        await safeInsertSystemAudit({
+          module: 'employee_documents',
+          action: 'document_delete',
+          record_id: documentId,
+          employee_id: documentRow.employee_id || null,
+          changed_by: req.query.changed_by || null,
+          changed_by_name: req.query.changed_by_name || null,
+          old_data: documentRow,
+        });
 
         return res.status(200).json({ success: true });
       }

@@ -15,6 +15,7 @@ import OrgChart from './pages/OrgChart';
 import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
+import AuditLogs from './pages/AuditLogs';
 
 function ProtectedPage({ children }: { children: ReactNode }) {
   return (
@@ -118,6 +119,15 @@ function App() {
             element={
               <ProtectedPage>
                 <OrgChart />
+              </ProtectedPage>
+            }
+          />
+
+          <Route
+            path="/audit-logs"
+            element={
+              <ProtectedPage>
+                <AuditLogs />
               </ProtectedPage>
             }
           />
