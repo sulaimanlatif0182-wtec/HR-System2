@@ -2,7 +2,6 @@ import supabase from './db-client.js';
 
 const GEOFENCE_RADIUS_METERS = 100;
 const MAX_GPS_ACCURACY_METERS = 250;
-const ATTENDANCE_TEST_MODE = false;
 
 const ATTENDANCE_SITES = [
   {
@@ -37,15 +36,6 @@ function getMalaysiaMinutesNow() {
 }
 
 function getCheckInWindow() {
-    if (ATTENDANCE_TEST_MODE) {
-    return {
-      allowed: true,
-      type: 'test',
-      status: 'present',
-      label: 'Test Check In',
-      isLate: false,
-    };
-  }
   const now = getMalaysiaMinutesNow();
 
   const normalStart = 6 * 60;
@@ -241,7 +231,6 @@ function findNearestSite(latitude, longitude) {
 
 function toNumber(value) {
   const number = Number(value);
-
   return Number.isFinite(number) ? number : null;
 }
 
@@ -331,7 +320,7 @@ async function verifyDeviceAuthToken({ employeeId, token, purpose }) {
       ok: false,
       status: 403,
       error:
-        'Approved attendance device verification is required before check-in.',
+        'Approved attendance device verification is required before this attendance action.',
     };
   }
 
@@ -684,7 +673,7 @@ export default async function handler(req, res) {
       // LUNCH OUT
       // =========================
       if (action === 'lunch_out') {
-        const { id, latitude, longitude, accuracy } = body;
+        const { id, latitude, longitude, accuracy, device_auth_token } = body;
 
         if (!id) {
           return res.status(400).json({
@@ -712,7 +701,7 @@ export default async function handler(req, res) {
 
         const { data: existing, error: existingError } = await supabase
           .from('attendance')
-          .select('id, check_in, check_out, lunch_out')
+          .select('id, employee_id, check_in, check_out, lunch_out')
           .eq('id', id)
           .maybeSingle();
 
@@ -746,6 +735,18 @@ export default async function handler(req, res) {
           });
         }
 
+        const deviceResult = await verifyDeviceAuthToken({
+          employeeId: existing.employee_id,
+          token: device_auth_token,
+          purpose: 'attendance_lunch_out',
+        });
+
+        if (!deviceResult.ok) {
+          return res.status(deviceResult.status).json({
+            error: deviceResult.error,
+          });
+        }
+
         const lunchOutDate = new Date();
         const expectedReturn = addMinutes(lunchOutDate, 60);
 
@@ -761,6 +762,8 @@ export default async function handler(req, res) {
             lunch_out_site: locationResult.site.name,
             lunch_out_distance_meters: Math.round(locationResult.distanceMeters),
             lunch_out_verified: true,
+            lunch_out_device_id: deviceResult.device.id,
+            lunch_out_webauthn_verified: true,
           })
           .eq('id', id)
           .select()
@@ -779,7 +782,7 @@ export default async function handler(req, res) {
       // LUNCH IN
       // =========================
       if (action === 'lunch_in') {
-        const { id, latitude, longitude, accuracy } = body;
+        const { id, latitude, longitude, accuracy, device_auth_token } = body;
 
         if (!id) {
           return res.status(400).json({
@@ -808,7 +811,7 @@ export default async function handler(req, res) {
         const { data: existing, error: existingError } = await supabase
           .from('attendance')
           .select(
-            'id, check_in, check_out, lunch_out, lunch_in, lunch_expected_return'
+            'id, employee_id, check_in, check_out, lunch_out, lunch_in, lunch_expected_return'
           )
           .eq('id', id)
           .maybeSingle();
@@ -849,6 +852,18 @@ export default async function handler(req, res) {
           });
         }
 
+        const deviceResult = await verifyDeviceAuthToken({
+          employeeId: existing.employee_id,
+          token: device_auth_token,
+          purpose: 'attendance_lunch_in',
+        });
+
+        if (!deviceResult.ok) {
+          return res.status(deviceResult.status).json({
+            error: deviceResult.error,
+          });
+        }
+
         const lunchInDate = new Date();
         const lunchOutDate = new Date(existing.lunch_out);
         const expectedReturnDate = existing.lunch_expected_return
@@ -871,6 +886,8 @@ export default async function handler(req, res) {
             lunch_in_site: locationResult.site.name,
             lunch_in_distance_meters: Math.round(locationResult.distanceMeters),
             lunch_in_verified: true,
+            lunch_in_device_id: deviceResult.device.id,
+            lunch_in_webauthn_verified: true,
           })
           .eq('id', id)
           .select()
@@ -894,6 +911,7 @@ export default async function handler(req, res) {
         check_out_latitude,
         check_out_longitude,
         check_out_accuracy,
+        device_auth_token,
       } = body;
 
       if (!id || !check_out) {
@@ -928,7 +946,7 @@ export default async function handler(req, res) {
       const { data: existing, error: existingError } = await supabase
         .from('attendance')
         .select(
-          'id, check_in, check_out, lunch_out, lunch_in, lunch_expected_return'
+          'id, employee_id, check_in, check_out, lunch_out, lunch_in, lunch_expected_return'
         )
         .eq('id', id)
         .maybeSingle();
@@ -955,6 +973,18 @@ export default async function handler(req, res) {
         return res.status(409).json({
           error: 'You have already checked out.',
           record: existing,
+        });
+      }
+
+      const deviceResult = await verifyDeviceAuthToken({
+        employeeId: existing.employee_id,
+        token: device_auth_token,
+        purpose: 'attendance_check_out',
+      });
+
+      if (!deviceResult.ok) {
+        return res.status(deviceResult.status).json({
+          error: deviceResult.error,
         });
       }
 
@@ -996,6 +1026,8 @@ export default async function handler(req, res) {
         check_out_site: locationResult.site.name,
         check_out_distance_meters: Math.round(locationResult.distanceMeters),
         check_out_verified: true,
+        check_out_device_id: deviceResult.device.id,
+        check_out_webauthn_verified: true,
         lunch_break_minutes: lunchBreakMinutes,
         lunch_late_minutes: lunchLateMinutes,
         lunch_status: lunchStatus,

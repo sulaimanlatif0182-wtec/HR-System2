@@ -931,23 +931,53 @@ export default function Attendance() {
       throw new Error('Profile not loaded.');
     }
 
-    const optionsRes = await fetch('/api/device-auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'authentication_options',
-        employee_id: profile.id,
-      }),
-    });
+    const verifyDeviceForAttendance = async (purpose: string) => {
+  if (!profile?.id) {
+    throw new Error('Profile not loaded.');
+  }
 
-    const options = await optionsRes.json();
+  const optionsRes = await fetch('/api/device-auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'authentication_options',
+      employee_id: profile.id,
+    }),
+  });
 
-    if (!optionsRes.ok) {
-      throw new Error(
-        options?.error ||
-          'No approved attendance device found. Please register this device.'
-      );
-    }
+  const options = await optionsRes.json();
+
+  if (!optionsRes.ok) {
+    throw new Error(
+      options?.error ||
+        'No approved attendance device found. Please register this device.'
+    );
+  }
+
+  const authenticationResponse = await startAuthentication(options as any);
+
+  const verifyRes = await fetch('/api/device-auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'authentication_verify',
+      employee_id: profile.id,
+      response: authenticationResponse,
+      purpose,
+    }),
+  });
+
+  const verifyData = await verifyRes.json();
+
+  if (!verifyRes.ok) {
+    throw new Error(verifyData?.error || 'Device verification failed.');
+  }
+
+  return {
+    token: verifyData.token as string,
+    deviceId: verifyData.device_id as number,
+  };
+};
 
     const authenticationResponse = await startAuthentication(options as any);
 
@@ -1064,7 +1094,7 @@ export default function Attendance() {
         )}m.`
       );
 
-      const deviceAuth = await verifyDeviceForAttendance();
+      const deviceAuth = await verifyDeviceForAttendance('attendance_check_in');
 
       const res = await fetch('/api/attendance', {
         method: 'POST',
@@ -1116,6 +1146,8 @@ export default function Attendance() {
     try {
       const location = await getVerifiedLocation('lunch-out');
 
+      const deviceAuth = await verifyDeviceForAttendance('attendance_lunch_out');
+
       const res = await fetch('/api/attendance', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1125,6 +1157,7 @@ export default function Attendance() {
           latitude: location.latitude,
           longitude: location.longitude,
           accuracy: location.accuracy,
+          device_auth_token: deviceAuth.token,
         }),
       });
 
@@ -1160,6 +1193,8 @@ export default function Attendance() {
     try {
       const location = await getVerifiedLocation('lunch-in');
 
+      const deviceAuth = await verifyDeviceForAttendance('attendance_lunch_in');
+
       const res = await fetch('/api/attendance', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1169,6 +1204,7 @@ export default function Attendance() {
           latitude: location.latitude,
           longitude: location.longitude,
           accuracy: location.accuracy,
+          device_auth_token: deviceAuth.token,
         }),
       });
 
@@ -1208,6 +1244,8 @@ export default function Attendance() {
     try {
       const location = await getVerifiedLocation('check-out');
 
+      const deviceAuth = await verifyDeviceForAttendance('attendance_check_out');
+
       const res = await fetch('/api/attendance', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1217,6 +1255,7 @@ export default function Attendance() {
           check_out_latitude: location.latitude,
           check_out_longitude: location.longitude,
           check_out_accuracy: location.accuracy,
+          device_auth_token: deviceAuth.token,
         }),
       });
 
