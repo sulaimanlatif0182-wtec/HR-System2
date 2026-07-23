@@ -329,6 +329,31 @@ export default function Employees() {
     setDocumentError('');
   };
 
+  const openEmployeeDocument = async (document: EmployeeDocument) => {
+    try {
+      if (!document.file_path && document.file_url) {
+        window.open(document.file_url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      const res = await fetch(
+        `/api/employees?document_signed_url=true&document_id=${document.id}`
+      );
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.signedUrl) {
+        throw new Error(data?.error || 'Failed to open private document.');
+      }
+
+      window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setDocumentError(
+        err instanceof Error ? err.message : 'Failed to open private document.'
+      );
+    }
+  };
+
   const uploadEmployeeDocument = async () => {
     if (!selected || !profile || !documentFile) return;
 
@@ -355,10 +380,6 @@ export default function Employees() {
         throw new Error(uploadError.message || 'Failed to upload document.');
       }
 
-      const { data } = supabase.storage
-        .from('employee-documents')
-        .getPublicUrl(filePath);
-
       const res = await fetch('/api/employees', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -367,7 +388,6 @@ export default function Employees() {
           employee_id: selected.id,
           document_type: documentType,
           title: documentTitle.trim(),
-          file_url: data.publicUrl,
           file_path: filePath,
           visibility: documentVisibility,
           uploaded_by: profile.id,
@@ -1441,15 +1461,14 @@ export default function Employees() {
                                 </div>
 
                                 <div className="flex gap-1 shrink-0">
-                                  <a
-                                    href={doc.file_url}
-                                    target="_blank"
-                                    rel="noreferrer"
+                                  <button
+                                    type="button"
+                                    onClick={() => openEmployeeDocument(doc)}
                                     className="rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/10"
-                                    title="Open document"
+                                    title="Open private document"
                                   >
                                     <Download size={13} />
-                                  </a>
+                                  </button>
 
                                   {isAdminOrManager && (
                                     <button

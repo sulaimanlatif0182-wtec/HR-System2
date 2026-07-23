@@ -144,6 +144,64 @@ export default async function handler(req, res) {
         return res.status(200).json(data || []);
       }
 
+      if (req.query?.document_signed_url === 'true') {
+        const documentId = Number(req.query.document_id);
+
+        if (!documentId) {
+          return res.status(400).json({
+            error: 'document_id is required.',
+          });
+        }
+
+        const { data: documentRow, error: documentError } = await supabase
+          .from('employee_documents')
+          .select('*')
+          .eq('id', documentId)
+          .maybeSingle();
+
+        if (documentError) {
+          return res.status(500).json({
+            error: documentError.message,
+          });
+        }
+
+        if (!documentRow) {
+          return res.status(404).json({
+            error: 'Document not found.',
+          });
+        }
+
+        if (!documentRow.file_path) {
+          if (documentRow.file_url) {
+            return res.status(200).json({
+              signedUrl: documentRow.file_url,
+              expiresIn: null,
+              legacyPublicUrl: true,
+            });
+          }
+
+          return res.status(400).json({
+            error: 'Document file path is missing.',
+          });
+        }
+
+        const expiresIn = 600;
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from('employee-documents')
+          .createSignedUrl(documentRow.file_path, expiresIn);
+
+        if (signedError) {
+          return res.status(500).json({
+            error: signedError.message,
+          });
+        }
+
+        return res.status(200).json({
+          signedUrl: signedData?.signedUrl,
+          expiresIn,
+        });
+      }
+
       if (email) {
         const cleanEmail = normalizeEmail(email);
 
@@ -209,9 +267,9 @@ export default async function handler(req, res) {
       if (body.action === 'document_create') {
         const employeeId = Number(body.employee_id);
 
-        if (!employeeId || !body.title || !body.file_url) {
+        if (!employeeId || !body.title || !body.file_path) {
           return res.status(400).json({
-            error: 'employee_id, title and file_url are required.',
+            error: 'employee_id, title and file_path are required.',
           });
         }
 
@@ -221,8 +279,8 @@ export default async function handler(req, res) {
             employee_id: employeeId,
             document_type: body.document_type || 'Other HR Document',
             title: cleanString(body.title),
-            file_url: body.file_url,
-            file_path: body.file_path || null,
+            file_url: body.file_url || null,
+            file_path: body.file_path,
             visibility: body.visibility || 'hr_only',
             uploaded_by: body.uploaded_by || null,
             uploaded_by_name: body.uploaded_by_name || null,
@@ -330,6 +388,24 @@ export default async function handler(req, res) {
       const documentId = Number(req.query.document_id);
 
       if (documentId) {
+        const { data: documentRow, error: findError } = await supabase
+          .from('employee_documents')
+          .select('id, file_path')
+          .eq('id', documentId)
+          .maybeSingle();
+
+        if (findError) {
+          return res.status(500).json({
+            error: findError.message,
+          });
+        }
+
+        if (!documentRow) {
+          return res.status(404).json({
+            error: 'Document not found.',
+          });
+        }
+
         const { error } = await supabase
           .from('employee_documents')
           .delete()
@@ -339,6 +415,12 @@ export default async function handler(req, res) {
           return res.status(500).json({
             error: error.message,
           });
+        }
+
+        if (documentRow.file_path) {
+          await supabase.storage
+            .from('employee-documents')
+            .remove([documentRow.file_path]);
         }
 
         return res.status(200).json({ success: true });
