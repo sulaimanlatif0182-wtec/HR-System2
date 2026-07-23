@@ -85,6 +85,7 @@ interface Emp {
   name: string;
   email?: string | null;
   department: string | null;
+  date_of_birth?: string | null;
 }
 
 interface PayrollBatch {
@@ -136,6 +137,134 @@ interface PayrollFormState {
   net_pay: string;
   status: string;
   remarks: string;
+}
+
+interface PayrollSettings {
+  id?: number;
+  epf_enabled: boolean;
+  epf_employee_rate_local_under60: number;
+  epf_employee_rate_local_60_above: number;
+  epf_employee_rate_foreign: number;
+  epf_employer_rate_under_5000: number;
+  epf_employer_rate_5000_above: number;
+  epf_employer_rate_60_above: number;
+  socso_enabled: boolean;
+  socso_employee_rate: number;
+  socso_employer_rate: number;
+  socso_wage_cap: number;
+  eis_enabled: boolean;
+  eis_employee_rate: number;
+  eis_employer_rate: number;
+  eis_wage_cap: number;
+  pcb_mode: string;
+}
+
+interface PayrollProfile {
+  id?: number;
+  employee_id: number;
+  citizenship_type: string;
+  date_of_birth?: string | null;
+  epf_employee_rate_override?: number | null;
+  epf_employer_rate_override?: number | null;
+  socso_category?: string | null;
+  socso_enabled: boolean;
+  eis_enabled: boolean;
+  pcb_monthly_amount: number;
+  pcb_notes?: string | null;
+}
+
+interface PayrollProfileForm {
+  employee_id: string;
+  citizenship_type: string;
+  date_of_birth: string;
+  epf_employee_rate_override: string;
+  epf_employer_rate_override: string;
+  socso_category: string;
+  socso_enabled: boolean;
+  eis_enabled: boolean;
+  pcb_monthly_amount: string;
+  pcb_notes: string;
+}
+
+const DEFAULT_PAYROLL_SETTINGS: PayrollSettings = {
+  id: 1,
+  epf_enabled: true,
+  epf_employee_rate_local_under60: 11,
+  epf_employee_rate_local_60_above: 5.5,
+  epf_employee_rate_foreign: 11,
+  epf_employer_rate_under_5000: 13,
+  epf_employer_rate_5000_above: 12,
+  epf_employer_rate_60_above: 6.5,
+  socso_enabled: true,
+  socso_employee_rate: 0.5,
+  socso_employer_rate: 1.75,
+  socso_wage_cap: 5000,
+  eis_enabled: true,
+  eis_employee_rate: 0.2,
+  eis_employer_rate: 0.2,
+  eis_wage_cap: 5000,
+  pcb_mode: 'manual_profile',
+};
+
+function normalizePayrollSettings(value: Partial<PayrollSettings> | null | undefined): PayrollSettings {
+  const merged = { ...DEFAULT_PAYROLL_SETTINGS, ...(value || {}) };
+
+  return {
+    ...merged,
+    epf_enabled: merged.epf_enabled !== false,
+    socso_enabled: merged.socso_enabled !== false,
+    eis_enabled: merged.eis_enabled !== false,
+    epf_employee_rate_local_under60: numberValue(merged.epf_employee_rate_local_under60),
+    epf_employee_rate_local_60_above: numberValue(merged.epf_employee_rate_local_60_above),
+    epf_employee_rate_foreign: numberValue(merged.epf_employee_rate_foreign),
+    epf_employer_rate_under_5000: numberValue(merged.epf_employer_rate_under_5000),
+    epf_employer_rate_5000_above: numberValue(merged.epf_employer_rate_5000_above),
+    epf_employer_rate_60_above: numberValue(merged.epf_employer_rate_60_above),
+    socso_employee_rate: numberValue(merged.socso_employee_rate),
+    socso_employer_rate: numberValue(merged.socso_employer_rate),
+    socso_wage_cap: numberValue(merged.socso_wage_cap),
+    eis_employee_rate: numberValue(merged.eis_employee_rate),
+    eis_employer_rate: numberValue(merged.eis_employer_rate),
+    eis_wage_cap: numberValue(merged.eis_wage_cap),
+  };
+}
+
+function emptyPayrollProfileForm(): PayrollProfileForm {
+  return {
+    employee_id: '',
+    citizenship_type: 'local',
+    date_of_birth: '',
+    epf_employee_rate_override: '',
+    epf_employer_rate_override: '',
+    socso_category: 'standard',
+    socso_enabled: true,
+    eis_enabled: true,
+    pcb_monthly_amount: '0',
+    pcb_notes: '',
+  };
+}
+
+function profileFormFromProfile(profile?: PayrollProfile | null): PayrollProfileForm {
+  if (!profile) return emptyPayrollProfileForm();
+
+  return {
+    employee_id: String(profile.employee_id),
+    citizenship_type: profile.citizenship_type || 'local',
+    date_of_birth: profile.date_of_birth ?? '',
+    epf_employee_rate_override:
+      profile.epf_employee_rate_override === null || profile.epf_employee_rate_override === undefined
+        ? ''
+        : String(profile.epf_employee_rate_override),
+    epf_employer_rate_override:
+      profile.epf_employer_rate_override === null || profile.epf_employer_rate_override === undefined
+        ? ''
+        : String(profile.epf_employer_rate_override),
+    socso_category: profile.socso_category || 'standard',
+    socso_enabled: profile.socso_enabled !== false,
+    eis_enabled: profile.eis_enabled !== false,
+    pcb_monthly_amount: String(profile.pcb_monthly_amount ?? 0),
+    pcb_notes: profile.pcb_notes ?? '',
+  };
 }
 
 type PayrollFormStringKey = Exclude<keyof PayrollFormState, 'id'>;
@@ -352,6 +481,20 @@ export default function Payroll() {
   const [records, setRecords] = useState<PayRec[]>([]);
   const [employees, setEmployees] = useState<Emp[]>([]);
   const [batches, setBatches] = useState<PayrollBatch[]>([]);
+  const [payrollSettings, setPayrollSettings] = useState<PayrollSettings>(
+    DEFAULT_PAYROLL_SETTINGS
+  );
+  const [settingsForm, setSettingsForm] = useState<PayrollSettings>(
+    DEFAULT_PAYROLL_SETTINGS
+  );
+  const [payrollProfiles, setPayrollProfiles] = useState<PayrollProfile[]>([]);
+  const [profileForm, setProfileForm] = useState<PayrollProfileForm>(
+    emptyPayrollProfileForm()
+  );
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState('');
+  const [profileMessage, setProfileMessage] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod());
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -368,15 +511,22 @@ export default function Payroll() {
     setError('');
 
     try {
-      const [pay, emp, batchData] = await Promise.all([
+      const [pay, emp, batchData, settingsData, profileData] = await Promise.all([
         fetch('/api/payroll').then((r) => r.json()),
         fetch('/api/employees').then((r) => r.json()),
         fetch('/api/payroll?batches=true').then((r) => r.json()),
+        fetch('/api/payroll?settings=true').then((r) => r.json()),
+        fetch('/api/payroll?profiles=true').then((r) => r.json()),
       ]);
+
+      const normalizedSettings = normalizePayrollSettings(settingsData);
 
       setRecords(Array.isArray(pay) ? pay : []);
       setEmployees(Array.isArray(emp) ? emp : []);
       setBatches(Array.isArray(batchData) ? batchData : []);
+      setPayrollSettings(normalizedSettings);
+      setSettingsForm(normalizedSettings);
+      setPayrollProfiles(Array.isArray(profileData) ? profileData : []);
     } catch {
       setError('Failed to load payroll data.');
     } finally {
@@ -388,6 +538,28 @@ export default function Payroll() {
     fetchAll();
   }, []);
 
+  useEffect(() => {
+    if (!profileForm.employee_id) return;
+
+    const employeeId = Number(profileForm.employee_id);
+    const existingProfile = payrollProfiles.find(
+      (item) => item.employee_id === employeeId
+    );
+
+    if (existingProfile) {
+      setProfileForm(profileFormFromProfile(existingProfile));
+      return;
+    }
+
+    const employee = employees.find((item) => item.id === employeeId);
+
+    setProfileForm((current) => ({
+      ...emptyPayrollProfileForm(),
+      employee_id: String(employeeId),
+      date_of_birth: employee?.date_of_birth ?? '',
+    }));
+  }, [profileForm.employee_id, payrollProfiles, employees]);
+
   const empMap = useMemo(() => {
     const m: Record<number, Emp> = {};
 
@@ -397,6 +569,16 @@ export default function Payroll() {
 
     return m;
   }, [employees]);
+
+  const payrollProfileMap = useMemo(() => {
+    const m: Record<number, PayrollProfile> = {};
+
+    payrollProfiles.forEach((profileRow) => {
+      m[profileRow.employee_id] = profileRow;
+    });
+
+    return m;
+  }, [payrollProfiles]);
 
   const visibleEmployees = useMemo(() => {
     if (isAdmin) {
@@ -557,6 +739,105 @@ export default function Payroll() {
       URL.revokeObjectURL(url);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to download payslip.');
+    }
+  };
+
+  const updateSettingsField = (field: keyof PayrollSettings, value: string | boolean) => {
+    setSettingsMessage('');
+    setSettingsForm((current) => ({
+      ...current,
+      [field]: typeof value === 'boolean' ? value : numberValue(value),
+    }));
+  };
+
+  const savePayrollSettings = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!isAdmin || !profile) return;
+
+    setSavingSettings(true);
+    setSettingsMessage('');
+
+    try {
+      const res = await fetch('/api/payroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_settings',
+          ...settingsForm,
+          changed_by: profile.id,
+          changed_by_name: profile.name,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to save payroll settings.');
+      }
+
+      const normalized = normalizePayrollSettings(data);
+      setPayrollSettings(normalized);
+      setSettingsForm(normalized);
+      setSettingsMessage('Payroll statutory settings saved successfully.');
+    } catch (err) {
+      setSettingsMessage(
+        err instanceof Error ? err.message : 'Failed to save payroll settings.'
+      );
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const savePayrollProfile = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!isAdmin || !profile) return;
+
+    if (!profileForm.employee_id) {
+      setProfileMessage('Please select an employee.');
+      return;
+    }
+
+    setSavingProfile(true);
+    setProfileMessage('');
+
+    try {
+      const res = await fetch('/api/payroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_profile',
+          employee_id: Number(profileForm.employee_id),
+          citizenship_type: profileForm.citizenship_type,
+          date_of_birth: profileForm.date_of_birth || null,
+          epf_employee_rate_override: profileForm.epf_employee_rate_override,
+          epf_employer_rate_override: profileForm.epf_employer_rate_override,
+          socso_category: profileForm.socso_category,
+          socso_enabled: profileForm.socso_enabled,
+          eis_enabled: profileForm.eis_enabled,
+          pcb_monthly_amount: numberValue(profileForm.pcb_monthly_amount),
+          pcb_notes: profileForm.pcb_notes,
+          changed_by: profile.id,
+          changed_by_name: profile.name,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to save payroll profile.');
+      }
+
+      await fetchAll();
+      setProfileForm(profileFormFromProfile(data));
+      setProfileMessage('Employee payroll profile saved successfully.');
+    } catch (err) {
+      setProfileMessage(
+        err instanceof Error ? err.message : 'Failed to save payroll profile.'
+      );
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -978,6 +1259,318 @@ export default function Payroll() {
           )}
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="grid grid-cols-1 2xl:grid-cols-2 gap-5 mb-6">
+          <form onSubmit={savePayrollSettings} className="glass rounded-2xl p-5">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="font-display font-semibold text-lg">
+                  Payroll Statutory Settings
+                </h3>
+                <p className="text-xs text-muted mt-1">
+                  Default EPF/SOCSO/EIS rates. PCB is manual per employee profile.
+                  Current mode: {payrollSettings.pcb_mode}.
+                </p>
+              </div>
+              <button
+                type="submit"
+                disabled={savingSettings}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {savingSettings ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Save size={16} />
+                )}
+                Save
+              </button>
+            </div>
+
+            {settingsMessage && (
+              <div
+                className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
+                  settingsMessage.includes('success')
+                    ? 'border-emerald/30 bg-emerald/10 text-emerald'
+                    : 'border-rose/30 bg-rose/10 text-rose'
+                }`}
+              >
+                {settingsMessage}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  checked={settingsForm.epf_enabled}
+                  onChange={(e) => updateSettingsField('epf_enabled', e.target.checked)}
+                />
+                EPF enabled
+              </label>
+              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  checked={settingsForm.socso_enabled}
+                  onChange={(e) => updateSettingsField('socso_enabled', e.target.checked)}
+                />
+                SOCSO enabled
+              </label>
+              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  checked={settingsForm.eis_enabled}
+                  onChange={(e) => updateSettingsField('eis_enabled', e.target.checked)}
+                />
+                EIS enabled
+              </label>
+              <label className="text-sm">
+                <span className="block text-xs text-muted mb-1">PCB Mode</span>
+                <select
+                  value={settingsForm.pcb_mode}
+                  onChange={(e) =>
+                    setSettingsForm({ ...settingsForm, pcb_mode: e.target.value })
+                  }
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                >
+                  <option value="manual_profile">Manual per employee profile</option>
+                </select>
+              </label>
+
+              {[
+                ['epf_employee_rate_local_under60', 'EPF Employee Local < 60 (%)'],
+                ['epf_employee_rate_local_60_above', 'EPF Employee Local 60+ (%)'],
+                ['epf_employee_rate_foreign', 'EPF Employee Foreign (%)'],
+                ['epf_employer_rate_under_5000', 'EPF Employer Salary ≤ RM5000 (%)'],
+                ['epf_employer_rate_5000_above', 'EPF Employer Salary > RM5000 (%)'],
+                ['epf_employer_rate_60_above', 'EPF Employer 60+ (%)'],
+                ['socso_employee_rate', 'SOCSO Employee fallback (%)'],
+                ['socso_employer_rate', 'SOCSO Employer fallback (%)'],
+                ['socso_wage_cap', 'SOCSO wage cap (RM)'],
+                ['eis_employee_rate', 'EIS Employee fallback (%)'],
+                ['eis_employer_rate', 'EIS Employer fallback (%)'],
+                ['eis_wage_cap', 'EIS wage cap (RM)'],
+              ].map(([key, label]) => (
+                <label key={key} className="text-sm">
+                  <span className="block text-xs text-muted mb-1">{label}</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={String(settingsForm[key as keyof PayrollSettings] ?? 0)}
+                    onChange={(e) =>
+                      updateSettingsField(
+                        key as keyof PayrollSettings,
+                        e.target.value
+                      )
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+              ))}
+            </div>
+          </form>
+
+          <form onSubmit={savePayrollProfile} className="glass rounded-2xl p-5">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="font-display font-semibold text-lg">
+                  Employee Payroll Profile
+                </h3>
+                <p className="text-xs text-muted mt-1">
+                  Set citizenship, EPF overrides and manual monthly PCB.
+                </p>
+              </div>
+              <button
+                type="submit"
+                disabled={savingProfile || !profileForm.employee_id}
+                className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {savingProfile ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Save size={16} />
+                )}
+                Save
+              </button>
+            </div>
+
+            {profileMessage && (
+              <div
+                className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
+                  profileMessage.includes('success')
+                    ? 'border-emerald/30 bg-emerald/10 text-emerald'
+                    : 'border-rose/30 bg-rose/10 text-rose'
+                }`}
+              >
+                {profileMessage}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <label className="text-sm md:col-span-2">
+                <span className="block text-xs text-muted mb-1">Employee</span>
+                <select
+                  value={profileForm.employee_id}
+                  onChange={(e) => {
+                    setProfileMessage('');
+                    setProfileForm({
+                      ...profileForm,
+                      employee_id: e.target.value,
+                    });
+                  }}
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                >
+                  <option value="">Select employee</option>
+                  {employees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.name}
+                      {payrollProfileMap[employee.id] ? ' · profile set' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm">
+                <span className="block text-xs text-muted mb-1">Citizenship</span>
+                <select
+                  value={profileForm.citizenship_type}
+                  onChange={(e) =>
+                    setProfileForm({
+                      ...profileForm,
+                      citizenship_type: e.target.value,
+                    })
+                  }
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                >
+                  <option value="local">Local / Malaysian</option>
+                  <option value="foreign">Foreign</option>
+                </select>
+              </label>
+
+              <label className="text-sm">
+                <span className="block text-xs text-muted mb-1">Date of Birth</span>
+                <input
+                  type="date"
+                  value={profileForm.date_of_birth}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, date_of_birth: e.target.value })
+                  }
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                />
+              </label>
+
+              <label className="text-sm">
+                <span className="block text-xs text-muted mb-1">
+                  EPF Employee Override (%)
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={profileForm.epf_employee_rate_override}
+                  onChange={(e) =>
+                    setProfileForm({
+                      ...profileForm,
+                      epf_employee_rate_override: e.target.value,
+                    })
+                  }
+                  placeholder="Blank = use setting"
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                />
+              </label>
+
+              <label className="text-sm">
+                <span className="block text-xs text-muted mb-1">
+                  EPF Employer Override (%)
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={profileForm.epf_employer_rate_override}
+                  onChange={(e) =>
+                    setProfileForm({
+                      ...profileForm,
+                      epf_employer_rate_override: e.target.value,
+                    })
+                  }
+                  placeholder="Blank = use setting"
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                />
+              </label>
+
+              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  checked={profileForm.socso_enabled}
+                  onChange={(e) =>
+                    setProfileForm({
+                      ...profileForm,
+                      socso_enabled: e.target.checked,
+                    })
+                  }
+                />
+                SOCSO enabled for employee
+              </label>
+
+              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  checked={profileForm.eis_enabled}
+                  onChange={(e) =>
+                    setProfileForm({
+                      ...profileForm,
+                      eis_enabled: e.target.checked,
+                    })
+                  }
+                />
+                EIS enabled for employee
+              </label>
+
+              <label className="text-sm">
+                <span className="block text-xs text-muted mb-1">SOCSO Category</span>
+                <select
+                  value={profileForm.socso_category}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, socso_category: e.target.value })
+                  }
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                >
+                  <option value="standard">Standard</option>
+                  <option value="employment_injury_only">Employment injury only</option>
+                  <option value="not_applicable">Not applicable</option>
+                </select>
+              </label>
+
+              <label className="text-sm">
+                <span className="block text-xs text-muted mb-1">Manual PCB / Month</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={profileForm.pcb_monthly_amount}
+                  onChange={(e) =>
+                    setProfileForm({
+                      ...profileForm,
+                      pcb_monthly_amount: e.target.value,
+                    })
+                  }
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                />
+              </label>
+
+              <label className="text-sm md:col-span-2">
+                <span className="block text-xs text-muted mb-1">PCB Notes</span>
+                <textarea
+                  rows={2}
+                  value={profileForm.pcb_notes}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, pcb_notes: e.target.value })
+                  }
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
+                />
+              </label>
+            </div>
+          </form>
+        </div>
+      )}
 
       {isAdminOrManager && (
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-5 mb-8">

@@ -25,20 +25,184 @@ function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
 
-function calculateStatutoryContributions(baseSalary) {
+const DEFAULT_PAYROLL_SETTINGS = {
+  id: 1,
+  epf_enabled: true,
+  epf_employee_rate_local_under60: 11,
+  epf_employee_rate_local_60_above: 5.5,
+  epf_employee_rate_foreign: 11,
+  epf_employer_rate_under_5000: 13,
+  epf_employer_rate_5000_above: 12,
+  epf_employer_rate_60_above: 6.5,
+  socso_enabled: true,
+  socso_employee_rate: 0.5,
+  socso_employer_rate: 1.75,
+  socso_wage_cap: 5000,
+  eis_enabled: true,
+  eis_employee_rate: 0.2,
+  eis_employer_rate: 0.2,
+  eis_wage_cap: 5000,
+  pcb_mode: 'manual_profile',
+};
+
+function normalizePayrollSettings(value = {}) {
+  return {
+    ...DEFAULT_PAYROLL_SETTINGS,
+    ...(value || {}),
+    epf_enabled: value?.epf_enabled ?? DEFAULT_PAYROLL_SETTINGS.epf_enabled,
+    socso_enabled: value?.socso_enabled ?? DEFAULT_PAYROLL_SETTINGS.socso_enabled,
+    eis_enabled: value?.eis_enabled ?? DEFAULT_PAYROLL_SETTINGS.eis_enabled,
+    epf_employee_rate_local_under60: toNumber(
+      value?.epf_employee_rate_local_under60,
+      DEFAULT_PAYROLL_SETTINGS.epf_employee_rate_local_under60
+    ),
+    epf_employee_rate_local_60_above: toNumber(
+      value?.epf_employee_rate_local_60_above,
+      DEFAULT_PAYROLL_SETTINGS.epf_employee_rate_local_60_above
+    ),
+    epf_employee_rate_foreign: toNumber(
+      value?.epf_employee_rate_foreign,
+      DEFAULT_PAYROLL_SETTINGS.epf_employee_rate_foreign
+    ),
+    epf_employer_rate_under_5000: toNumber(
+      value?.epf_employer_rate_under_5000,
+      DEFAULT_PAYROLL_SETTINGS.epf_employer_rate_under_5000
+    ),
+    epf_employer_rate_5000_above: toNumber(
+      value?.epf_employer_rate_5000_above,
+      DEFAULT_PAYROLL_SETTINGS.epf_employer_rate_5000_above
+    ),
+    epf_employer_rate_60_above: toNumber(
+      value?.epf_employer_rate_60_above,
+      DEFAULT_PAYROLL_SETTINGS.epf_employer_rate_60_above
+    ),
+    socso_employee_rate: toNumber(
+      value?.socso_employee_rate,
+      DEFAULT_PAYROLL_SETTINGS.socso_employee_rate
+    ),
+    socso_employer_rate: toNumber(
+      value?.socso_employer_rate,
+      DEFAULT_PAYROLL_SETTINGS.socso_employer_rate
+    ),
+    socso_wage_cap: toNumber(
+      value?.socso_wage_cap,
+      DEFAULT_PAYROLL_SETTINGS.socso_wage_cap
+    ),
+    eis_employee_rate: toNumber(
+      value?.eis_employee_rate,
+      DEFAULT_PAYROLL_SETTINGS.eis_employee_rate
+    ),
+    eis_employer_rate: toNumber(
+      value?.eis_employer_rate,
+      DEFAULT_PAYROLL_SETTINGS.eis_employer_rate
+    ),
+    eis_wage_cap: toNumber(
+      value?.eis_wage_cap,
+      DEFAULT_PAYROLL_SETTINGS.eis_wage_cap
+    ),
+    pcb_mode: value?.pcb_mode || DEFAULT_PAYROLL_SETTINGS.pcb_mode,
+  };
+}
+
+async function getPayrollSettings() {
+  const { data, error } = await supabase
+    .from('payroll_settings')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (error) return DEFAULT_PAYROLL_SETTINGS;
+
+  return normalizePayrollSettings(data || DEFAULT_PAYROLL_SETTINGS);
+}
+
+async function getPayrollProfiles() {
+  const { data, error } = await supabase
+    .from('payroll_employee_profiles')
+    .select('*')
+    .order('employee_id', { ascending: true });
+
+  if (error) return [];
+
+  return data || [];
+}
+
+function calculateAge(dateOfBirth) {
+  if (!dateOfBirth) return null;
+
+  const dob = new Date(`${dateOfBirth}T00:00:00`);
+
+  if (Number.isNaN(dob.getTime())) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age -= 1;
+  }
+
+  return age;
+}
+
+function rateToDecimal(rate) {
+  return toNumber(rate) / 100;
+}
+
+function calculateStatutoryContributions(baseSalary, employee, settings, profile) {
   const salary = toNumber(baseSalary);
-  const epfEmployeeRate = 0.11;
-  const epfEmployerRate = salary <= 5000 ? 0.13 : 0.12;
-  const socsoWage = Math.min(salary, 5000);
-  const eisWage = Math.min(salary, 5000);
+  const age = calculateAge(profile?.date_of_birth || employee?.date_of_birth);
+  const citizenship = cleanString(profile?.citizenship_type || 'local').toLowerCase();
+  const isAge60Above = age !== null && age >= 60;
+
+  let epfEmployeeRate =
+    citizenship === 'foreign'
+      ? settings.epf_employee_rate_foreign
+      : isAge60Above
+        ? settings.epf_employee_rate_local_60_above
+        : settings.epf_employee_rate_local_under60;
+
+  let epfEmployerRate = isAge60Above
+    ? settings.epf_employer_rate_60_above
+    : salary <= 5000
+      ? settings.epf_employer_rate_under_5000
+      : settings.epf_employer_rate_5000_above;
+
+  if (profile?.epf_employee_rate_override !== null && profile?.epf_employee_rate_override !== undefined) {
+    epfEmployeeRate = toNumber(profile.epf_employee_rate_override, epfEmployeeRate);
+  }
+
+  if (profile?.epf_employer_rate_override !== null && profile?.epf_employer_rate_override !== undefined) {
+    epfEmployerRate = toNumber(profile.epf_employer_rate_override, epfEmployerRate);
+  }
+
+  const socsoEnabled = settings.socso_enabled && profile?.socso_enabled !== false;
+  const eisEnabled = settings.eis_enabled && profile?.eis_enabled !== false;
+  const socsoWage = Math.min(salary, toNumber(settings.socso_wage_cap, 5000));
+  const eisWage = Math.min(salary, toNumber(settings.eis_wage_cap, 5000));
 
   return {
-    epf_employee: roundMoney(salary * epfEmployeeRate),
-    epf_employer: roundMoney(salary * epfEmployerRate),
-    socso_employee: roundMoney(socsoWage * 0.005),
-    socso_employer: roundMoney(socsoWage * 0.0175),
-    eis_employee: roundMoney(eisWage * 0.002),
-    eis_employer: roundMoney(eisWage * 0.002),
+    epf_employee: settings.epf_enabled
+      ? roundMoney(salary * rateToDecimal(epfEmployeeRate))
+      : 0,
+    epf_employer: settings.epf_enabled
+      ? roundMoney(salary * rateToDecimal(epfEmployerRate))
+      : 0,
+    socso_employee: socsoEnabled
+      ? roundMoney(socsoWage * rateToDecimal(settings.socso_employee_rate))
+      : 0,
+    socso_employer: socsoEnabled
+      ? roundMoney(socsoWage * rateToDecimal(settings.socso_employer_rate))
+      : 0,
+    eis_employee: eisEnabled
+      ? roundMoney(eisWage * rateToDecimal(settings.eis_employee_rate))
+      : 0,
+    eis_employer: eisEnabled
+      ? roundMoney(eisWage * rateToDecimal(settings.eis_employer_rate))
+      : 0,
+    pcb: roundMoney(profile?.pcb_monthly_amount || 0),
+    age,
+    citizenship_type: citizenship || 'local',
   };
 }
 
@@ -486,13 +650,67 @@ function calculateLeaveDeductions({
   };
 }
 
+function payrollSettingsPayloadFromBody(body = {}) {
+  return {
+    id: 1,
+    epf_enabled: body.epf_enabled !== false,
+    epf_employee_rate_local_under60: toNumber(body.epf_employee_rate_local_under60, 11),
+    epf_employee_rate_local_60_above: toNumber(body.epf_employee_rate_local_60_above, 5.5),
+    epf_employee_rate_foreign: toNumber(body.epf_employee_rate_foreign, 11),
+    epf_employer_rate_under_5000: toNumber(body.epf_employer_rate_under_5000, 13),
+    epf_employer_rate_5000_above: toNumber(body.epf_employer_rate_5000_above, 12),
+    epf_employer_rate_60_above: toNumber(body.epf_employer_rate_60_above, 6.5),
+    socso_enabled: body.socso_enabled !== false,
+    socso_employee_rate: toNumber(body.socso_employee_rate, 0.5),
+    socso_employer_rate: toNumber(body.socso_employer_rate, 1.75),
+    socso_wage_cap: toNumber(body.socso_wage_cap, 5000),
+    eis_enabled: body.eis_enabled !== false,
+    eis_employee_rate: toNumber(body.eis_employee_rate, 0.2),
+    eis_employer_rate: toNumber(body.eis_employer_rate, 0.2),
+    eis_wage_cap: toNumber(body.eis_wage_cap, 5000),
+    pcb_mode: body.pcb_mode || 'manual_profile',
+    updated_by: body.updated_by || body.changed_by || null,
+    updated_by_name: body.updated_by_name || body.changed_by_name || null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function payrollProfilePayloadFromBody(body = {}) {
+  return {
+    employee_id: Number(body.employee_id),
+    citizenship_type: body.citizenship_type || 'local',
+    date_of_birth: body.date_of_birth || null,
+    epf_employee_rate_override:
+      body.epf_employee_rate_override === '' || body.epf_employee_rate_override === null || body.epf_employee_rate_override === undefined
+        ? null
+        : toNumber(body.epf_employee_rate_override),
+    epf_employer_rate_override:
+      body.epf_employer_rate_override === '' || body.epf_employer_rate_override === null || body.epf_employer_rate_override === undefined
+        ? null
+        : toNumber(body.epf_employer_rate_override),
+    socso_category: body.socso_category || 'standard',
+    socso_enabled: body.socso_enabled !== false,
+    eis_enabled: body.eis_enabled !== false,
+    pcb_monthly_amount: toNumber(body.pcb_monthly_amount),
+    pcb_notes: body.pcb_notes || null,
+    updated_by: body.updated_by || body.changed_by || null,
+    updated_by_name: body.updated_by_name || body.changed_by_name || null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 async function generatePayrollFromSources(period) {
   const { startDate, endDate, daysInMonth } = getPeriodRange(period);
   const batch = await getOrCreateBatch(period);
+  const payrollSettings = await getPayrollSettings();
+  const profileRows = await getPayrollProfiles();
+  const payrollProfileMap = new Map(
+    profileRows.map((row) => [Number(row.employee_id), row])
+  );
 
   const { data: employees, error: employeeError } = await supabase
     .from('employees')
-    .select('id, name, email, department, salary, status')
+    .select('id, name, email, department, salary, status, date_of_birth')
     .neq('status', 'inactive')
     .order('id', { ascending: true });
 
@@ -575,14 +793,23 @@ async function generatePayrollFromSources(period) {
 
       const claimAmount = toNumber(claimsResult.total);
 
-      const statutory = calculateStatutoryContributions(baseSalary);
+      const payrollProfile = payrollProfileMap.get(Number(employee.id));
+      const statutory = calculateStatutoryContributions(
+        baseSalary,
+        employee,
+        payrollSettings,
+        payrollProfile
+      );
       const epfEmployee = statutory.epf_employee;
       const epfEmployer = statutory.epf_employer;
       const socsoEmployee = statutory.socso_employee;
       const socsoEmployer = statutory.socso_employer;
       const eisEmployee = statutory.eis_employee;
       const eisEmployer = statutory.eis_employer;
-      const pcb = toNumber(existing?.pcb);
+      const pcb =
+        existing?.pcb !== undefined && existing?.pcb !== null
+          ? toNumber(existing.pcb)
+          : statutory.pcb;
 
       const grossPay = baseSalary + bonus + otPay + claimAmount;
 
@@ -688,7 +915,30 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const { employee_id, period, batches } = req.query;
+      const { employee_id, period, batches, settings, profiles, profile_employee_id } = req.query;
+
+      if (settings === 'true') {
+        const payrollSettings = await getPayrollSettings();
+
+        return res.status(200).json(payrollSettings);
+      }
+
+      if (profiles === 'true') {
+        let query = supabase
+          .from('payroll_employee_profiles')
+          .select('*')
+          .order('employee_id', { ascending: true });
+
+        if (profile_employee_id) {
+          query = query.eq('employee_id', Number(profile_employee_id));
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+
+        return res.status(200).json(data || []);
+      }
 
       if (batches === 'true') {
         const { data, error } = await supabase
@@ -719,6 +969,40 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const body = req.body || {};
       const action = body.action;
+
+      if (action === 'save_settings') {
+        const payload = payrollSettingsPayloadFromBody(body);
+
+        const { data, error } = await supabase
+          .from('payroll_settings')
+          .upsert(payload, { onConflict: 'id' })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        return res.status(200).json(normalizePayrollSettings(data));
+      }
+
+      if (action === 'save_profile') {
+        if (!body.employee_id) {
+          return res.status(400).json({
+            error: 'employee_id is required.',
+          });
+        }
+
+        const payload = payrollProfilePayloadFromBody(body);
+
+        const { data, error } = await supabase
+          .from('payroll_employee_profiles')
+          .upsert(payload, { onConflict: 'employee_id' })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        return res.status(200).json(data);
+      }
 
       if (action === 'create_batch') {
         const batch = await getOrCreateBatch(body.period);
