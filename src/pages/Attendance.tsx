@@ -926,12 +926,7 @@ export default function Attendance() {
     }
   };
 
-  const verifyDeviceForAttendance = async () => {
-    if (!profile?.id) {
-      throw new Error('Profile not loaded.');
-    }
-
-    const verifyDeviceForAttendance = async (purpose: string) => {
+const verifyDeviceForAttendance = async (purpose: string) => {
   if (!profile?.id) {
     throw new Error('Profile not loaded.');
   }
@@ -945,16 +940,16 @@ export default function Attendance() {
     }),
   });
 
-  const options = await optionsRes.json();
+  const authOptions = await optionsRes.json();
 
   if (!optionsRes.ok) {
     throw new Error(
-      options?.error ||
+      authOptions?.error ||
         'No approved attendance device found. Please register this device.'
     );
   }
 
-  const authenticationResponse = await startAuthentication(options as any);
+  const authenticationResponse = await startAuthentication(authOptions as any);
 
   const verifyRes = await fetch('/api/device-auth', {
     method: 'POST',
