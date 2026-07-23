@@ -53,6 +53,7 @@ const DEVICE_STATUS_TONE: Record<string, string> = {
 
 const GEOFENCE_RADIUS_METERS = 100;
 const MAX_GPS_ACCURACY_METERS = 250;
+const ATTENDANCE_TEST_MODE = true;
 
 const ATTENDANCE_SITES = [
   {
@@ -201,6 +202,15 @@ function getMinutesFromDate(date = new Date()) {
 }
 
 function getCheckInWindow(date = new Date()) {
+    if (ATTENDANCE_TEST_MODE) {
+    return {
+      allowed: true,
+      type: 'test',
+      status: 'present',
+      label: 'Test Check In',
+      isLate: false,
+    };
+  }
   const now = getMinutesFromDate(date);
 
   const normalStart = 6 * 60;

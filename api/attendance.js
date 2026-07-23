@@ -2,6 +2,7 @@ import supabase from './db-client.js';
 
 const GEOFENCE_RADIUS_METERS = 100;
 const MAX_GPS_ACCURACY_METERS = 250;
+const ATTENDANCE_TEST_MODE = true;
 
 const ATTENDANCE_SITES = [
   {
@@ -36,6 +37,15 @@ function getMalaysiaMinutesNow() {
 }
 
 function getCheckInWindow() {
+    if (ATTENDANCE_TEST_MODE) {
+    return {
+      allowed: true,
+      type: 'test',
+      status: 'present',
+      label: 'Test Check In',
+      isLate: false,
+    };
+  }
   const now = getMalaysiaMinutesNow();
 
   const normalStart = 6 * 60;
