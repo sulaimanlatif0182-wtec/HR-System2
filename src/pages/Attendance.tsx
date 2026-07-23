@@ -22,6 +22,9 @@ import {
   Smartphone,
   RefreshCw,
   Fingerprint,
+  CalendarDays,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -180,6 +183,45 @@ interface MissingReportRow {
   employee: Emp;
   date: string;
 }
+
+interface HolidayRecord {
+  id: number;
+  holiday_date: string;
+  name: string;
+  type: string;
+  is_working_day?: boolean | null;
+  notes?: string | null;
+  created_by?: number | null;
+  created_by_name?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+interface HolidayForm {
+  id?: number | null;
+  holiday_date: string;
+  name: string;
+  type: string;
+  is_working_day: boolean;
+  notes: string;
+}
+
+const HOLIDAY_TYPE_OPTIONS = [
+  'public_holiday',
+  'company_holiday',
+  'replacement_holiday',
+  'rest_day',
+  'special_working_day',
+];
+
+const DEFAULT_HOLIDAY_FORM: HolidayForm = {
+  id: null,
+  holiday_date: '',
+  name: '',
+  type: 'public_holiday',
+  is_working_day: false,
+  notes: '',
+};
 
 interface AttendanceSettings {
   id?: number;
@@ -803,6 +845,11 @@ export default function Attendance() {
   );
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState('');
+  const [holidays, setHolidays] = useState<HolidayRecord[]>([]);
+  const [holidayForm, setHolidayForm] =
+    useState<HolidayForm>(DEFAULT_HOLIDAY_FORM);
+  const [savingHoliday, setSavingHoliday] = useState(false);
+  const [holidayMessage, setHolidayMessage] = useState('');
 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -883,10 +930,11 @@ export default function Attendance() {
     setError('');
 
     try {
-      const [att, emp, settings] = await Promise.all([
+      const [att, emp, settings, holidayRows] = await Promise.all([
         fetch('/api/attendance').then((r) => r.json()),
         fetch('/api/employees').then((r) => r.json()),
         fetch('/api/attendance?settings=1').then((r) => r.json()),
+        fetch('/api/attendance?holidays=1').then((r) => r.json()),
       ]);
 
       const normalizedSettings = normalizeAttendanceSettings(settings);
@@ -895,6 +943,7 @@ export default function Attendance() {
       setEmployees(Array.isArray(emp) ? emp : []);
       setAttendanceSettings(normalizedSettings);
       setSettingsForm(normalizedSettings);
+      setHolidays(Array.isArray(holidayRows) ? holidayRows : []);
     } catch {
       setError('Failed to load attendance records.');
     } finally {
@@ -1002,6 +1051,25 @@ export default function Attendance() {
   const reportStartDate = dateFrom || formatLocalDate();
   const reportEndDate = dateTo || dateFrom || formatLocalDate();
 
+  const holidayMap = useMemo(() => {
+    const map: Record<string, HolidayRecord> = {};
+
+    holidays.forEach((holiday) => {
+      map[holiday.holiday_date] = holiday;
+    });
+
+    return map;
+  }, [holidays]);
+
+  const upcomingHolidays = useMemo(() => {
+    const today = formatLocalDate();
+
+    return holidays
+      .filter((holiday) => holiday.holiday_date >= today)
+      .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date))
+      .slice(0, 6);
+  }, [holidays]);
+
   const missingCheckInReport = useMemo<MissingReportRow[]>(() => {
     if (!isAdminOrManager) return [];
 
@@ -1009,6 +1077,12 @@ export default function Attendance() {
     const rows: MissingReportRow[] = [];
 
     for (const date of dates) {
+      const holiday = holidayMap[date];
+
+      if (holiday && !holiday.is_working_day) {
+        continue;
+      }
+
       for (const employee of activeVisibleEmployees) {
         if (
           employeeFilter !== 'all' &&
@@ -1038,6 +1112,7 @@ export default function Attendance() {
     activeVisibleEmployees,
     employeeFilter,
     records,
+    holidayMap,
   ]);
 
   const lunchReport = useMemo(() => {
@@ -1289,6 +1364,112 @@ export default function Attendance() {
     );
 
     return false;
+  };
+
+  const resetHolidayForm = () => {
+    setHolidayForm(DEFAULT_HOLIDAY_FORM);
+    setHolidayMessage('');
+  };
+
+  const editHoliday = (holiday: HolidayRecord) => {
+    setHolidayForm({
+      id: holiday.id,
+      holiday_date: holiday.holiday_date,
+      name: holiday.name,
+      type: holiday.type || 'public_holiday',
+      is_working_day: Boolean(holiday.is_working_day),
+      notes: holiday.notes ?? '',
+    });
+    setHolidayMessage('');
+  };
+
+  const saveHoliday = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!isAdmin || !profile) return;
+
+    if (!holidayForm.holiday_date || !holidayForm.name.trim()) {
+      setHolidayMessage('Holiday date and name are required.');
+      return;
+    }
+
+    setSavingHoliday(true);
+    setHolidayMessage('');
+
+    try {
+      const res = await fetch('/api/attendance', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'holiday_upsert',
+          id: holidayForm.id || undefined,
+          holiday_date: holidayForm.holiday_date,
+          name: holidayForm.name.trim(),
+          type: holidayForm.type,
+          is_working_day: holidayForm.is_working_day,
+          notes: holidayForm.notes.trim(),
+          changed_by: profile.id,
+          changed_by_name: profile.name,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to save holiday.');
+      }
+
+      await fetchAll();
+      setHolidayForm(DEFAULT_HOLIDAY_FORM);
+      setHolidayMessage('Holiday saved successfully.');
+    } catch (err) {
+      setHolidayMessage(
+        err instanceof Error ? err.message : 'Failed to save holiday.'
+      );
+    } finally {
+      setSavingHoliday(false);
+    }
+  };
+
+  const deleteHoliday = async (holiday: HolidayRecord) => {
+    if (!isAdmin || !profile) return;
+
+    const confirmed = window.confirm(
+      `Delete holiday "${holiday.name}" on ${holiday.holiday_date}?`
+    );
+
+    if (!confirmed) return;
+
+    setSavingHoliday(true);
+    setHolidayMessage('');
+
+    try {
+      const res = await fetch('/api/attendance', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'holiday_delete',
+          id: holiday.id,
+          changed_by: profile.id,
+          changed_by_name: profile.name,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to delete holiday.');
+      }
+
+      await fetchAll();
+      setHolidayMessage('Holiday deleted successfully.');
+    } catch (err) {
+      setHolidayMessage(
+        err instanceof Error ? err.message : 'Failed to delete holiday.'
+      );
+    } finally {
+      setSavingHoliday(false);
+    }
   };
 
   const updateSettingsForm = (
@@ -1985,6 +2166,223 @@ export default function Attendance() {
             </label>
           </div>
         </form>
+      )}
+
+      {isAdmin && (
+        <div className="glass rounded-2xl p-5 mb-6">
+          <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-5">
+            <form onSubmit={saveHoliday} className="flex-1">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-11 h-11 rounded-xl bg-amber/15 text-amber grid place-items-center">
+                  <CalendarDays size={20} />
+                </div>
+
+                <div>
+                  <h3 className="font-display font-semibold text-lg">
+                    Holiday Calendar
+                  </h3>
+                  <p className="text-xs text-muted mt-1">
+                    Public/company holidays are excluded from the Missing
+                    Check-In report unless marked as a working day.
+                  </p>
+                </div>
+              </div>
+
+              {holidayMessage && (
+                <div
+                  className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
+                    holidayMessage.includes('success')
+                      ? 'border-emerald/30 bg-emerald/10 text-emerald'
+                      : 'border-rose/30 bg-rose/10 text-rose'
+                  }`}
+                >
+                  {holidayMessage}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">
+                    Holiday Date
+                  </span>
+                  <input
+                    type="date"
+                    value={holidayForm.holiday_date}
+                    onChange={(e) =>
+                      setHolidayForm({
+                        ...holidayForm,
+                        holiday_date: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">
+                    Holiday Name
+                  </span>
+                  <input
+                    type="text"
+                    value={holidayForm.name}
+                    onChange={(e) =>
+                      setHolidayForm({ ...holidayForm, name: e.target.value })
+                    }
+                    placeholder="Example: Hari Raya Aidilfitri"
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Type</span>
+                  <select
+                    value={holidayForm.type}
+                    onChange={(e) =>
+                      setHolidayForm({
+                        ...holidayForm,
+                        type: e.target.value,
+                        is_working_day:
+                          e.target.value === 'special_working_day'
+                            ? true
+                            : holidayForm.is_working_day,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  >
+                    {HOLIDAY_TYPE_OPTIONS.map((type) => (
+                      <option key={type} value={type}>
+                        {type.replace(/_/g, ' ')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-sm md:col-span-2">
+                  <span className="block text-xs text-muted mb-1">Notes</span>
+                  <input
+                    type="text"
+                    value={holidayForm.notes}
+                    onChange={(e) =>
+                      setHolidayForm({ ...holidayForm, notes: e.target.value })
+                    }
+                    placeholder="Optional notes"
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+                  <input
+                    type="checkbox"
+                    checked={holidayForm.is_working_day}
+                    onChange={(e) =>
+                      setHolidayForm({
+                        ...holidayForm,
+                        is_working_day: e.target.checked,
+                      })
+                    }
+                  />
+                  Working day / do not exclude
+                </label>
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-3 mt-4">
+                {holidayForm.id && (
+                  <button
+                    type="button"
+                    onClick={resetHolidayForm}
+                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold hover:bg-white/10"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={savingHoliday}
+                  className="inline-flex items-center gap-2 rounded-xl bg-amber px-4 py-2.5 text-sm font-semibold text-slate-950 disabled:opacity-50"
+                >
+                  {savingHoliday ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : holidayForm.id ? (
+                    <Save size={16} />
+                  ) : (
+                    <Plus size={16} />
+                  )}
+                  {holidayForm.id ? 'Update Holiday' : 'Add Holiday'}
+                </button>
+              </div>
+            </form>
+
+            <div className="xl:w-[420px] w-full">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-display font-semibold text-sm">
+                  Upcoming Holidays
+                </h4>
+                <Badge tone="info">{holidays.length} total</Badge>
+              </div>
+
+              {upcomingHolidays.length === 0 ? (
+                <EmptyState label="No upcoming holidays added yet." />
+              ) : (
+                <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                  {upcomingHolidays.map((holiday) => (
+                    <div
+                      key={holiday.id}
+                      className="rounded-xl border border-white/10 bg-surface px-3 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-sm">{holiday.name}</p>
+                          <p className="text-xs text-muted mt-0.5">
+                            {holiday.holiday_date} ·{' '}
+                            {holiday.type.replace(/_/g, ' ')}
+                          </p>
+                          {holiday.notes && (
+                            <p className="text-xs text-muted mt-1">
+                              {holiday.notes}
+                            </p>
+                          )}
+                          <div className="mt-2">
+                            <Badge
+                              tone={
+                                holiday.is_working_day ? 'warning' : 'success'
+                              }
+                            >
+                              {holiday.is_working_day
+                                ? 'Working day'
+                                : 'Excluded from missing report'}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => editHoliday(holiday)}
+                            className="rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                            title="Edit holiday"
+                          >
+                            <Pencil size={13} />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => deleteHoliday(holiday)}
+                            disabled={savingHoliday}
+                            className="rounded-lg border border-rose/20 bg-rose/10 p-2 text-rose hover:bg-rose/20 disabled:opacity-50"
+                            title="Delete holiday"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">

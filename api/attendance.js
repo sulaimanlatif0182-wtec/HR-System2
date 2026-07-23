@@ -651,6 +651,22 @@ export default async function handler(req, res) {
         return res.status(200).json(settings);
       }
 
+      if (req.query?.holidays === '1') {
+        const { data, error } = await supabase
+          .from('company_holidays')
+          .select('*')
+          .order('holiday_date', { ascending: true })
+          .order('id', { ascending: true });
+
+        if (error) {
+          return res.status(500).json({
+            error: error.message,
+          });
+        }
+
+        return res.status(200).json(data || []);
+      }
+
       const { data, error } = await supabase
         .from('attendance')
         .select('*')
@@ -808,6 +824,88 @@ export default async function handler(req, res) {
         }
 
         return res.status(200).json(normalizeAttendanceSettings(data));
+      }
+
+      // =========================
+      // HOLIDAY UPSERT
+      // =========================
+      if (action === 'holiday_upsert') {
+        const {
+          id,
+          holiday_date,
+          name,
+          type,
+          is_working_day,
+          notes,
+          changed_by,
+          changed_by_name,
+        } = body;
+
+        if (!holiday_date || !name || !String(name).trim()) {
+          return res.status(400).json({
+            error: 'Holiday date and name are required.',
+          });
+        }
+
+        const payload = {
+          holiday_date,
+          name: String(name).trim(),
+          type: type || 'public_holiday',
+          is_working_day: Boolean(is_working_day),
+          notes: notes ? String(notes).trim() : null,
+          updated_at: new Date().toISOString(),
+        };
+
+        let query;
+
+        if (id) {
+          query = supabase
+            .from('company_holidays')
+            .update(payload)
+            .eq('id', Number(id));
+        } else {
+          query = supabase.from('company_holidays').insert({
+            ...payload,
+            created_by: changed_by || null,
+            created_by_name: changed_by_name || null,
+          });
+        }
+
+        const { data, error } = await query.select().single();
+
+        if (error) {
+          return res.status(500).json({
+            error: error.message,
+          });
+        }
+
+        return res.status(200).json(data);
+      }
+
+      // =========================
+      // HOLIDAY DELETE
+      // =========================
+      if (action === 'holiday_delete') {
+        const { id } = body;
+
+        if (!id) {
+          return res.status(400).json({
+            error: 'id is required.',
+          });
+        }
+
+        const { error } = await supabase
+          .from('company_holidays')
+          .delete()
+          .eq('id', Number(id));
+
+        if (error) {
+          return res.status(500).json({
+            error: error.message,
+          });
+        }
+
+        return res.status(200).json({ ok: true });
       }
 
       // =========================
