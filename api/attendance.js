@@ -2,7 +2,7 @@ import supabase from './db-client.js';
 
 const GEOFENCE_RADIUS_METERS = 100;
 const MAX_GPS_ACCURACY_METERS = 250;
-const ATTENDANCE_TEST_MODE = true;
+const ATTENDANCE_TEST_MODE = false;
 
 const ATTENDANCE_SITES = [
   {
