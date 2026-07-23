@@ -18,21 +18,34 @@ const ATTENDANCE_SITES = [
   },
 ];
 
-function getMalaysiaMinutesNow() {
+function getMalaysiaNowInfo() {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Kuala_Lumpur',
+    weekday: 'short',
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
   }).formatToParts(new Date());
 
+  const weekday = parts.find((part) => part.type === 'weekday')?.value ?? '';
   const hourPart = parts.find((part) => part.type === 'hour')?.value ?? '0';
   const minutePart = parts.find((part) => part.type === 'minute')?.value ?? '0';
 
   const hour = Number(hourPart) % 24;
   const minute = Number(minutePart);
 
-  return hour * 60 + minute;
+  return {
+    weekday,
+    minutes: hour * 60 + minute,
+  };
+}
+
+function getMalaysiaMinutesNow() {
+  return getMalaysiaNowInfo().minutes;
+}
+
+function isMalaysiaSaturdayNow() {
+  return getMalaysiaNowInfo().weekday === 'Sat';
 }
 
 function getCheckInWindow() {
@@ -83,6 +96,38 @@ function getCheckInWindow() {
 
 function getCheckOutWindow() {
   const now = getMalaysiaMinutesNow();
+
+  // Saturday special rule:
+  // Check-out is allowed from 12:00 until 20:00.
+  if (isMalaysiaSaturdayNow()) {
+    const saturdayStart = 12 * 60;
+    const saturdayEnd = 20 * 60;
+
+    if (now < saturdayStart) {
+      return {
+        allowed: false,
+        type: 'not_open',
+        label: 'Saturday check-out opens at 12:00',
+        overtimeHours: 0,
+      };
+    }
+
+    if (now <= saturdayEnd) {
+      return {
+        allowed: true,
+        type: 'saturday',
+        label: 'Saturday Check Out',
+        overtimeHours: 0,
+      };
+    }
+
+    return {
+      allowed: false,
+      type: 'closed',
+      label: 'Saturday check-out window closed at 20:00',
+      overtimeHours: 0,
+    };
+  }
 
   const normalStart = 17 * 60 + 30;
   const normalEnd = 17 * 60 + 45;
@@ -182,6 +227,7 @@ function getLunchInWindow() {
   const now = getMalaysiaMinutesNow();
 
   const lunchInStart = 13 * 60;
+  const lunchInEnd = 14 * 60 + 30;
 
   if (now < lunchInStart) {
     return {
@@ -190,9 +236,16 @@ function getLunchInWindow() {
     };
   }
 
+  if (now <= lunchInEnd) {
+    return {
+      allowed: true,
+      label: 'Lunch In',
+    };
+  }
+
   return {
-    allowed: true,
-    label: 'Lunch In',
+    allowed: false,
+    label: 'Lunch In window closed at 14:30',
   };
 }
 
@@ -634,8 +687,7 @@ export default async function handler(req, res) {
         }
 
         if (lunch_late_minutes !== undefined) {
-          updatePayload.lunch_late_minutes =
-            nullableNumber(lunch_late_minutes) ?? 0;
+          updatePayload.lunch_late_minutes = nullableNumber(lunch_late_minutes) ?? 0;
         }
 
         if (lunch_status !== undefined) {
