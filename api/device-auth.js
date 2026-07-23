@@ -144,6 +144,7 @@ export default async function handler(req, res) {
             type: 'public-key',
           })),
           authenticatorSelection: {
+            authenticatorAttachment: 'platform',
             residentKey: 'preferred',
             userVerification: 'required',
           },
