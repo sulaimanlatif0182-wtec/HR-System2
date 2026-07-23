@@ -107,6 +107,8 @@ interface AttRec {
   check_in_site?: string | null;
   check_in_distance_meters?: number | null;
   check_in_verified?: boolean | null;
+  check_in_device_id?: number | null;
+  check_in_webauthn_verified?: boolean | null;
 
   check_out_latitude?: number | null;
   check_out_longitude?: number | null;
@@ -114,17 +116,26 @@ interface AttRec {
   check_out_site?: string | null;
   check_out_distance_meters?: number | null;
   check_out_verified?: boolean | null;
+  check_out_device_id?: number | null;
+  check_out_webauthn_verified?: boolean | null;
 
+  lunch_out_latitude?: number | null;
+  lunch_out_longitude?: number | null;
+  lunch_out_accuracy?: number | null;
   lunch_out_site?: string | null;
   lunch_out_distance_meters?: number | null;
   lunch_out_verified?: boolean | null;
+  lunch_out_device_id?: number | null;
+  lunch_out_webauthn_verified?: boolean | null;
 
+  lunch_in_latitude?: number | null;
+  lunch_in_longitude?: number | null;
+  lunch_in_accuracy?: number | null;
   lunch_in_site?: string | null;
   lunch_in_distance_meters?: number | null;
   lunch_in_verified?: boolean | null;
-
-  check_in_device_id?: number | null;
-  check_in_webauthn_verified?: boolean | null;
+  lunch_in_device_id?: number | null;
+  lunch_in_webauthn_verified?: boolean | null;
 }
 
 interface Emp {
@@ -202,7 +213,7 @@ function getMinutesFromDate(date = new Date()) {
 }
 
 function getCheckInWindow(date = new Date()) {
-    if (ATTENDANCE_TEST_MODE) {
+  if (ATTENDANCE_TEST_MODE) {
     return {
       allowed: true,
       type: 'test',
@@ -211,6 +222,7 @@ function getCheckInWindow(date = new Date()) {
       isLate: false,
     };
   }
+
   const now = getMinutesFromDate(date);
 
   const normalStart = 6 * 60;
@@ -473,13 +485,33 @@ function formatMeters(value?: number | null) {
 function formatType(value?: string | null) {
   if (!value) return '—';
 
-  return value.replace('_', ' ');
+  return value.replace(/_/g, ' ');
 }
 
 function formatTime(value?: string | null) {
   if (!value) return '—';
 
-  return new Date(value).toLocaleTimeString([], {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return '—';
+
+  return date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '—';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return '—';
+
+  return date.toLocaleString([], {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -545,16 +577,55 @@ function recordToCsv(record: AttRec, empMap: Record<number, Emp>) {
     Lunch_Late_Minutes: record.lunch_late_minutes ?? 0,
     Lunch_Status: record.lunch_status ?? '',
     Check_In_Site: record.check_in_site ?? '',
-    Check_In_Verified: record.check_in_verified ? 'Yes' : 'No',
-    Check_Out_Site: record.check_out_site ?? '',
-    Check_Out_Verified: record.check_out_verified ? 'Yes' : 'No',
-    Lunch_Out_Site: record.lunch_out_site ?? '',
-    Lunch_Out_Verified: record.lunch_out_verified ? 'Yes' : 'No',
-    Lunch_In_Site: record.lunch_in_site ?? '',
-    Lunch_In_Verified: record.lunch_in_verified ? 'Yes' : 'No',
+    Check_In_Distance_Meters: record.check_in_distance_meters ?? '',
+    Check_In_GPS_Verified: record.check_in_verified ? 'Yes' : 'No',
     Check_In_Device_ID: record.check_in_device_id ?? '',
     Check_In_WebAuthn_Verified: record.check_in_webauthn_verified ? 'Yes' : 'No',
+    Lunch_Out_Site: record.lunch_out_site ?? '',
+    Lunch_Out_Distance_Meters: record.lunch_out_distance_meters ?? '',
+    Lunch_Out_GPS_Verified: record.lunch_out_verified ? 'Yes' : 'No',
+    Lunch_Out_Device_ID: record.lunch_out_device_id ?? '',
+    Lunch_Out_WebAuthn_Verified: record.lunch_out_webauthn_verified
+      ? 'Yes'
+      : 'No',
+    Lunch_In_Site: record.lunch_in_site ?? '',
+    Lunch_In_Distance_Meters: record.lunch_in_distance_meters ?? '',
+    Lunch_In_GPS_Verified: record.lunch_in_verified ? 'Yes' : 'No',
+    Lunch_In_Device_ID: record.lunch_in_device_id ?? '',
+    Lunch_In_WebAuthn_Verified: record.lunch_in_webauthn_verified
+      ? 'Yes'
+      : 'No',
+    Check_Out_Site: record.check_out_site ?? '',
+    Check_Out_Distance_Meters: record.check_out_distance_meters ?? '',
+    Check_Out_GPS_Verified: record.check_out_verified ? 'Yes' : 'No',
+    Check_Out_Device_ID: record.check_out_device_id ?? '',
+    Check_Out_WebAuthn_Verified: record.check_out_webauthn_verified
+      ? 'Yes'
+      : 'No',
   };
+}
+
+function VerificationStatus({ gps, passkey }: { gps?: boolean | null; passkey?: boolean | null }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <span
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+          gps ? 'bg-emerald/15 text-emerald' : 'bg-white/10 text-muted'
+        }`}
+      >
+        {gps ? <ShieldCheck size={11} /> : <ShieldAlert size={11} />}
+        GPS
+      </span>
+      <span
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+          passkey ? 'bg-primary/15 text-primary' : 'bg-white/10 text-muted'
+        }`}
+      >
+        {passkey ? <Fingerprint size={11} /> : <ShieldAlert size={11} />}
+        Passkey
+      </span>
+    </div>
+  );
 }
 
 export default function Attendance() {
@@ -851,6 +922,16 @@ export default function Attendance() {
 
   const maxCount = Math.max(...heatmap.map((d) => d.count), 1);
 
+  const todayPresentCount = roleVisibleRecords.filter(
+    (record) =>
+      record.date === formatLocalDate() &&
+      (record.status === 'present' || record.status === 'late' || record.status === 'remote')
+  ).length;
+
+  const todayLateCount = roleVisibleRecords.filter(
+    (record) => record.date === formatLocalDate() && record.status === 'late'
+  ).length;
+
   const currentReportRows =
     reportTab === 'history'
       ? filteredRecords
@@ -872,7 +953,9 @@ export default function Attendance() {
       const deviceName =
         window.prompt(
           'Name this attendance device:',
-          `${navigator.platform || 'Device'} - ${navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Browser'}`
+          `${navigator.platform || 'Device'} - ${
+            navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Browser'
+          }`
         ) || 'Attendance Device';
 
       const optionsRes = await fetch('/api/device-auth', {
@@ -911,7 +994,7 @@ export default function Attendance() {
       }
 
       setDeviceMessage(
-        'Device registered. Please wait for admin approval before checking in.'
+        'Device registered. Please wait for admin approval before using attendance.'
       );
 
       await fetchDevices();
@@ -926,55 +1009,32 @@ export default function Attendance() {
     }
   };
 
-const verifyDeviceForAttendance = async (purpose: string) => {
-  if (!profile?.id) {
-    throw new Error('Profile not loaded.');
-  }
+  const verifyDeviceForAttendance = async (purpose: string) => {
+    if (!profile?.id) {
+      throw new Error('Profile not loaded.');
+    }
 
-  const optionsRes = await fetch('/api/device-auth', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'authentication_options',
-      employee_id: profile.id,
-    }),
-  });
+    setGpsMessage('GPS verified. Please complete device/passkey verification…');
 
-  const authOptions = await optionsRes.json();
+    const optionsRes = await fetch('/api/device-auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'authentication_options',
+        employee_id: profile.id,
+      }),
+    });
 
-  if (!optionsRes.ok) {
-    throw new Error(
-      authOptions?.error ||
-        'No approved attendance device found. Please register this device.'
-    );
-  }
+    const authOptions = await optionsRes.json();
 
-  const authenticationResponse = await startAuthentication(authOptions as any);
+    if (!optionsRes.ok) {
+      throw new Error(
+        authOptions?.error ||
+          'No approved attendance device found. Please register this device.'
+      );
+    }
 
-  const verifyRes = await fetch('/api/device-auth', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'authentication_verify',
-      employee_id: profile.id,
-      response: authenticationResponse,
-      purpose,
-    }),
-  });
-
-  const verifyData = await verifyRes.json();
-
-  if (!verifyRes.ok) {
-    throw new Error(verifyData?.error || 'Device verification failed.');
-  }
-
-  return {
-    token: verifyData.token as string,
-    deviceId: verifyData.device_id as number,
-  };
-};
-
-    const authenticationResponse = await startAuthentication(options as any);
+    const authenticationResponse = await startAuthentication(authOptions as any);
 
     const verifyRes = await fetch('/api/device-auth', {
       method: 'POST',
@@ -983,7 +1043,7 @@ const verifyDeviceForAttendance = async (purpose: string) => {
         action: 'authentication_verify',
         employee_id: profile.id,
         response: authenticationResponse,
-        purpose: 'attendance_check_in',
+        purpose,
       }),
     });
 
@@ -1044,6 +1104,16 @@ const verifyDeviceForAttendance = async (purpose: string) => {
     };
   };
 
+  const ensureApprovedDevice = () => {
+    if (hasApprovedDevice) return true;
+
+    alert(
+      'No approved attendance device found. Please register this device and wait for admin approval.'
+    );
+
+    return false;
+  };
+
   const handleExportCsv = () => {
     if (reportTab === 'missing') {
       const rows = missingCheckInReport.map((row) => ({
@@ -1071,12 +1141,7 @@ const verifyDeviceForAttendance = async (purpose: string) => {
       return;
     }
 
-    if (!hasApprovedDevice) {
-      alert(
-        'No approved attendance device found. Please register this device and wait for admin approval.'
-      );
-      return;
-    }
+    if (!ensureApprovedDevice()) return;
 
     setBusy(true);
 
@@ -1086,7 +1151,7 @@ const verifyDeviceForAttendance = async (purpose: string) => {
       setGpsMessage(
         `Location verified at ${location.site.name}. Distance: ${Math.round(
           location.distance
-        )}m.`
+        )}m. Waiting for passkey…`
       );
 
       const deviceAuth = await verifyDeviceForAttendance('attendance_check_in');
@@ -1114,7 +1179,7 @@ const verifyDeviceForAttendance = async (purpose: string) => {
       await fetchAll();
 
       alert(
-        `Check-in successful.\n\nDevice verified.\nType: ${
+        `Check-in successful.\n\nDevice/passkey verified.\nType: ${
           checkInWindow.label
         }\nSite: ${location.site.name}\nDistance: ${Math.round(
           location.distance
@@ -1136,10 +1201,18 @@ const verifyDeviceForAttendance = async (purpose: string) => {
       return;
     }
 
+    if (!ensureApprovedDevice()) return;
+
     setBusy(true);
 
     try {
       const location = await getVerifiedLocation('lunch-out');
+
+      setGpsMessage(
+        `Location verified at ${location.site.name}. Distance: ${Math.round(
+          location.distance
+        )}m. Waiting for passkey…`
+      );
 
       const deviceAuth = await verifyDeviceForAttendance('attendance_lunch_out');
 
@@ -1165,7 +1238,11 @@ const verifyDeviceForAttendance = async (purpose: string) => {
       await fetchAll();
 
       alert(
-        'Lunch Out recorded.\n\nExpected return is 1 hour from your Lunch Out time.'
+        `Lunch Out recorded.\n\nDevice/passkey verified.\nSite: ${
+          location.site.name
+        }\nDistance: ${Math.round(
+          location.distance
+        )}m\nExpected return is 1 hour from your Lunch Out time.`
       );
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to record Lunch Out.');
@@ -1183,10 +1260,18 @@ const verifyDeviceForAttendance = async (purpose: string) => {
       return;
     }
 
+    if (!ensureApprovedDevice()) return;
+
     setBusy(true);
 
     try {
       const location = await getVerifiedLocation('lunch-in');
+
+      setGpsMessage(
+        `Location verified at ${location.site.name}. Distance: ${Math.round(
+          location.distance
+        )}m. Waiting for passkey…`
+      );
 
       const deviceAuth = await verifyDeviceForAttendance('attendance_lunch_in');
 
@@ -1215,8 +1300,8 @@ const verifyDeviceForAttendance = async (purpose: string) => {
 
       alert(
         lateMinutes > 0
-          ? `Lunch In recorded.\n\nLate return: ${lateMinutes} minute(s).`
-          : 'Lunch In recorded on time.'
+          ? `Lunch In recorded.\n\nDevice/passkey verified.\nLate return: ${lateMinutes} minute(s).`
+          : 'Lunch In recorded on time.\n\nDevice/passkey verified.'
       );
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to record Lunch In.');
@@ -1234,10 +1319,18 @@ const verifyDeviceForAttendance = async (purpose: string) => {
       return;
     }
 
+    if (!ensureApprovedDevice()) return;
+
     setBusy(true);
 
     try {
       const location = await getVerifiedLocation('check-out');
+
+      setGpsMessage(
+        `Location verified at ${location.site.name}. Distance: ${Math.round(
+          location.distance
+        )}m. Waiting for passkey…`
+      );
 
       const deviceAuth = await verifyDeviceForAttendance('attendance_check_out');
 
@@ -1263,7 +1356,7 @@ const verifyDeviceForAttendance = async (purpose: string) => {
       await fetchAll();
 
       alert(
-        `Check-out successful.\n\nType: ${
+        `Check-out successful.\n\nDevice/passkey verified.\nType: ${
           checkOutWindow.label
         }\nOT Hours: ${checkOutWindow.overtimeHours}\nSite: ${
           location.site.name
@@ -1391,7 +1484,7 @@ const verifyDeviceForAttendance = async (purpose: string) => {
             ? 'Track daily check-ins and monitor org-wide presence.'
             : isManagerOnly
               ? `Track attendance for ${profile?.department ?? 'your department'}.`
-              : 'GPS and device verified check-in for your daily attendance.'
+              : 'GPS + device/passkey verified attendance.'
         }
         action={
           isAdminOrManager ? (
@@ -1412,6 +1505,44 @@ const verifyDeviceForAttendance = async (purpose: string) => {
         }
       />
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="glass rounded-2xl p-4 flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-primary/15 text-primary grid place-items-center">
+            <Database size={20} />
+          </div>
+          <div>
+            <p className="text-xs text-muted">Visible Records</p>
+            <p className="font-display font-semibold text-xl">
+              {roleVisibleRecords.length}
+            </p>
+          </div>
+        </div>
+
+        <div className="glass rounded-2xl p-4 flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-emerald/15 text-emerald grid place-items-center">
+            <ShieldCheck size={20} />
+          </div>
+          <div>
+            <p className="text-xs text-muted">Today Present</p>
+            <p className="font-display font-semibold text-xl">
+              {todayPresentCount}
+            </p>
+          </div>
+        </div>
+
+        <div className="glass rounded-2xl p-4 flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-amber/15 text-amber grid place-items-center">
+            <AlertTriangle size={20} />
+          </div>
+          <div>
+            <p className="text-xs text-muted">Today Late</p>
+            <p className="font-display font-semibold text-xl">
+              {todayLateCount}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="glass rounded-2xl p-4 mb-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <div className="w-11 h-11 rounded-xl bg-primary/15 text-primary grid place-items-center">
@@ -1427,7 +1558,7 @@ const verifyDeviceForAttendance = async (purpose: string) => {
               <p className="text-xs text-muted mt-1">Checking device status…</p>
             ) : hasApprovedDevice ? (
               <p className="text-xs text-emerald mt-1">
-                Approved device ready for biometric/passkey check-in.
+                Approved device ready for check-in, lunch out, lunch in and check-out.
               </p>
             ) : pendingDevices.length > 0 ? (
               <p className="text-xs text-amber mt-1">
@@ -1435,7 +1566,7 @@ const verifyDeviceForAttendance = async (purpose: string) => {
               </p>
             ) : (
               <p className="text-xs text-muted mt-1">
-                Register this phone/browser before using attendance check-in.
+                Register this phone/browser before using attendance.
               </p>
             )}
 
@@ -1514,10 +1645,13 @@ const verifyDeviceForAttendance = async (purpose: string) => {
                 : ''}
             </p>
 
-            {myToday?.check_in_webauthn_verified && (
+            {(myToday?.check_in_webauthn_verified ||
+              myToday?.lunch_out_webauthn_verified ||
+              myToday?.lunch_in_webauthn_verified ||
+              myToday?.check_out_webauthn_verified) && (
               <p className="text-xs text-emerald mt-1 flex items-center gap-1">
                 <ShieldCheck size={13} />
-                Device/passkey verified for check-in
+                Device/passkey verification recorded today
               </p>
             )}
 
@@ -1596,12 +1730,13 @@ const verifyDeviceForAttendance = async (purpose: string) => {
               !!myToday?.check_out ||
               !!myToday?.lunch_out ||
               busy ||
-              !lunchOutWindow.allowed
+              !lunchOutWindow.allowed ||
+              !hasApprovedDevice
             }
             className="flex items-center justify-center gap-2 rounded-xl bg-amber/15 text-amber border border-amber/25 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-amber/25 transition-all"
           >
             <Utensils size={16} />
-            {lunchOutWindow.label}
+            {!hasApprovedDevice ? 'Device Approval Required' : lunchOutWindow.label}
           </button>
 
           <button
@@ -1613,12 +1748,13 @@ const verifyDeviceForAttendance = async (purpose: string) => {
               !myToday?.lunch_out ||
               !!myToday?.lunch_in ||
               busy ||
-              !lunchInWindow.allowed
+              !lunchInWindow.allowed ||
+              !hasApprovedDevice
             }
             className="flex items-center justify-center gap-2 rounded-xl bg-accent/15 text-accent border border-accent/25 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent/25 transition-all"
           >
             <Utensils size={16} />
-            {lunchInWindow.label}
+            {!hasApprovedDevice ? 'Device Approval Required' : lunchInWindow.label}
           </button>
 
           <button
@@ -1628,17 +1764,17 @@ const verifyDeviceForAttendance = async (purpose: string) => {
               !myToday?.check_in ||
               !!myToday?.check_out ||
               busy ||
-              !checkOutWindow.allowed
+              !checkOutWindow.allowed ||
+              !hasApprovedDevice
             }
             className="flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
           >
             <LogOut size={16} />
-            {checkOutWindow.label}
+            {!hasApprovedDevice ? 'Device Approval Required' : checkOutWindow.label}
           </button>
         </div>
       </motion.div>
 
-      {/* Keep rest of latest reports/filter/table/correction UI unchanged from your current file */}
       <div className="glass rounded-2xl p-4 mb-6">
         <div className="flex items-center gap-2 mb-3">
           <Filter size={16} className="text-primary" />
@@ -1702,7 +1838,7 @@ const verifyDeviceForAttendance = async (purpose: string) => {
                 <option value="all">All Lunch</option>
                 {LUNCH_STATUS_OPTIONS.map((status) => (
                   <option key={status} value={status}>
-                    {status.replace('_', ' ')}
+                    {status.replace(/_/g, ' ')}
                   </option>
                 ))}
               </select>
@@ -1756,10 +1892,489 @@ const verifyDeviceForAttendance = async (purpose: string) => {
         </div>
       )}
 
-      {/* Report rendering remains same as previous version */}
-      <div className="glass rounded-2xl p-6">
-        <EmptyState label="Reports/table section retained from previous version. If you see this, paste back your previous report table section below the tabs." />
+      <div className="glass rounded-2xl p-4 mb-6">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <p className="font-display font-semibold text-sm">42-Day Presence Heatmap</p>
+            <p className="text-xs text-muted">
+              Darker color means more visible employees present on that day.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-14 sm:grid-cols-21 md:grid-cols-42 gap-1">
+          {heatmap.map((day) => {
+            const opacity = Math.max(0.12, day.count / maxCount);
+
+            return (
+              <div
+                key={day.date}
+                title={`${day.date}: ${day.count}`}
+                className="h-4 rounded bg-primary"
+                style={{ opacity }}
+              />
+            );
+          })}
+        </div>
       </div>
+
+      <div className="glass rounded-2xl p-6 overflow-x-auto">
+        {reportTab === 'missing' ? (
+          missingCheckInReport.length === 0 ? (
+            <EmptyState label="No missing check-in records found for the selected date range." />
+          ) : (
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-white/10">
+                  <th className="py-3 pr-4">Date</th>
+                  <th className="py-3 pr-4">Employee</th>
+                  <th className="py-3 pr-4">Department</th>
+                  <th className="py-3 pr-4">Report</th>
+                </tr>
+              </thead>
+              <tbody>
+                {missingCheckInReport.map((row) => (
+                  <tr
+                    key={`${row.employee.id}-${row.date}`}
+                    className="border-b border-white/5 last:border-0"
+                  >
+                    <td className="py-3 pr-4 whitespace-nowrap">{row.date}</td>
+                    <td className="py-3 pr-4 whitespace-nowrap">
+                      {row.employee.name}
+                    </td>
+                    <td className="py-3 pr-4 whitespace-nowrap">
+                      {row.employee.department ?? '—'}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <Badge tone="danger">Missing Check-In</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+        ) : recent.length === 0 ? (
+          <EmptyState label="No attendance records found for the selected filters." />
+        ) : (
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-white/10">
+                <th className="py-3 pr-4">Date</th>
+                <th className="py-3 pr-4">Employee</th>
+                <th className="py-3 pr-4">Status</th>
+                <th className="py-3 pr-4">Check In</th>
+                <th className="py-3 pr-4">Lunch</th>
+                <th className="py-3 pr-4">Check Out</th>
+                <th className="py-3 pr-4">OT</th>
+                <th className="py-3 pr-4">Verification</th>
+                {isAdmin && <th className="py-3 pr-4">Action</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {recent.map((record) => (
+                <tr
+                  key={record.id}
+                  className="border-b border-white/5 last:border-0 align-top"
+                >
+                  <td className="py-3 pr-4 whitespace-nowrap">{record.date}</td>
+                  <td className="py-3 pr-4 min-w-[170px]">
+                    <p className="font-medium">
+                      {empMap[record.employee_id]?.name ?? `#${record.employee_id}`}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {empMap[record.employee_id]?.department ?? '—'}
+                    </p>
+                  </td>
+                  <td className="py-3 pr-4 whitespace-nowrap">
+                    <Badge tone={STATUS_TONE[record.status] ?? 'default'}>
+                      {record.status}
+                    </Badge>
+                  </td>
+                  <td className="py-3 pr-4 min-w-[150px]">
+                    <p>{formatTime(record.check_in)}</p>
+                    <p className="text-xs text-muted">
+                      {formatType(record.check_in_type)} · {record.check_in_site ?? '—'}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {formatMeters(record.check_in_distance_meters)} · Accuracy{' '}
+                      {formatMeters(record.check_in_accuracy)}
+                    </p>
+                  </td>
+                  <td className="py-3 pr-4 min-w-[190px]">
+                    <p className="text-xs text-muted">
+                      Out: <span className="text-ink">{formatTime(record.lunch_out)}</span>
+                    </p>
+                    <p className="text-xs text-muted">
+                      Expected:{' '}
+                      <span className="text-ink">
+                        {formatTime(record.lunch_expected_return)}
+                      </span>
+                    </p>
+                    <p className="text-xs text-muted">
+                      In: <span className="text-ink">{formatTime(record.lunch_in)}</span>
+                    </p>
+                    <p className="text-xs text-muted">
+                      Break {record.lunch_break_minutes ?? 0}m · Late{' '}
+                      <span
+                        className={
+                          Number(record.lunch_late_minutes ?? 0) > 0
+                            ? 'text-rose'
+                            : 'text-emerald'
+                        }
+                      >
+                        {record.lunch_late_minutes ?? 0}m
+                      </span>
+                    </p>
+                    <p className="text-xs text-muted">
+                      Status: {formatType(record.lunch_status)}
+                    </p>
+                  </td>
+                  <td className="py-3 pr-4 min-w-[150px]">
+                    <p>{formatTime(record.check_out)}</p>
+                    <p className="text-xs text-muted">
+                      {formatType(record.check_out_type)} · {record.check_out_site ?? '—'}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {formatMeters(record.check_out_distance_meters)} · Accuracy{' '}
+                      {formatMeters(record.check_out_accuracy)}
+                    </p>
+                  </td>
+                  <td className="py-3 pr-4 whitespace-nowrap">
+                    {Number(record.overtime_hours ?? 0)}h
+                  </td>
+                  <td className="py-3 pr-4 min-w-[170px] space-y-2">
+                    <div>
+                      <p className="text-[10px] text-muted mb-1">Check In</p>
+                      <VerificationStatus
+                        gps={record.check_in_verified}
+                        passkey={record.check_in_webauthn_verified}
+                      />
+                    </div>
+                    {(record.lunch_out || record.lunch_in) && (
+                      <div>
+                        <p className="text-[10px] text-muted mb-1">Lunch</p>
+                        <VerificationStatus
+                          gps={record.lunch_out_verified || record.lunch_in_verified}
+                          passkey={
+                            record.lunch_out_webauthn_verified ||
+                            record.lunch_in_webauthn_verified
+                          }
+                        />
+                      </div>
+                    )}
+                    {record.check_out && (
+                      <div>
+                        <p className="text-[10px] text-muted mb-1">Check Out</p>
+                        <VerificationStatus
+                          gps={record.check_out_verified}
+                          passkey={record.check_out_webauthn_verified}
+                        />
+                      </div>
+                    )}
+                  </td>
+                  {isAdmin && (
+                    <td className="py-3 pr-4 whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => openCorrection(record)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold hover:bg-white/10 transition-all"
+                      >
+                        <Pencil size={13} />
+                        Edit
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {reportTab !== 'missing' && currentReportRows.length > 50 && (
+          <p className="text-xs text-muted mt-4">
+            Showing latest 50 rows. Use filters or Export CSV for full report.
+          </p>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {editingRecord && correctionForm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.form
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              onSubmit={saveCorrection}
+              className="glass rounded-2xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-start justify-between gap-4 mb-5">
+                <div>
+                  <h3 className="font-display font-semibold text-lg">
+                    Manual Attendance Correction
+                  </h3>
+                  <p className="text-xs text-muted mt-1">
+                    Employee:{' '}
+                    {empMap[editingRecord.employee_id]?.name ??
+                      `#${editingRecord.employee_id}`}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingRecord(null);
+                    setCorrectionForm(null);
+                  }}
+                  className="rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {correctionError && (
+                <div className="mb-4 rounded-xl border border-rose/30 bg-rose/10 px-4 py-3 text-sm text-rose">
+                  {correctionError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Date</span>
+                  <input
+                    type="date"
+                    value={correctionForm.date}
+                    onChange={(e) =>
+                      setCorrectionForm({ ...correctionForm, date: e.target.value })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Status</span>
+                  <select
+                    value={correctionForm.status}
+                    onChange={(e) =>
+                      setCorrectionForm({
+                        ...correctionForm,
+                        status: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  >
+                    {STATUS_OPTIONS.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Check In</span>
+                  <input
+                    type="datetime-local"
+                    value={correctionForm.check_in}
+                    onChange={(e) =>
+                      setCorrectionForm({
+                        ...correctionForm,
+                        check_in: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Check Out</span>
+                  <input
+                    type="datetime-local"
+                    value={correctionForm.check_out}
+                    onChange={(e) =>
+                      setCorrectionForm({
+                        ...correctionForm,
+                        check_out: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Lunch Out</span>
+                  <input
+                    type="datetime-local"
+                    value={correctionForm.lunch_out}
+                    onChange={(e) =>
+                      setCorrectionForm({
+                        ...correctionForm,
+                        lunch_out: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">
+                    Lunch Expected Return
+                  </span>
+                  <input
+                    type="datetime-local"
+                    value={correctionForm.lunch_expected_return}
+                    onChange={(e) =>
+                      setCorrectionForm({
+                        ...correctionForm,
+                        lunch_expected_return: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Lunch In</span>
+                  <input
+                    type="datetime-local"
+                    value={correctionForm.lunch_in}
+                    onChange={(e) =>
+                      setCorrectionForm({
+                        ...correctionForm,
+                        lunch_in: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Lunch Status</span>
+                  <select
+                    value={correctionForm.lunch_status}
+                    onChange={(e) =>
+                      setCorrectionForm({
+                        ...correctionForm,
+                        lunch_status: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  >
+                    {LUNCH_STATUS_OPTIONS.map((status) => (
+                      <option key={status} value={status}>
+                        {status.replace(/_/g, ' ')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">OT Hours</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={correctionForm.overtime_hours}
+                    onChange={(e) =>
+                      setCorrectionForm({
+                        ...correctionForm,
+                        overtime_hours: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">
+                    Lunch Break Minutes
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={correctionForm.lunch_break_minutes}
+                    onChange={(e) =>
+                      setCorrectionForm({
+                        ...correctionForm,
+                        lunch_break_minutes: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm md:col-span-2">
+                  <span className="block text-xs text-muted mb-1">
+                    Lunch Late Minutes
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={correctionForm.lunch_late_minutes}
+                    onChange={(e) =>
+                      setCorrectionForm({
+                        ...correctionForm,
+                        lunch_late_minutes: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm md:col-span-2">
+                  <span className="block text-xs text-muted mb-1">
+                    Correction Reason <span className="text-rose">*</span>
+                  </span>
+                  <textarea
+                    rows={3}
+                    value={correctionForm.reason}
+                    onChange={(e) =>
+                      setCorrectionForm({
+                        ...correctionForm,
+                        reason: e.target.value,
+                      })
+                    }
+                    placeholder="Example: HR correction after employee submitted proof."
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
+                  />
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingRecord(null);
+                    setCorrectionForm(null);
+                  }}
+                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={savingCorrection}
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {savingCorrection ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Save size={16} />
+                  )}
+                  Save Correction
+                </button>
+              </div>
+            </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
