@@ -127,6 +127,37 @@ async function getPayrollProfiles() {
   return data || [];
 }
 
+async function getStatutoryWageTables() {
+  const { data, error } = await supabase
+    .from('statutory_wage_tables')
+    .select('*')
+    .eq('active', true)
+    .order('scheme', { ascending: true })
+    .order('wage_from', { ascending: true });
+
+  if (error) return [];
+
+  return data || [];
+}
+
+function findStatutoryWageTableRow(scheme, salary, wageTables = []) {
+  const upperScheme = cleanString(scheme).toUpperCase();
+  const wage = toNumber(salary);
+
+  return (wageTables || []).find((row) => {
+    if (cleanString(row.scheme).toUpperCase() !== upperScheme) return false;
+    if (row.active === false) return false;
+
+    const from = toNumber(row.wage_from);
+    const to =
+      row.wage_to === null || row.wage_to === undefined || row.wage_to === ''
+        ? Number.POSITIVE_INFINITY
+        : toNumber(row.wage_to);
+
+    return wage >= from && wage <= to;
+  });
+}
+
 function calculateAge(dateOfBirth) {
   if (!dateOfBirth) return null;
 
@@ -149,7 +180,13 @@ function rateToDecimal(rate) {
   return toNumber(rate) / 100;
 }
 
-function calculateStatutoryContributions(baseSalary, employee, settings, profile) {
+function calculateStatutoryContributions(
+  baseSalary,
+  employee,
+  settings,
+  profile,
+  wageTables = []
+) {
   const salary = toNumber(baseSalary);
   const age = calculateAge(profile?.date_of_birth || employee?.date_of_birth);
   const citizenship = cleanString(profile?.citizenship_type || 'local').toLowerCase();
@@ -176,10 +213,20 @@ function calculateStatutoryContributions(baseSalary, employee, settings, profile
     epfEmployerRate = toNumber(profile.epf_employer_rate_override, epfEmployerRate);
   }
 
-  const socsoEnabled = settings.socso_enabled && profile?.socso_enabled !== false;
+  const socsoCategory = cleanString(profile?.socso_category || 'standard').toLowerCase();
+  const socsoEnabled =
+    settings.socso_enabled &&
+    profile?.socso_enabled !== false &&
+    socsoCategory !== 'not_applicable';
   const eisEnabled = settings.eis_enabled && profile?.eis_enabled !== false;
   const socsoWage = Math.min(salary, toNumber(settings.socso_wage_cap, 5000));
   const eisWage = Math.min(salary, toNumber(settings.eis_wage_cap, 5000));
+  const socsoTableRow = socsoEnabled
+    ? findStatutoryWageTableRow('SOCSO', salary, wageTables)
+    : null;
+  const eisTableRow = eisEnabled
+    ? findStatutoryWageTableRow('EIS', salary, wageTables)
+    : null;
 
   return {
     epf_employee: settings.epf_enabled
@@ -189,20 +236,38 @@ function calculateStatutoryContributions(baseSalary, employee, settings, profile
       ? roundMoney(salary * rateToDecimal(epfEmployerRate))
       : 0,
     socso_employee: socsoEnabled
-      ? roundMoney(socsoWage * rateToDecimal(settings.socso_employee_rate))
+      ? roundMoney(
+          socsoTableRow
+            ? socsoTableRow.employee_amount
+            : socsoWage * rateToDecimal(settings.socso_employee_rate)
+        )
       : 0,
     socso_employer: socsoEnabled
-      ? roundMoney(socsoWage * rateToDecimal(settings.socso_employer_rate))
+      ? roundMoney(
+          socsoTableRow
+            ? socsoTableRow.employer_amount
+            : socsoWage * rateToDecimal(settings.socso_employer_rate)
+        )
       : 0,
     eis_employee: eisEnabled
-      ? roundMoney(eisWage * rateToDecimal(settings.eis_employee_rate))
+      ? roundMoney(
+          eisTableRow
+            ? eisTableRow.employee_amount
+            : eisWage * rateToDecimal(settings.eis_employee_rate)
+        )
       : 0,
     eis_employer: eisEnabled
-      ? roundMoney(eisWage * rateToDecimal(settings.eis_employer_rate))
+      ? roundMoney(
+          eisTableRow
+            ? eisTableRow.employer_amount
+            : eisWage * rateToDecimal(settings.eis_employer_rate)
+        )
       : 0,
     pcb: roundMoney(profile?.pcb_monthly_amount || 0),
     age,
     citizenship_type: citizenship || 'local',
+    socso_source: socsoTableRow ? 'table' : 'fallback_rate',
+    eis_source: eisTableRow ? 'table' : 'fallback_rate',
   };
 }
 
@@ -699,11 +764,34 @@ function payrollProfilePayloadFromBody(body = {}) {
   };
 }
 
+function wageTablePayloadFromBody(body = {}) {
+  const scheme = cleanString(body.scheme).toUpperCase();
+
+  return {
+    scheme: scheme === 'EIS' ? 'EIS' : 'SOCSO',
+    wage_from: toNumber(body.wage_from),
+    wage_to:
+      body.wage_to === null || body.wage_to === undefined || body.wage_to === ''
+        ? null
+        : toNumber(body.wage_to),
+    employee_amount: toNumber(body.employee_amount),
+    employer_amount: toNumber(body.employer_amount),
+    effective_from: body.effective_from || null,
+    effective_to: body.effective_to || null,
+    active: body.active !== false,
+    notes: body.notes || null,
+    updated_by: body.updated_by || body.changed_by || null,
+    updated_by_name: body.updated_by_name || body.changed_by_name || null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 async function generatePayrollFromSources(period) {
   const { startDate, endDate, daysInMonth } = getPeriodRange(period);
   const batch = await getOrCreateBatch(period);
   const payrollSettings = await getPayrollSettings();
   const profileRows = await getPayrollProfiles();
+  const statutoryWageTables = await getStatutoryWageTables();
   const payrollProfileMap = new Map(
     profileRows.map((row) => [Number(row.employee_id), row])
   );
@@ -798,7 +886,8 @@ async function generatePayrollFromSources(period) {
         baseSalary,
         employee,
         payrollSettings,
-        payrollProfile
+        payrollProfile,
+        statutoryWageTables
       );
       const epfEmployee = statutory.epf_employee;
       const epfEmployer = statutory.epf_employer;
@@ -915,7 +1004,16 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const { employee_id, period, batches, settings, profiles, profile_employee_id } = req.query;
+      const {
+        employee_id,
+        period,
+        batches,
+        settings,
+        profiles,
+        profile_employee_id,
+        wage_tables,
+        scheme,
+      } = req.query;
 
       if (settings === 'true') {
         const payrollSettings = await getPayrollSettings();
@@ -931,6 +1029,24 @@ export default async function handler(req, res) {
 
         if (profile_employee_id) {
           query = query.eq('employee_id', Number(profile_employee_id));
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+
+        return res.status(200).json(data || []);
+      }
+
+      if (wage_tables === 'true') {
+        let query = supabase
+          .from('statutory_wage_tables')
+          .select('*')
+          .order('scheme', { ascending: true })
+          .order('wage_from', { ascending: true });
+
+        if (scheme) {
+          query = query.eq('scheme', cleanString(scheme).toUpperCase());
         }
 
         const { data, error } = await query;
@@ -1002,6 +1118,52 @@ export default async function handler(req, res) {
         if (error) throw error;
 
         return res.status(200).json(data);
+      }
+
+      if (action === 'save_wage_table') {
+        const payload = wageTablePayloadFromBody(body);
+
+        if (body.id) {
+          const { data, error } = await supabase
+            .from('statutory_wage_tables')
+            .update(payload)
+            .eq('id', Number(body.id))
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          return res.status(200).json(data);
+        }
+
+        const { data, error } = await supabase
+          .from('statutory_wage_tables')
+          .insert({
+            ...payload,
+            created_by: body.created_by || body.changed_by || null,
+            created_by_name: body.created_by_name || body.changed_by_name || null,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        return res.status(201).json(data);
+      }
+
+      if (action === 'delete_wage_table') {
+        if (!body.id) {
+          return res.status(400).json({ error: 'id is required.' });
+        }
+
+        const { error } = await supabase
+          .from('statutory_wage_tables')
+          .delete()
+          .eq('id', Number(body.id));
+
+        if (error) throw error;
+
+        return res.status(200).json({ ok: true });
       }
 
       if (action === 'create_batch') {

@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Rocket,
   Save,
+  Trash2,
 } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
@@ -184,6 +185,62 @@ interface PayrollProfileForm {
   eis_enabled: boolean;
   pcb_monthly_amount: string;
   pcb_notes: string;
+}
+
+interface StatutoryWageTableRow {
+  id: number;
+  scheme: string;
+  wage_from: number;
+  wage_to?: number | null;
+  employee_amount: number;
+  employer_amount: number;
+  effective_from?: string | null;
+  effective_to?: string | null;
+  active: boolean;
+  notes?: string | null;
+}
+
+interface WageTableForm {
+  id?: number | null;
+  scheme: string;
+  wage_from: string;
+  wage_to: string;
+  employee_amount: string;
+  employer_amount: string;
+  effective_from: string;
+  effective_to: string;
+  active: boolean;
+  notes: string;
+}
+
+function emptyWageTableForm(): WageTableForm {
+  return {
+    id: null,
+    scheme: 'SOCSO',
+    wage_from: '',
+    wage_to: '',
+    employee_amount: '',
+    employer_amount: '',
+    effective_from: '',
+    effective_to: '',
+    active: true,
+    notes: '',
+  };
+}
+
+function wageTableFormFromRow(row: StatutoryWageTableRow): WageTableForm {
+  return {
+    id: row.id,
+    scheme: row.scheme || 'SOCSO',
+    wage_from: String(row.wage_from ?? ''),
+    wage_to: row.wage_to === null || row.wage_to === undefined ? '' : String(row.wage_to),
+    employee_amount: String(row.employee_amount ?? ''),
+    employer_amount: String(row.employer_amount ?? ''),
+    effective_from: row.effective_from ?? '',
+    effective_to: row.effective_to ?? '',
+    active: row.active !== false,
+    notes: row.notes ?? '',
+  };
 }
 
 const DEFAULT_PAYROLL_SETTINGS: PayrollSettings = {
@@ -491,6 +548,12 @@ export default function Payroll() {
   const [profileForm, setProfileForm] = useState<PayrollProfileForm>(
     emptyPayrollProfileForm()
   );
+  const [wageTables, setWageTables] = useState<StatutoryWageTableRow[]>([]);
+  const [wageTableForm, setWageTableForm] = useState<WageTableForm>(
+    emptyWageTableForm()
+  );
+  const [savingWageTable, setSavingWageTable] = useState(false);
+  const [wageTableMessage, setWageTableMessage] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState('');
@@ -511,13 +574,15 @@ export default function Payroll() {
     setError('');
 
     try {
-      const [pay, emp, batchData, settingsData, profileData] = await Promise.all([
-        fetch('/api/payroll').then((r) => r.json()),
-        fetch('/api/employees').then((r) => r.json()),
-        fetch('/api/payroll?batches=true').then((r) => r.json()),
-        fetch('/api/payroll?settings=true').then((r) => r.json()),
-        fetch('/api/payroll?profiles=true').then((r) => r.json()),
-      ]);
+      const [pay, emp, batchData, settingsData, profileData, wageTableData] =
+        await Promise.all([
+          fetch('/api/payroll').then((r) => r.json()),
+          fetch('/api/employees').then((r) => r.json()),
+          fetch('/api/payroll?batches=true').then((r) => r.json()),
+          fetch('/api/payroll?settings=true').then((r) => r.json()),
+          fetch('/api/payroll?profiles=true').then((r) => r.json()),
+          fetch('/api/payroll?wage_tables=true').then((r) => r.json()),
+        ]);
 
       const normalizedSettings = normalizePayrollSettings(settingsData);
 
@@ -527,6 +592,7 @@ export default function Payroll() {
       setPayrollSettings(normalizedSettings);
       setSettingsForm(normalizedSettings);
       setPayrollProfiles(Array.isArray(profileData) ? profileData : []);
+      setWageTables(Array.isArray(wageTableData) ? wageTableData : []);
     } catch {
       setError('Failed to load payroll data.');
     } finally {
@@ -838,6 +904,100 @@ export default function Payroll() {
       );
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const editWageTable = (row: StatutoryWageTableRow) => {
+    setWageTableForm(wageTableFormFromRow(row));
+    setWageTableMessage('');
+  };
+
+  const resetWageTableForm = () => {
+    setWageTableForm(emptyWageTableForm());
+    setWageTableMessage('');
+  };
+
+  const saveWageTable = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!isAdmin || !profile) return;
+
+    if (!wageTableForm.wage_from || !wageTableForm.employee_amount || !wageTableForm.employer_amount) {
+      setWageTableMessage('Wage from, employee amount and employer amount are required.');
+      return;
+    }
+
+    setSavingWageTable(true);
+    setWageTableMessage('');
+
+    try {
+      const res = await fetch('/api/payroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_wage_table',
+          ...wageTableForm,
+          changed_by: profile.id,
+          changed_by_name: profile.name,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to save wage table row.');
+      }
+
+      await fetchAll();
+      setWageTableForm(emptyWageTableForm());
+      setWageTableMessage('Wage table row saved successfully.');
+    } catch (err) {
+      setWageTableMessage(
+        err instanceof Error ? err.message : 'Failed to save wage table row.'
+      );
+    } finally {
+      setSavingWageTable(false);
+    }
+  };
+
+  const deleteWageTable = async (row: StatutoryWageTableRow) => {
+    if (!isAdmin || !profile) return;
+
+    const confirmed = window.confirm(
+      `Delete ${row.scheme} wage row RM ${row.wage_from} - ${row.wage_to ?? 'above'}?`
+    );
+
+    if (!confirmed) return;
+
+    setSavingWageTable(true);
+    setWageTableMessage('');
+
+    try {
+      const res = await fetch('/api/payroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete_wage_table',
+          id: row.id,
+          changed_by: profile.id,
+          changed_by_name: profile.name,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to delete wage table row.');
+      }
+
+      await fetchAll();
+      setWageTableMessage('Wage table row deleted successfully.');
+    } catch (err) {
+      setWageTableMessage(
+        err instanceof Error ? err.message : 'Failed to delete wage table row.'
+      );
+    } finally {
+      setSavingWageTable(false);
     }
   };
 
@@ -1569,6 +1729,254 @@ export default function Payroll() {
               </label>
             </div>
           </form>
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="glass rounded-2xl p-5 mb-6">
+          <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-5">
+            <form onSubmit={saveWageTable} className="xl:w-[420px] w-full space-y-3">
+              <div>
+                <h3 className="font-display font-semibold text-lg">
+                  SOCSO / EIS Official Wage Table
+                </h3>
+                <p className="text-xs text-muted mt-1">
+                  Add official PERKESO wage table rows. Payroll uses matching table rows first, otherwise fallback rates from settings.
+                </p>
+              </div>
+
+              {wageTableMessage && (
+                <div
+                  className={`rounded-xl border px-4 py-3 text-sm ${
+                    wageTableMessage.includes('success')
+                      ? 'border-emerald/30 bg-emerald/10 text-emerald'
+                      : 'border-rose/30 bg-rose/10 text-rose'
+                  }`}
+                >
+                  {wageTableMessage}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Scheme</span>
+                  <select
+                    value={wageTableForm.scheme}
+                    onChange={(e) =>
+                      setWageTableForm({ ...wageTableForm, scheme: e.target.value })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  >
+                    <option value="SOCSO">SOCSO</option>
+                    <option value="EIS">EIS</option>
+                  </select>
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Wage From RM</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={wageTableForm.wage_from}
+                    onChange={(e) =>
+                      setWageTableForm({ ...wageTableForm, wage_from: e.target.value })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Wage To RM</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={wageTableForm.wage_to}
+                    onChange={(e) =>
+                      setWageTableForm({ ...wageTableForm, wage_to: e.target.value })
+                    }
+                    placeholder="Blank = no upper limit"
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Employee Amount RM</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={wageTableForm.employee_amount}
+                    onChange={(e) =>
+                      setWageTableForm({
+                        ...wageTableForm,
+                        employee_amount: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Employer Amount RM</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={wageTableForm.employer_amount}
+                    onChange={(e) =>
+                      setWageTableForm({
+                        ...wageTableForm,
+                        employer_amount: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Effective From</span>
+                  <input
+                    type="date"
+                    value={wageTableForm.effective_from}
+                    onChange={(e) =>
+                      setWageTableForm({
+                        ...wageTableForm,
+                        effective_from: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Effective To</span>
+                  <input
+                    type="date"
+                    value={wageTableForm.effective_to}
+                    onChange={(e) =>
+                      setWageTableForm({
+                        ...wageTableForm,
+                        effective_to: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+                  <input
+                    type="checkbox"
+                    checked={wageTableForm.active}
+                    onChange={(e) =>
+                      setWageTableForm({
+                        ...wageTableForm,
+                        active: e.target.checked,
+                      })
+                    }
+                  />
+                  Active
+                </label>
+
+                <label className="text-sm sm:col-span-2 xl:col-span-1">
+                  <span className="block text-xs text-muted mb-1">Notes</span>
+                  <input
+                    value={wageTableForm.notes}
+                    onChange={(e) =>
+                      setWageTableForm({ ...wageTableForm, notes: e.target.value })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+              </div>
+
+              <div className="flex flex-wrap gap-2 justify-end">
+                {wageTableForm.id && (
+                  <button
+                    type="button"
+                    onClick={resetWageTableForm}
+                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold hover:bg-white/10"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={savingWageTable}
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {savingWageTable ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : wageTableForm.id ? (
+                    <Save size={16} />
+                  ) : (
+                    <Plus size={16} />
+                  )}
+                  {wageTableForm.id ? 'Update Row' : 'Add Row'}
+                </button>
+              </div>
+            </form>
+
+            <div className="flex-1 w-full overflow-x-auto">
+              {wageTables.length === 0 ? (
+                <EmptyState label="No SOCSO/EIS wage table rows yet. Fallback percentage rates will be used." />
+              ) : (
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-white/10">
+                      <th className="py-3 pr-4">Scheme</th>
+                      <th className="py-3 pr-4">Wage Range</th>
+                      <th className="py-3 pr-4">Employee</th>
+                      <th className="py-3 pr-4">Employer</th>
+                      <th className="py-3 pr-4">Status</th>
+                      <th className="py-3 pr-4">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {wageTables.map((row) => (
+                      <tr key={row.id} className="border-b border-white/5 last:border-0">
+                        <td className="py-3 pr-4">
+                          <Badge tone={row.scheme === 'SOCSO' ? 'info' : 'success'}>
+                            {row.scheme}
+                          </Badge>
+                        </td>
+                        <td className="py-3 pr-4 whitespace-nowrap">
+                          RM {Number(row.wage_from).toLocaleString()} -{' '}
+                          {row.wage_to === null || row.wage_to === undefined
+                            ? 'above'
+                            : `RM ${Number(row.wage_to).toLocaleString()}`}
+                        </td>
+                        <td className="py-3 pr-4">{money(row.employee_amount)}</td>
+                        <td className="py-3 pr-4">{money(row.employer_amount)}</td>
+                        <td className="py-3 pr-4">
+                          <Badge tone={row.active ? 'success' : 'default'}>
+                            {row.active ? 'active' : 'inactive'}
+                          </Badge>
+                        </td>
+                        <td className="py-3 pr-4">
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => editWageTable(row)}
+                              className="rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                              title="Edit"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteWageTable(row)}
+                              className="rounded-lg border border-rose/20 bg-rose/10 p-2 text-rose hover:bg-rose/20"
+                              title="Delete"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
