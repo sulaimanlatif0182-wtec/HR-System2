@@ -181,6 +181,54 @@ interface MissingReportRow {
   date: string;
 }
 
+interface AttendanceSettings {
+  id?: number;
+  check_in_start: string;
+  check_in_normal_end: string;
+  check_in_late_end: string;
+  lunch_out_start: string;
+  lunch_out_end: string;
+  lunch_in_start: string;
+  lunch_in_end: string;
+  check_out_normal_start: string;
+  check_out_normal_end: string;
+  ot_start: string;
+  saturday_check_out_start: string;
+  saturday_check_out_end: string;
+  geofence_radius_meters: number;
+  max_gps_accuracy_meters: number;
+}
+
+const DEFAULT_ATTENDANCE_SETTINGS: AttendanceSettings = {
+  id: 1,
+  check_in_start: '06:00',
+  check_in_normal_end: '08:15',
+  check_in_late_end: '09:00',
+  lunch_out_start: '12:00',
+  lunch_out_end: '13:00',
+  lunch_in_start: '13:00',
+  lunch_in_end: '14:30',
+  check_out_normal_start: '17:30',
+  check_out_normal_end: '17:45',
+  ot_start: '17:46',
+  saturday_check_out_start: '12:00',
+  saturday_check_out_end: '20:00',
+  geofence_radius_meters: GEOFENCE_RADIUS_METERS,
+  max_gps_accuracy_meters: MAX_GPS_ACCURACY_METERS,
+};
+
+function normalizeAttendanceSettings(value: Partial<AttendanceSettings> | null | undefined): AttendanceSettings {
+  const merged = { ...DEFAULT_ATTENDANCE_SETTINGS, ...(value || {}) };
+
+  return {
+    ...merged,
+    geofence_radius_meters:
+      Number(merged.geofence_radius_meters) || GEOFENCE_RADIUS_METERS,
+    max_gps_accuracy_meters:
+      Number(merged.max_gps_accuracy_meters) || MAX_GPS_ACCURACY_METERS,
+  };
+}
+
 function formatLocalDate(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -212,11 +260,21 @@ function getMinutesFromDate(date = new Date()) {
   return date.getHours() * 60 + date.getMinutes();
 }
 
+function timeToMinutes(value: string, fallback: string) {
+  const source = /^\d{2}:\d{2}$/.test(value || '') ? value : fallback;
+  const [hour, minute] = source.split(':').map(Number);
+
+  return hour * 60 + minute;
+}
+
 function isSaturday(date = new Date()) {
   return date.getDay() === 6;
 }
 
-function getCheckInWindow(date = new Date()) {
+function getCheckInWindow(
+  date = new Date(),
+  settings = DEFAULT_ATTENDANCE_SETTINGS
+) {
   if (ATTENDANCE_TEST_MODE) {
     return {
       allowed: true,
@@ -229,16 +287,25 @@ function getCheckInWindow(date = new Date()) {
 
   const now = getMinutesFromDate(date);
 
-  const normalStart = 6 * 60;
-  const normalEnd = 8 * 60 + 15;
-  const lateEnd = 9 * 60;
+  const normalStart = timeToMinutes(
+    settings.check_in_start,
+    DEFAULT_ATTENDANCE_SETTINGS.check_in_start
+  );
+  const normalEnd = timeToMinutes(
+    settings.check_in_normal_end,
+    DEFAULT_ATTENDANCE_SETTINGS.check_in_normal_end
+  );
+  const lateEnd = timeToMinutes(
+    settings.check_in_late_end,
+    DEFAULT_ATTENDANCE_SETTINGS.check_in_late_end
+  );
 
   if (now < normalStart) {
     return {
       allowed: false,
       type: 'not_open',
       status: 'closed',
-      label: 'Check-in opens at 06:00',
+      label: `Check-in opens at ${settings.check_in_start}`,
       isLate: false,
     };
   }
@@ -272,18 +339,27 @@ function getCheckInWindow(date = new Date()) {
   };
 }
 
-function getCheckOutWindow(date = new Date()) {
+function getCheckOutWindow(
+  date = new Date(),
+  settings = DEFAULT_ATTENDANCE_SETTINGS
+) {
   const now = getMinutesFromDate(date);
 
   if (isSaturday(date)) {
-    const saturdayStart = 12 * 60;
-    const saturdayEnd = 20 * 60;
+    const saturdayStart = timeToMinutes(
+      settings.saturday_check_out_start,
+      DEFAULT_ATTENDANCE_SETTINGS.saturday_check_out_start
+    );
+    const saturdayEnd = timeToMinutes(
+      settings.saturday_check_out_end,
+      DEFAULT_ATTENDANCE_SETTINGS.saturday_check_out_end
+    );
 
     if (now < saturdayStart) {
       return {
         allowed: false,
         type: 'not_open',
-        label: 'Saturday check-out opens at 12:00',
+        label: `Saturday check-out opens at ${settings.saturday_check_out_start}`,
         overtimeHours: 0,
       };
     }
@@ -300,20 +376,29 @@ function getCheckOutWindow(date = new Date()) {
     return {
       allowed: false,
       type: 'closed',
-      label: 'Saturday check-out window closed at 20:00',
+      label: `Saturday check-out window closed at ${settings.saturday_check_out_end}`,
       overtimeHours: 0,
     };
   }
 
-  const normalStart = 17 * 60 + 30;
-  const normalEnd = 17 * 60 + 45;
-  const otStart = 17 * 60 + 46;
+  const normalStart = timeToMinutes(
+    settings.check_out_normal_start,
+    DEFAULT_ATTENDANCE_SETTINGS.check_out_normal_start
+  );
+  const normalEnd = timeToMinutes(
+    settings.check_out_normal_end,
+    DEFAULT_ATTENDANCE_SETTINGS.check_out_normal_end
+  );
+  const otStart = timeToMinutes(
+    settings.ot_start,
+    DEFAULT_ATTENDANCE_SETTINGS.ot_start
+  );
 
   if (now < normalStart) {
     return {
       allowed: false,
       type: 'not_open',
-      label: 'Check-out opens at 17:30',
+      label: `Check-out opens at ${settings.check_out_normal_start}`,
       overtimeHours: 0,
     };
   }
@@ -331,7 +416,7 @@ function getCheckOutWindow(date = new Date()) {
     return {
       allowed: false,
       type: 'not_open',
-      label: 'OT check-out starts at 17:46',
+      label: `OT check-out starts at ${settings.ot_start}`,
       overtimeHours: 0,
     };
   }
@@ -373,15 +458,24 @@ function getCheckOutWindow(date = new Date()) {
   };
 }
 
-function getLunchOutWindow(date = new Date()) {
+function getLunchOutWindow(
+  date = new Date(),
+  settings = DEFAULT_ATTENDANCE_SETTINGS
+) {
   const now = getMinutesFromDate(date);
-  const start = 12 * 60;
-  const end = 13 * 60;
+  const start = timeToMinutes(
+    settings.lunch_out_start,
+    DEFAULT_ATTENDANCE_SETTINGS.lunch_out_start
+  );
+  const end = timeToMinutes(
+    settings.lunch_out_end,
+    DEFAULT_ATTENDANCE_SETTINGS.lunch_out_end
+  );
 
   if (now < start) {
     return {
       allowed: false,
-      label: 'Lunch Out opens at 12:00',
+      label: `Lunch Out opens at ${settings.lunch_out_start}`,
     };
   }
 
@@ -398,15 +492,24 @@ function getLunchOutWindow(date = new Date()) {
   };
 }
 
-function getLunchInWindow(date = new Date()) {
+function getLunchInWindow(
+  date = new Date(),
+  settings = DEFAULT_ATTENDANCE_SETTINGS
+) {
   const now = getMinutesFromDate(date);
-  const start = 13 * 60;
-  const end = 14 * 60 + 30;
+  const start = timeToMinutes(
+    settings.lunch_in_start,
+    DEFAULT_ATTENDANCE_SETTINGS.lunch_in_start
+  );
+  const end = timeToMinutes(
+    settings.lunch_in_end,
+    DEFAULT_ATTENDANCE_SETTINGS.lunch_in_end
+  );
 
   if (now < start) {
     return {
       allowed: false,
-      label: 'Lunch In opens at 13:00',
+      label: `Lunch In opens at ${settings.lunch_in_start}`,
     };
   }
 
@@ -419,7 +522,7 @@ function getLunchInWindow(date = new Date()) {
 
   return {
     allowed: false,
-    label: 'Lunch In window closed at 14:30',
+    label: `Lunch In window closed at ${settings.lunch_in_end}`,
   };
 }
 
@@ -692,6 +795,14 @@ export default function Attendance() {
   const [busy, setBusy] = useState(false);
   const [gpsMessage, setGpsMessage] = useState('');
   const [deviceMessage, setDeviceMessage] = useState('');
+  const [attendanceSettings, setAttendanceSettings] = useState<AttendanceSettings>(
+    DEFAULT_ATTENDANCE_SETTINGS
+  );
+  const [settingsForm, setSettingsForm] = useState<AttendanceSettings>(
+    DEFAULT_ATTENDANCE_SETTINGS
+  );
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState('');
 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -709,10 +820,22 @@ export default function Attendance() {
   const [correctionError, setCorrectionError] = useState('');
   const [savingCorrection, setSavingCorrection] = useState(false);
 
-  const checkInWindow = useMemo(() => getCheckInWindow(now), [now]);
-  const checkOutWindow = useMemo(() => getCheckOutWindow(now), [now]);
-  const lunchOutWindow = useMemo(() => getLunchOutWindow(now), [now]);
-  const lunchInWindow = useMemo(() => getLunchInWindow(now), [now]);
+  const checkInWindow = useMemo(
+    () => getCheckInWindow(now, attendanceSettings),
+    [now, attendanceSettings]
+  );
+  const checkOutWindow = useMemo(
+    () => getCheckOutWindow(now, attendanceSettings),
+    [now, attendanceSettings]
+  );
+  const lunchOutWindow = useMemo(
+    () => getLunchOutWindow(now, attendanceSettings),
+    [now, attendanceSettings]
+  );
+  const lunchInWindow = useMemo(
+    () => getLunchInWindow(now, attendanceSettings),
+    [now, attendanceSettings]
+  );
 
   const approvedDevices = useMemo(
     () =>
@@ -760,13 +883,18 @@ export default function Attendance() {
     setError('');
 
     try {
-      const [att, emp] = await Promise.all([
+      const [att, emp, settings] = await Promise.all([
         fetch('/api/attendance').then((r) => r.json()),
         fetch('/api/employees').then((r) => r.json()),
+        fetch('/api/attendance?settings=1').then((r) => r.json()),
       ]);
+
+      const normalizedSettings = normalizeAttendanceSettings(settings);
 
       setRecords(Array.isArray(att) ? att : []);
       setEmployees(Array.isArray(emp) ? emp : []);
+      setAttendanceSettings(normalizedSettings);
+      setSettingsForm(normalizedSettings);
     } catch {
       setError('Failed to load attendance records.');
     } finally {
@@ -1110,7 +1238,11 @@ export default function Attendance() {
     const longitude = position.coords.longitude;
     const accuracy = position.coords.accuracy;
 
-    if (accuracy > MAX_GPS_ACCURACY_METERS) {
+    const maxAccuracy = Number(
+      attendanceSettings.max_gps_accuracy_meters || MAX_GPS_ACCURACY_METERS
+    );
+
+    if (accuracy > maxAccuracy) {
       throw new Error(
         `Your GPS accuracy is too low (${Math.round(
           accuracy
@@ -1126,13 +1258,16 @@ export default function Attendance() {
 
     const distance = nearest.distanceMeters;
     const site = nearest.site;
+    const allowedRadius = Number(
+      attendanceSettings.geofence_radius_meters || site.radiusMeters
+    );
 
-    if (distance > site.radiusMeters) {
+    if (distance > allowedRadius) {
       throw new Error(
         `You are outside the approved ${label} area.\n\nNearest site: ${
           site.name
         }\nYour distance: ${Math.round(distance)}m\nAllowed radius: ${
-          site.radiusMeters
+          allowedRadius
         }m`
       );
     }
@@ -1154,6 +1289,63 @@ export default function Attendance() {
     );
 
     return false;
+  };
+
+  const updateSettingsForm = (
+    field: keyof AttendanceSettings,
+    value: string
+  ) => {
+    setSettingsMessage('');
+    setSettingsForm((current) => ({
+      ...current,
+      [field]:
+        field === 'geofence_radius_meters' ||
+        field === 'max_gps_accuracy_meters'
+          ? Number(value)
+          : value,
+    }));
+  };
+
+  const saveAttendanceSettings = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!isAdmin || !profile) return;
+
+    setSavingSettings(true);
+    setSettingsMessage('');
+
+    try {
+      const cleanSettings = normalizeAttendanceSettings(settingsForm);
+
+      const res = await fetch('/api/attendance', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'settings_update',
+          changed_by: profile.id,
+          changed_by_name: profile.name,
+          ...cleanSettings,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to save attendance settings.');
+      }
+
+      const updatedSettings = normalizeAttendanceSettings(data);
+
+      setAttendanceSettings(updatedSettings);
+      setSettingsForm(updatedSettings);
+      setSettingsMessage('Attendance settings saved successfully.');
+    } catch (err) {
+      setSettingsMessage(
+        err instanceof Error ? err.message : 'Failed to save attendance settings.'
+      );
+    } finally {
+      setSavingSettings(false);
+    }
   };
 
   const handleExportCsv = () => {
@@ -1546,6 +1738,254 @@ export default function Attendance() {
           ) : undefined
         }
       />
+
+      {isAdmin && (
+        <form
+          onSubmit={saveAttendanceSettings}
+          className="glass rounded-2xl p-5 mb-6"
+        >
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 className="font-display font-semibold text-lg">
+                Attendance Settings
+              </h3>
+              <p className="text-xs text-muted mt-1">
+                Admin can adjust attendance time windows and GPS limits without
+                editing code. These settings are also used by the backend API.
+              </p>
+            </div>
+
+            <button
+              type="submit"
+              disabled={savingSettings}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {savingSettings ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Save size={16} />
+              )}
+              Save Settings
+            </button>
+          </div>
+
+          {settingsMessage && (
+            <div
+              className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
+                settingsMessage.includes('success')
+                  ? 'border-emerald/30 bg-emerald/10 text-emerald'
+                  : 'border-rose/30 bg-rose/10 text-rose'
+              }`}
+            >
+              {settingsMessage}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                Check-in Start
+              </span>
+              <input
+                type="time"
+                value={settingsForm.check_in_start}
+                onChange={(e) =>
+                  updateSettingsForm('check_in_start', e.target.value)
+                }
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                Normal Check-in End
+              </span>
+              <input
+                type="time"
+                value={settingsForm.check_in_normal_end}
+                onChange={(e) =>
+                  updateSettingsForm('check_in_normal_end', e.target.value)
+                }
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                Late Check-in End
+              </span>
+              <input
+                type="time"
+                value={settingsForm.check_in_late_end}
+                onChange={(e) =>
+                  updateSettingsForm('check_in_late_end', e.target.value)
+                }
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                Lunch Out Start
+              </span>
+              <input
+                type="time"
+                value={settingsForm.lunch_out_start}
+                onChange={(e) =>
+                  updateSettingsForm('lunch_out_start', e.target.value)
+                }
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                Lunch Out End
+              </span>
+              <input
+                type="time"
+                value={settingsForm.lunch_out_end}
+                onChange={(e) =>
+                  updateSettingsForm('lunch_out_end', e.target.value)
+                }
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                Lunch In Start
+              </span>
+              <input
+                type="time"
+                value={settingsForm.lunch_in_start}
+                onChange={(e) =>
+                  updateSettingsForm('lunch_in_start', e.target.value)
+                }
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                Lunch In End
+              </span>
+              <input
+                type="time"
+                value={settingsForm.lunch_in_end}
+                onChange={(e) =>
+                  updateSettingsForm('lunch_in_end', e.target.value)
+                }
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                Check-out Start
+              </span>
+              <input
+                type="time"
+                value={settingsForm.check_out_normal_start}
+                onChange={(e) =>
+                  updateSettingsForm('check_out_normal_start', e.target.value)
+                }
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                Normal Check-out End
+              </span>
+              <input
+                type="time"
+                value={settingsForm.check_out_normal_end}
+                onChange={(e) =>
+                  updateSettingsForm('check_out_normal_end', e.target.value)
+                }
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">OT Start</span>
+              <input
+                type="time"
+                value={settingsForm.ot_start}
+                onChange={(e) => updateSettingsForm('ot_start', e.target.value)}
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                Saturday Check-out Start
+              </span>
+              <input
+                type="time"
+                value={settingsForm.saturday_check_out_start}
+                onChange={(e) =>
+                  updateSettingsForm(
+                    'saturday_check_out_start',
+                    e.target.value
+                  )
+                }
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                Saturday Check-out End
+              </span>
+              <input
+                type="time"
+                value={settingsForm.saturday_check_out_end}
+                onChange={(e) =>
+                  updateSettingsForm('saturday_check_out_end', e.target.value)
+                }
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                GPS Radius Meter
+              </span>
+              <input
+                type="number"
+                min="10"
+                step="1"
+                value={settingsForm.geofence_radius_meters}
+                onChange={(e) =>
+                  updateSettingsForm('geofence_radius_meters', e.target.value)
+                }
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                Max GPS Accuracy Meter
+              </span>
+              <input
+                type="number"
+                min="10"
+                step="1"
+                value={settingsForm.max_gps_accuracy_meters}
+                onChange={(e) =>
+                  updateSettingsForm(
+                    'max_gps_accuracy_meters',
+                    e.target.value
+                  )
+                }
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+          </div>
+        </form>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="glass rounded-2xl p-4 flex items-center gap-3">

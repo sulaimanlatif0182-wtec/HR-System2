@@ -3,6 +3,24 @@ import supabase from './db-client.js';
 const GEOFENCE_RADIUS_METERS = 100;
 const MAX_GPS_ACCURACY_METERS = 250;
 
+const DEFAULT_ATTENDANCE_SETTINGS = {
+  id: 1,
+  check_in_start: '06:00',
+  check_in_normal_end: '08:15',
+  check_in_late_end: '09:00',
+  lunch_out_start: '12:00',
+  lunch_out_end: '13:00',
+  lunch_in_start: '13:00',
+  lunch_in_end: '14:30',
+  check_out_normal_start: '17:30',
+  check_out_normal_end: '17:45',
+  ot_start: '17:46',
+  saturday_check_out_start: '12:00',
+  saturday_check_out_end: '20:00',
+  geofence_radius_meters: GEOFENCE_RADIUS_METERS,
+  max_gps_accuracy_meters: MAX_GPS_ACCURACY_METERS,
+};
+
 const ATTENDANCE_SITES = [
   {
     name: 'Factory 1',
@@ -17,6 +35,121 @@ const ATTENDANCE_SITES = [
     radiusMeters: GEOFENCE_RADIUS_METERS,
   },
 ];
+
+function normalizeAttendanceSettings(value = {}) {
+  const merged = { ...DEFAULT_ATTENDANCE_SETTINGS, ...(value || {}) };
+
+  return {
+    ...merged,
+    geofence_radius_meters:
+      Number(merged.geofence_radius_meters) || GEOFENCE_RADIUS_METERS,
+    max_gps_accuracy_meters:
+      Number(merged.max_gps_accuracy_meters) || MAX_GPS_ACCURACY_METERS,
+  };
+}
+
+function cleanTime(value, fallback) {
+  const stringValue = String(value || '').trim();
+
+  return /^\d{2}:\d{2}$/.test(stringValue) ? stringValue : fallback;
+}
+
+function timeToMinutes(value, fallback) {
+  const source = cleanTime(value, fallback);
+  const [hour, minute] = source.split(':').map(Number);
+
+  return hour * 60 + minute;
+}
+
+async function getAttendanceSettings() {
+  const { data, error } = await supabase
+    .from('attendance_settings')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (error) {
+    // If the table has not been created yet, keep the system working with defaults.
+    return DEFAULT_ATTENDANCE_SETTINGS;
+  }
+
+  return normalizeAttendanceSettings(data || DEFAULT_ATTENDANCE_SETTINGS);
+}
+
+function settingsPayloadFromBody(body = {}) {
+  const settings = normalizeAttendanceSettings({
+    check_in_start: cleanTime(
+      body.check_in_start,
+      DEFAULT_ATTENDANCE_SETTINGS.check_in_start
+    ),
+    check_in_normal_end: cleanTime(
+      body.check_in_normal_end,
+      DEFAULT_ATTENDANCE_SETTINGS.check_in_normal_end
+    ),
+    check_in_late_end: cleanTime(
+      body.check_in_late_end,
+      DEFAULT_ATTENDANCE_SETTINGS.check_in_late_end
+    ),
+    lunch_out_start: cleanTime(
+      body.lunch_out_start,
+      DEFAULT_ATTENDANCE_SETTINGS.lunch_out_start
+    ),
+    lunch_out_end: cleanTime(
+      body.lunch_out_end,
+      DEFAULT_ATTENDANCE_SETTINGS.lunch_out_end
+    ),
+    lunch_in_start: cleanTime(
+      body.lunch_in_start,
+      DEFAULT_ATTENDANCE_SETTINGS.lunch_in_start
+    ),
+    lunch_in_end: cleanTime(
+      body.lunch_in_end,
+      DEFAULT_ATTENDANCE_SETTINGS.lunch_in_end
+    ),
+    check_out_normal_start: cleanTime(
+      body.check_out_normal_start,
+      DEFAULT_ATTENDANCE_SETTINGS.check_out_normal_start
+    ),
+    check_out_normal_end: cleanTime(
+      body.check_out_normal_end,
+      DEFAULT_ATTENDANCE_SETTINGS.check_out_normal_end
+    ),
+    ot_start: cleanTime(body.ot_start, DEFAULT_ATTENDANCE_SETTINGS.ot_start),
+    saturday_check_out_start: cleanTime(
+      body.saturday_check_out_start,
+      DEFAULT_ATTENDANCE_SETTINGS.saturday_check_out_start
+    ),
+    saturday_check_out_end: cleanTime(
+      body.saturday_check_out_end,
+      DEFAULT_ATTENDANCE_SETTINGS.saturday_check_out_end
+    ),
+    geofence_radius_meters:
+      Number(body.geofence_radius_meters) || GEOFENCE_RADIUS_METERS,
+    max_gps_accuracy_meters:
+      Number(body.max_gps_accuracy_meters) || MAX_GPS_ACCURACY_METERS,
+  });
+
+  return {
+    id: 1,
+    check_in_start: settings.check_in_start,
+    check_in_normal_end: settings.check_in_normal_end,
+    check_in_late_end: settings.check_in_late_end,
+    lunch_out_start: settings.lunch_out_start,
+    lunch_out_end: settings.lunch_out_end,
+    lunch_in_start: settings.lunch_in_start,
+    lunch_in_end: settings.lunch_in_end,
+    check_out_normal_start: settings.check_out_normal_start,
+    check_out_normal_end: settings.check_out_normal_end,
+    ot_start: settings.ot_start,
+    saturday_check_out_start: settings.saturday_check_out_start,
+    saturday_check_out_end: settings.saturday_check_out_end,
+    geofence_radius_meters: settings.geofence_radius_meters,
+    max_gps_accuracy_meters: settings.max_gps_accuracy_meters,
+    updated_by: body.changed_by || null,
+    updated_by_name: body.changed_by_name || null,
+    updated_at: new Date().toISOString(),
+  };
+}
 
 function getMalaysiaNowInfo() {
   const parts = new Intl.DateTimeFormat('en-GB', {
@@ -48,19 +181,28 @@ function isMalaysiaSaturdayNow() {
   return getMalaysiaNowInfo().weekday === 'Sat';
 }
 
-function getCheckInWindow() {
+function getCheckInWindow(settings = DEFAULT_ATTENDANCE_SETTINGS) {
   const now = getMalaysiaMinutesNow();
 
-  const normalStart = 6 * 60;
-  const normalEnd = 8 * 60 + 15;
-  const lateEnd = 9 * 60;
+  const normalStart = timeToMinutes(
+    settings.check_in_start,
+    DEFAULT_ATTENDANCE_SETTINGS.check_in_start
+  );
+  const normalEnd = timeToMinutes(
+    settings.check_in_normal_end,
+    DEFAULT_ATTENDANCE_SETTINGS.check_in_normal_end
+  );
+  const lateEnd = timeToMinutes(
+    settings.check_in_late_end,
+    DEFAULT_ATTENDANCE_SETTINGS.check_in_late_end
+  );
 
   if (now < normalStart) {
     return {
       allowed: false,
       type: 'not_open',
       status: 'closed',
-      label: 'Check-in opens at 06:00',
+      label: `Check-in opens at ${settings.check_in_start}`,
       isLate: false,
     };
   }
@@ -94,20 +236,24 @@ function getCheckInWindow() {
   };
 }
 
-function getCheckOutWindow() {
+function getCheckOutWindow(settings = DEFAULT_ATTENDANCE_SETTINGS) {
   const now = getMalaysiaMinutesNow();
 
-  // Saturday special rule:
-  // Check-out is allowed from 12:00 until 20:00.
   if (isMalaysiaSaturdayNow()) {
-    const saturdayStart = 12 * 60;
-    const saturdayEnd = 20 * 60;
+    const saturdayStart = timeToMinutes(
+      settings.saturday_check_out_start,
+      DEFAULT_ATTENDANCE_SETTINGS.saturday_check_out_start
+    );
+    const saturdayEnd = timeToMinutes(
+      settings.saturday_check_out_end,
+      DEFAULT_ATTENDANCE_SETTINGS.saturday_check_out_end
+    );
 
     if (now < saturdayStart) {
       return {
         allowed: false,
         type: 'not_open',
-        label: 'Saturday check-out opens at 12:00',
+        label: `Saturday check-out opens at ${settings.saturday_check_out_start}`,
         overtimeHours: 0,
       };
     }
@@ -124,20 +270,29 @@ function getCheckOutWindow() {
     return {
       allowed: false,
       type: 'closed',
-      label: 'Saturday check-out window closed at 20:00',
+      label: `Saturday check-out window closed at ${settings.saturday_check_out_end}`,
       overtimeHours: 0,
     };
   }
 
-  const normalStart = 17 * 60 + 30;
-  const normalEnd = 17 * 60 + 45;
-  const otStart = 17 * 60 + 46;
+  const normalStart = timeToMinutes(
+    settings.check_out_normal_start,
+    DEFAULT_ATTENDANCE_SETTINGS.check_out_normal_start
+  );
+  const normalEnd = timeToMinutes(
+    settings.check_out_normal_end,
+    DEFAULT_ATTENDANCE_SETTINGS.check_out_normal_end
+  );
+  const otStart = timeToMinutes(
+    settings.ot_start,
+    DEFAULT_ATTENDANCE_SETTINGS.ot_start
+  );
 
   if (now < normalStart) {
     return {
       allowed: false,
       type: 'not_open',
-      label: 'Check-out opens at 17:30',
+      label: `Check-out opens at ${settings.check_out_normal_start}`,
       overtimeHours: 0,
     };
   }
@@ -155,7 +310,7 @@ function getCheckOutWindow() {
     return {
       allowed: false,
       type: 'not_open',
-      label: 'OT check-out starts at 17:46',
+      label: `OT check-out starts at ${settings.ot_start}`,
       overtimeHours: 0,
     };
   }
@@ -197,16 +352,22 @@ function getCheckOutWindow() {
   };
 }
 
-function getLunchOutWindow() {
+function getLunchOutWindow(settings = DEFAULT_ATTENDANCE_SETTINGS) {
   const now = getMalaysiaMinutesNow();
 
-  const lunchOutStart = 12 * 60;
-  const lunchOutEnd = 13 * 60;
+  const lunchOutStart = timeToMinutes(
+    settings.lunch_out_start,
+    DEFAULT_ATTENDANCE_SETTINGS.lunch_out_start
+  );
+  const lunchOutEnd = timeToMinutes(
+    settings.lunch_out_end,
+    DEFAULT_ATTENDANCE_SETTINGS.lunch_out_end
+  );
 
   if (now < lunchOutStart) {
     return {
       allowed: false,
-      label: 'Lunch Out opens at 12:00',
+      label: `Lunch Out opens at ${settings.lunch_out_start}`,
     };
   }
 
@@ -223,16 +384,22 @@ function getLunchOutWindow() {
   };
 }
 
-function getLunchInWindow() {
+function getLunchInWindow(settings = DEFAULT_ATTENDANCE_SETTINGS) {
   const now = getMalaysiaMinutesNow();
 
-  const lunchInStart = 13 * 60;
-  const lunchInEnd = 14 * 60 + 30;
+  const lunchInStart = timeToMinutes(
+    settings.lunch_in_start,
+    DEFAULT_ATTENDANCE_SETTINGS.lunch_in_start
+  );
+  const lunchInEnd = timeToMinutes(
+    settings.lunch_in_end,
+    DEFAULT_ATTENDANCE_SETTINGS.lunch_in_end
+  );
 
   if (now < lunchInStart) {
     return {
       allowed: false,
-      label: 'Lunch In opens at 13:00',
+      label: `Lunch In opens at ${settings.lunch_in_start}`,
     };
   }
 
@@ -245,7 +412,7 @@ function getLunchInWindow() {
 
   return {
     allowed: false,
-    label: 'Lunch In window closed at 14:30',
+    label: `Lunch In window closed at ${settings.lunch_in_end}`,
   };
 }
 
@@ -305,7 +472,13 @@ function nullableNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-function validateLocation(latitude, longitude, accuracy, actionLabel) {
+function validateLocation(
+  latitude,
+  longitude,
+  accuracy,
+  actionLabel,
+  settings = DEFAULT_ATTENDANCE_SETTINGS
+) {
   if (latitude === null || longitude === null || accuracy === null) {
     return {
       ok: false,
@@ -314,7 +487,11 @@ function validateLocation(latitude, longitude, accuracy, actionLabel) {
     };
   }
 
-  if (accuracy > MAX_GPS_ACCURACY_METERS) {
+  const maxAccuracy = Number(
+    settings.max_gps_accuracy_meters || MAX_GPS_ACCURACY_METERS
+  );
+
+  if (accuracy > maxAccuracy) {
     return {
       ok: false,
       status: 400,
@@ -336,19 +513,22 @@ function validateLocation(latitude, longitude, accuracy, actionLabel) {
 
   const site = nearest.site;
   const distanceMeters = nearest.distanceMeters;
+  const allowedRadius = Number(
+    settings.geofence_radius_meters || site.radiusMeters
+  );
 
-  if (distanceMeters > site.radiusMeters) {
+  if (distanceMeters > allowedRadius) {
     return {
       ok: false,
       status: 403,
       error: `You are outside the approved ${actionLabel} area. Nearest site: ${
         site.name
       }. Distance: ${Math.round(distanceMeters)}m. Allowed radius: ${
-        site.radiusMeters
+        allowedRadius
       }m.`,
       nearest_site: site.name,
       distance_meters: Math.round(distanceMeters),
-      allowed_radius_meters: site.radiusMeters,
+      allowed_radius_meters: allowedRadius,
     };
   }
 
@@ -465,6 +645,12 @@ export default async function handler(req, res) {
     // GET ATTENDANCE RECORDS
     // =========================
     if (req.method === 'GET') {
+      if (req.query?.settings === '1') {
+        const settings = await getAttendanceSettings();
+
+        return res.status(200).json(settings);
+      }
+
       const { data, error } = await supabase
         .from('attendance')
         .select('*')
@@ -500,7 +686,8 @@ export default async function handler(req, res) {
         });
       }
 
-      const checkInWindow = getCheckInWindow();
+      const attendanceSettings = await getAttendanceSettings();
+      const checkInWindow = getCheckInWindow(attendanceSettings);
 
       if (!checkInWindow.allowed) {
         return res.status(403).json({
@@ -528,7 +715,8 @@ export default async function handler(req, res) {
         latitude,
         longitude,
         accuracy,
-        'check-in'
+        'check-in',
+        attendanceSettings
       );
 
       if (!locationResult.ok) {
@@ -598,6 +786,29 @@ export default async function handler(req, res) {
     if (req.method === 'PUT') {
       const body = req.body || {};
       const action = body.action || 'check_out';
+
+      // =========================
+      // ATTENDANCE SETTINGS UPDATE
+      // =========================
+      if (action === 'settings_update') {
+        const payload = settingsPayloadFromBody(body);
+
+        const { data, error } = await supabase
+          .from('attendance_settings')
+          .upsert(payload, { onConflict: 'id' })
+          .select()
+          .single();
+
+        if (error) {
+          return res.status(500).json({
+            error:
+              error.message ||
+              'Failed to save attendance settings. Please make sure attendance_settings table exists.',
+          });
+        }
+
+        return res.status(200).json(normalizeAttendanceSettings(data));
+      }
 
       // =========================
       // MANUAL CORRECTION
@@ -733,7 +944,8 @@ export default async function handler(req, res) {
           });
         }
 
-        const lunchWindow = getLunchOutWindow();
+        const attendanceSettings = await getAttendanceSettings();
+        const lunchWindow = getLunchOutWindow(attendanceSettings);
 
         if (!lunchWindow.allowed) {
           return res.status(403).json({
@@ -745,7 +957,13 @@ export default async function handler(req, res) {
         const lng = toNumber(longitude);
         const acc = toNumber(accuracy);
 
-        const locationResult = validateLocation(lat, lng, acc, 'lunch-out');
+        const locationResult = validateLocation(
+          lat,
+          lng,
+          acc,
+          'lunch-out',
+          attendanceSettings
+        );
 
         if (!locationResult.ok) {
           return res.status(locationResult.status).json(locationResult);
@@ -842,7 +1060,8 @@ export default async function handler(req, res) {
           });
         }
 
-        const lunchWindow = getLunchInWindow();
+        const attendanceSettings = await getAttendanceSettings();
+        const lunchWindow = getLunchInWindow(attendanceSettings);
 
         if (!lunchWindow.allowed) {
           return res.status(403).json({
@@ -854,7 +1073,13 @@ export default async function handler(req, res) {
         const lng = toNumber(longitude);
         const acc = toNumber(accuracy);
 
-        const locationResult = validateLocation(lat, lng, acc, 'lunch-in');
+        const locationResult = validateLocation(
+          lat,
+          lng,
+          acc,
+          'lunch-in',
+          attendanceSettings
+        );
 
         if (!locationResult.ok) {
           return res.status(locationResult.status).json(locationResult);
@@ -972,7 +1197,8 @@ export default async function handler(req, res) {
         });
       }
 
-      const checkOutWindow = getCheckOutWindow();
+      const attendanceSettings = await getAttendanceSettings();
+      const checkOutWindow = getCheckOutWindow(attendanceSettings);
 
       if (!checkOutWindow.allowed) {
         return res.status(403).json({
@@ -988,7 +1214,8 @@ export default async function handler(req, res) {
         latitude,
         longitude,
         accuracy,
-        'check-out'
+        'check-out',
+        attendanceSettings
       );
 
       if (!locationResult.ok) {
