@@ -1,11 +1,25 @@
+import fs from 'fs';
+import path from 'path';
 import PDFDocument from 'pdfkit';
 import supabase from './db-client.js';
+
+const BRAND_BLUE = '#1f4fa3';
+const BRAND_RED = '#dc1828';
+const DARK = '#111827';
+const MUTED = '#6b7280';
+const LIGHT_BORDER = '#e5e7eb';
+const LIGHT_BG = '#f8fafc';
 
 function money(value) {
   return `RM ${Number(value || 0).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function numberValue(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number : 0;
 }
 
 function formatDate(value) {
@@ -38,7 +52,6 @@ function makePassword(dateOfBirth, identityLast4) {
   const yy = String(date.getFullYear()).slice(-2);
   const mm = String(date.getMonth() + 1).padStart(2, '0');
   const dd = String(date.getDate()).padStart(2, '0');
-
   const last4 = String(identityLast4).trim();
 
   if (last4.length < 4) {
@@ -48,46 +61,223 @@ function makePassword(dateOfBirth, identityLast4) {
   return `${yy}${mm}${dd}${last4.slice(-4)}`;
 }
 
-function drawRow(doc, label, value, x, y, width = 240) {
-  doc
-    .font('Helvetica')
-    .fontSize(9)
-    .fillColor('#555')
-    .text(label, x, y, { width });
+function getLogoPath() {
+  const candidates = [
+    path.join(process.cwd(), 'public', 'profile_logo.png'),
+    path.join(process.cwd(), 'profile_logo.png'),
+    path.join('/tmp', 'profile_logo.png'),
+  ];
+
+  return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+}
+
+function drawPageHeader(doc, payroll) {
+  const logoPath = getLogoPath();
+
+  doc.save();
+  doc.rect(0, 0, doc.page.width, 112).fill('#ffffff');
+  doc.rect(0, 108, doc.page.width, 4).fill(BRAND_BLUE);
+  doc.rect(0, 112, doc.page.width, 2).fill(BRAND_RED);
+
+  if (logoPath) {
+    try {
+      doc.image(logoPath, 36, 28, {
+        width: 210,
+        height: 62,
+        fit: [210, 62],
+        align: 'left',
+        valign: 'center',
+      });
+    } catch {
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(28)
+        .fillColor(BRAND_BLUE)
+        .text('WTEC', 36, 42);
+    }
+  } else {
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(28)
+      .fillColor(BRAND_BLUE)
+      .text('WTEC', 36, 42);
+  }
 
   doc
     .font('Helvetica-Bold')
-    .fontSize(10)
-    .fillColor('#111')
-    .text(value || '-', x, y + 13, { width });
-}
-
-function drawLine(doc, y) {
-  doc
-    .strokeColor('#dddddd')
-    .lineWidth(1)
-    .moveTo(36, y)
-    .lineTo(559, y)
-    .stroke();
-}
-
-function drawAmountRow(doc, label, value, y, options = {}) {
-  const color = options.color || '#111';
-
-  doc
-    .font('Helvetica')
-    .fontSize(10)
-    .fillColor('#111')
-    .text(label, 56, y);
-
-  doc
-    .font('Helvetica-Bold')
-    .fontSize(10)
-    .fillColor(color)
-    .text(money(value), 430, y, {
-      width: 100,
+    .fontSize(18)
+    .fillColor(DARK)
+    .text('CONFIDENTIAL PAYSLIP', 335, 34, {
+      width: 220,
       align: 'right',
     });
+
+  doc
+    .font('Helvetica')
+    .fontSize(10)
+    .fillColor(MUTED)
+    .text('Human Resource Department', 335, 58, {
+      width: 220,
+      align: 'right',
+    })
+    .text(`Payroll Period: ${payroll.period}`, 335, 74, {
+      width: 220,
+      align: 'right',
+    });
+
+  doc.restore();
+}
+
+function drawFooter(doc, pageNo = 1) {
+  doc.save();
+  doc
+    .strokeColor(LIGHT_BORDER)
+    .lineWidth(1)
+    .moveTo(36, 785)
+    .lineTo(559, 785)
+    .stroke();
+
+  doc
+    .font('Helvetica')
+    .fontSize(8)
+    .fillColor(MUTED)
+    .text(
+      'This is a computer-generated, password-protected payslip. It is confidential and intended only for the named employee.',
+      36,
+      794,
+      {
+        width: 430,
+      }
+    )
+    .text(`Page ${pageNo}`, 500, 794, {
+      width: 59,
+      align: 'right',
+    });
+  doc.restore();
+}
+
+function drawSectionTitle(doc, title, x, y, width = 523) {
+  doc.save();
+  doc
+    .roundedRect(x, y, width, 26, 6)
+    .fill(BRAND_BLUE);
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(11)
+    .fillColor('#ffffff')
+    .text(title, x + 12, y + 8, {
+      width: width - 24,
+    });
+  doc.restore();
+}
+
+function drawInfoBox(doc, items, x, y, width, columns = 2) {
+  const colWidth = width / columns;
+  const rowHeight = 44;
+  const rows = Math.ceil(items.length / columns);
+  const height = rows * rowHeight + 14;
+
+  doc.save();
+  doc.roundedRect(x, y, width, height, 8).fill(LIGHT_BG).strokeColor(LIGHT_BORDER).stroke();
+
+  items.forEach((item, index) => {
+    const col = index % columns;
+    const row = Math.floor(index / columns);
+    const itemX = x + 14 + col * colWidth;
+    const itemY = y + 12 + row * rowHeight;
+
+    doc
+      .font('Helvetica')
+      .fontSize(8)
+      .fillColor(MUTED)
+      .text(item.label, itemX, itemY, {
+        width: colWidth - 22,
+      });
+
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(9.5)
+      .fillColor(DARK)
+      .text(item.value || '-', itemX, itemY + 13, {
+        width: colWidth - 22,
+      });
+  });
+
+  doc.restore();
+  return y + height;
+}
+
+function drawAmountTable(doc, title, rows, x, y, width = 250) {
+  drawSectionTitle(doc, title, x, y, width);
+
+  let currentY = y + 36;
+
+  doc.save();
+  doc.roundedRect(x, currentY - 6, width, rows.length * 24 + 12, 8).fill('#ffffff').strokeColor(LIGHT_BORDER).stroke();
+
+  rows.forEach((row, index) => {
+    const rowY = currentY + index * 24;
+
+    if (index > 0) {
+      doc
+        .strokeColor('#f1f5f9')
+        .lineWidth(1)
+        .moveTo(x + 10, rowY - 6)
+        .lineTo(x + width - 10, rowY - 6)
+        .stroke();
+    }
+
+    doc
+      .font(row.bold ? 'Helvetica-Bold' : 'Helvetica')
+      .fontSize(row.bold ? 10 : 9.5)
+      .fillColor(row.color || DARK)
+      .text(row.label, x + 12, rowY, {
+        width: width - 120,
+      });
+
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(row.bold ? 10 : 9.5)
+      .fillColor(row.color || DARK)
+      .text(money(row.value), x + width - 112, rowY, {
+        width: 100,
+        align: 'right',
+      });
+  });
+
+  doc.restore();
+  return currentY + rows.length * 24 + 12;
+}
+
+function drawNetPayBox(doc, payroll, x, y, width = 523) {
+  doc.save();
+  doc.roundedRect(x, y, width, 58, 10).fill('#eff6ff').strokeColor('#bfdbfe').stroke();
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(14)
+    .fillColor(DARK)
+    .text('NET PAY', x + 18, y + 18);
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(22)
+    .fillColor(BRAND_BLUE)
+    .text(money(payroll.net_pay), x + width - 230, y + 14, {
+      width: 210,
+      align: 'right',
+    });
+  doc.restore();
+}
+
+function totalEmployeeDeductions(payroll) {
+  return (
+    numberValue(payroll.epf_employee) +
+    numberValue(payroll.socso_employee) +
+    numberValue(payroll.eis_employee) +
+    numberValue(payroll.pcb) +
+    numberValue(payroll.leave_deduction) +
+    numberValue(payroll.lunch_deduction) +
+    numberValue(payroll.deductions)
+  );
 }
 
 async function buildPayslipPdf({ payroll, employee, password }) {
@@ -109,172 +299,168 @@ async function buildPayslipPdf({ payroll, employee, password }) {
         contentAccessibility: true,
         documentAssembly: false,
       },
+      info: {
+        Title: `Payslip ${employee.name} ${payroll.period}`,
+        Author: 'WtecHR',
+        Subject: 'Confidential Payslip',
+      },
     });
 
     doc.on('data', (chunk) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    // Header
-    doc.rect(36, 36, 523, 70).fill('#111827');
+    drawPageHeader(doc, payroll);
 
-    doc
-      .fillColor('#ffffff')
-      .font('Helvetica-Bold')
-      .fontSize(22)
-      .text('WtecHR Payslip', 56, 55);
+    let y = 136;
 
-    doc
-      .font('Helvetica')
-      .fontSize(10)
-      .fillColor('#d1d5db')
-      .text('Confidential salary document', 56, 82);
-
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(12)
-      .fillColor('#ffffff')
-      .text(payroll.period, 460, 60, {
-        width: 75,
-        align: 'right',
-      });
-
-    // Employee information
-    doc
-      .fillColor('#111')
-      .font('Helvetica-Bold')
-      .fontSize(14)
-      .text('Employee Information', 36, 130);
-
-    drawLine(doc, 152);
-
-    drawRow(doc, 'Employee Name', employee.name, 56, 170);
-    drawRow(doc, 'Employee ID', String(employee.id), 320, 170);
-    drawRow(doc, 'Department', employee.department || '-', 56, 215);
-    drawRow(doc, 'Designation', employee.title || '-', 320, 215);
-    drawRow(doc, 'Period', payroll.period, 56, 260);
-    drawRow(doc, 'Status', payroll.status, 320, 260);
-
-    // Earnings
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(14)
-      .fillColor('#111')
-      .text('Earnings', 36, 320);
-
-    drawLine(doc, 342);
-
-    drawAmountRow(doc, 'Base Salary', payroll.base_salary, 360);
-    drawAmountRow(doc, 'Bonus', payroll.bonus, 382);
-    drawAmountRow(doc, 'OT Pay', payroll.ot_pay, 404);
-    drawAmountRow(doc, 'Claims', payroll.claim_amount, 426);
-
-    drawLine(doc, 452);
-
-    drawAmountRow(doc, 'Gross Pay', payroll.gross_pay, 466, {
-      color: '#059669',
-    });
-
-    // Deductions
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(14)
-      .fillColor('#111')
-      .text('Deductions', 36, 520);
-
-    drawLine(doc, 542);
-
-    drawAmountRow(doc, 'EPF Employee', payroll.epf_employee, 560);
-    drawAmountRow(doc, 'SOCSO Employee', payroll.socso_employee, 582);
-    drawAmountRow(doc, 'EIS Employee', payroll.eis_employee, 604);
-    drawAmountRow(doc, 'PCB', payroll.pcb, 626);
-    drawAmountRow(doc, 'Leave Deduction', payroll.leave_deduction, 648);
-    drawAmountRow(doc, 'Other Deductions', payroll.deductions, 670);
-
-    drawLine(doc, 698);
-
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(16)
-      .fillColor('#111')
-      .text('Net Pay', 56, 716);
-
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(18)
-      .fillColor('#2563eb')
-      .text(money(payroll.net_pay), 390, 712, {
-        width: 140,
-        align: 'right',
-      });
-
-    // Second page
-    doc.addPage();
-
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(16)
-      .fillColor('#111')
-      .text('Employer Contributions & Details', 36, 50);
-
-    drawLine(doc, 75);
-
-    drawAmountRow(doc, 'EPF Employer', payroll.epf_employer, 100);
-    drawAmountRow(doc, 'SOCSO Employer', payroll.socso_employer, 122);
-    drawAmountRow(doc, 'EIS Employer', payroll.eis_employer, 144);
-
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(14)
-      .fillColor('#111')
-      .text('Payroll Details', 36, 200);
-
-    drawLine(doc, 222);
-
-    drawRow(doc, 'OT Hours', String(payroll.ot_hours || 0), 56, 240);
-    drawRow(doc, 'OT Rate', money(payroll.ot_rate), 320, 240);
-    drawRow(
+    y = drawInfoBox(
       doc,
-      'Unpaid Leave Days',
-      String(payroll.unpaid_leave_days || 0),
-      56,
-      285
+      [
+        { label: 'Employee Name', value: employee.name },
+        { label: 'Employee ID', value: String(employee.id) },
+        { label: 'Department', value: employee.department || '-' },
+        { label: 'Designation', value: employee.title || '-' },
+        { label: 'Payroll Period', value: payroll.period },
+        { label: 'Payroll Status', value: payroll.status },
+        { label: 'EPF No', value: employee.epf_no || '-' },
+        { label: 'SOCSO No', value: employee.socso_no || '-' },
+        { label: 'Income Tax No', value: employee.income_tax_no || '-' },
+        {
+          label: 'Bank',
+          value:
+            employee.bank_name || employee.bank_account_no
+              ? `${employee.bank_name || '-'} · ${employee.bank_account_no || '-'}`
+              : '-',
+        },
+      ],
+      36,
+      y,
+      523,
+      2
     );
-    drawRow(doc, 'Released At', formatDate(payroll.released_at), 320, 285);
-    drawRow(doc, 'Approved By', payroll.approved_by || '-', 56, 330);
-    drawRow(doc, 'Approved At', formatDate(payroll.approved_at), 320, 330);
 
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(14)
-      .fillColor('#111')
-      .text('Remarks', 36, 400);
+    y += 22;
 
-    drawLine(doc, 422);
+    const earningsRows = [
+      { label: 'Base Salary', value: payroll.base_salary },
+      { label: 'Bonus', value: payroll.bonus },
+      { label: 'Overtime Pay', value: payroll.ot_pay },
+      { label: 'Claims', value: payroll.claim_amount },
+      { label: 'Gross Pay', value: payroll.gross_pay, bold: true, color: '#059669' },
+    ];
+
+    const deductionsRows = [
+      { label: 'EPF Employee', value: payroll.epf_employee },
+      { label: 'SOCSO Employee', value: payroll.socso_employee },
+      { label: 'EIS Employee', value: payroll.eis_employee },
+      { label: 'PCB / Tax', value: payroll.pcb },
+      { label: 'Leave Deduction', value: payroll.leave_deduction },
+      { label: 'Lunch Deduction', value: payroll.lunch_deduction },
+      { label: 'Other Deductions', value: payroll.deductions },
+      {
+        label: 'Total Deductions',
+        value: totalEmployeeDeductions(payroll),
+        bold: true,
+        color: BRAND_RED,
+      },
+    ];
+
+    const leftEnd = drawAmountTable(doc, 'EARNINGS', earningsRows, 36, y, 252);
+    const rightEnd = drawAmountTable(doc, 'DEDUCTIONS', deductionsRows, 307, y, 252);
+
+    y = Math.max(leftEnd, rightEnd) + 24;
+
+    drawNetPayBox(doc, payroll, 36, y);
+
+    y += 82;
+
+    drawSectionTitle(doc, 'EMPLOYER CONTRIBUTIONS', 36, y, 523);
+    y += 40;
+
+    y = drawInfoBox(
+      doc,
+      [
+        { label: 'EPF Employer', value: money(payroll.epf_employer) },
+        { label: 'SOCSO Employer', value: money(payroll.socso_employer) },
+        { label: 'EIS Employer', value: money(payroll.eis_employer) },
+        {
+          label: 'Total Employer Contribution',
+          value: money(
+            numberValue(payroll.epf_employer) +
+              numberValue(payroll.socso_employer) +
+              numberValue(payroll.eis_employer)
+          ),
+        },
+      ],
+      36,
+      y,
+      523,
+      2
+    );
+
+    drawFooter(doc, 1);
+
+    doc.addPage();
+    drawPageHeader(doc, payroll);
+
+    y = 140;
+
+    drawSectionTitle(doc, 'PAYROLL DETAILS', 36, y, 523);
+    y += 40;
+
+    y = drawInfoBox(
+      doc,
+      [
+        { label: 'OT Hours', value: String(payroll.ot_hours || 0) },
+        { label: 'OT Rate', value: money(payroll.ot_rate) },
+        { label: 'Unpaid Leave Days', value: String(payroll.unpaid_leave_days || 0) },
+        { label: 'Lunch Late Minutes', value: String(payroll.lunch_late_minutes || 0) },
+        { label: 'Approved By', value: payroll.approved_by || '-' },
+        { label: 'Approved At', value: formatDate(payroll.approved_at) },
+        { label: 'Released At', value: formatDate(payroll.released_at) },
+        { label: 'Payslip Generated', value: formatDate(new Date().toISOString()) },
+      ],
+      36,
+      y,
+      523,
+      2
+    );
+
+    y += 26;
+
+    drawSectionTitle(doc, 'REMARKS', 36, y, 523);
+    y += 42;
 
     doc
       .font('Helvetica')
       .fontSize(10)
-      .fillColor('#333')
-      .text(payroll.remarks || '-', 56, 440, {
-        width: 460,
-        lineGap: 3,
+      .fillColor('#333333')
+      .text(payroll.remarks || '-', 56, y, {
+        width: 483,
+        lineGap: 4,
       });
+
+    y += 130;
+
+    drawSectionTitle(doc, 'CONFIDENTIALITY NOTICE', 36, y, 523);
+    y += 42;
 
     doc
       .font('Helvetica')
-      .fontSize(8)
-      .fillColor('#777')
+      .fontSize(10)
+      .fillColor('#333333')
       .text(
-        'This is a computer-generated payslip. The PDF is password-protected using employee identity verification.',
-        36,
-        780,
+        'This payslip is issued by WtecHR and contains confidential payroll information. The PDF is encrypted using the employee date of birth and identity last 4 digits. Please keep this document secure and do not share it publicly.',
+        56,
+        y,
         {
-          width: 523,
-          align: 'center',
+          width: 483,
+          lineGap: 4,
         }
       );
 
+    drawFooter(doc, 2);
     doc.end();
   });
 }
@@ -318,7 +504,7 @@ export default async function handler(req, res) {
     const { data: employee, error: employeeError } = await supabase
       .from('employees')
       .select(
-        'id, name, email, department, title, date_of_birth, identity_type, identity_last4'
+        'id, name, email, department, title, date_of_birth, identity_type, identity_last4, bank_name, bank_account_no, epf_no, socso_no, income_tax_no'
       )
       .eq('id', payroll.employee_id)
       .maybeSingle();
