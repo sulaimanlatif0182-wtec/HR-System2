@@ -98,7 +98,7 @@ export default function HrLetters() {
     const printBody = letter?.content || content;
     const w = window.open('', '_blank', 'width=900,height=700');
     if (!w) return alert('Popup blocked. Please allow popups.');
-    w.document.write(`<html><head><title>${printTitle}</title><style>body{font-family:Arial;padding:40px;line-height:1.6;white-space:pre-wrap}</style></head><body><h2>${printTitle}</h2><div>${printBody.replace(/</g, '&lt;')}</div><script>window.print()</script></body></html>`);
+    w.document.write(`<html><head><title>${printTitle}</title><style>body{font-family:Arial;padding:40px;line-height:1.6;color:#111}.letterhead{display:flex;align-items:center;gap:18px;border-bottom:3px solid #1d4ed8;padding-bottom:18px;margin-bottom:28px}.letterhead img{max-height:72px;max-width:260px}.company h1{margin:0;font-size:22px;color:#1d4ed8}.company p{margin:3px 0;font-size:12px;color:#555}.content{white-space:pre-wrap;font-size:14px}.title{font-size:18px;font-weight:700;margin-bottom:18px;text-transform:uppercase}@media print{body{padding:24px}.no-print{display:none}}</style></head><body><div class="letterhead"><img src="/profile_logo.png"/><div class="company"><h1>WTEC</h1><p>Human Resource Department</p><p>Official HR Letter</p></div></div><div class="title">${printTitle}</div><div class="content">${printBody.replace(/</g, '&lt;')}</div><script>window.print()</script></body></html>`);
     w.document.close();
   };
 

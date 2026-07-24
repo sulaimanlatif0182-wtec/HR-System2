@@ -10,6 +10,7 @@ import {
   Wallet,
   Cake,
   CalendarCheck,
+  Megaphone,
   Loader2,
   RefreshCw,
 } from 'lucide-react';
@@ -75,6 +76,17 @@ interface HolidayRecord {
   name: string;
   type: string;
   is_working_day?: boolean | null;
+}
+
+interface AnnouncementRecord {
+  id: number;
+  title: string;
+  body: string;
+  category: string;
+  pinned: boolean;
+  expires_at?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
 }
 
 function formatLocalDate(date = new Date()) {
@@ -169,6 +181,7 @@ export default function Dashboard() {
   const [claims, setClaims] = useState<ClaimRecord[]>([]);
   const [payroll, setPayroll] = useState<PayrollRecord[]>([]);
   const [holidays, setHolidays] = useState<HolidayRecord[]>([]);
+  const [announcements, setAnnouncements] = useState<AnnouncementRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -177,7 +190,7 @@ export default function Dashboard() {
     setError('');
 
     try {
-      const [empData, attData, leaveData, claimData, payrollData, holidayData] =
+      const [empData, attData, leaveData, claimData, payrollData, holidayData, announcementData] =
         await Promise.all([
           fetch('/api/employees').then((r) => r.json()),
           fetch('/api/attendance').then((r) => r.json()),
@@ -185,6 +198,7 @@ export default function Dashboard() {
           fetch('/api/claims').then((r) => r.json()).catch(() => []),
           fetch('/api/payroll').then((r) => r.json()).catch(() => []),
           fetch('/api/attendance?holidays=1').then((r) => r.json()).catch(() => []),
+          fetch('/api/employees?announcements=true').then((r) => r.json()).catch(() => []),
         ]);
 
       setEmployees(Array.isArray(empData) ? empData : []);
@@ -193,6 +207,7 @@ export default function Dashboard() {
       setClaims(Array.isArray(claimData) ? claimData : []);
       setPayroll(Array.isArray(payrollData) ? payrollData : []);
       setHolidays(Array.isArray(holidayData) ? holidayData : []);
+      setAnnouncements(Array.isArray(announcementData) ? announcementData : []);
     } catch {
       setError('Failed to load dashboard.');
     } finally {
@@ -264,6 +279,14 @@ export default function Dashboard() {
     .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date))
     .slice(0, 5);
 
+  const latestAnnouncements = announcements
+    .filter((item) => !item.expires_at || item.expires_at >= today)
+    .sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    })
+    .slice(0, 4);
+
   const upcomingBirthdays = visibleEmployees
     .filter((employee) => employee.date_of_birth)
     .map((employee) => ({ employee, key: birthdayKey(employee.date_of_birth) }))
@@ -325,10 +348,32 @@ export default function Dashboard() {
         <StatCard icon={ReceiptText} label="Pending Claims" value={pendingClaims.length} tone="amber" />
         <StatCard icon={Wallet} label="Payroll Draft/Review" value={draftPayroll} tone="primary" />
         <StatCard icon={CalendarCheck} label="Upcoming Holidays" value={upcomingHolidays.length} tone="emerald" />
+        <StatCard icon={Megaphone} label="Announcements" value={latestAnnouncements.length} tone="accent" />
         <StatCard icon={AlertTriangle} label="Expiry Alerts" value={expiryAlerts.length} tone="rose" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="glass rounded-2xl p-5 xl:col-span-2">
+          <h3 className="font-display font-semibold mb-4">Latest Announcements</h3>
+          {latestAnnouncements.length === 0 ? (
+            <EmptyState label="No active announcements." />
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {latestAnnouncements.map((item) => (
+                <div key={item.id} className="rounded-xl bg-surface border border-white/10 p-4">
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {item.pinned && <Badge tone="warning">Pinned</Badge>}
+                    <Badge tone="info">{item.category}</Badge>
+                  </div>
+                  <p className="font-semibold">{item.title}</p>
+                  <p className="text-xs text-muted mt-1">By {item.created_by_name || 'HR'}</p>
+                  <p className="text-sm text-muted mt-3 line-clamp-3 whitespace-pre-wrap">{item.body}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="glass rounded-2xl p-5">
           <h3 className="font-display font-semibold mb-4">Pending Leave</h3>
           {pendingLeave.length === 0 ? (

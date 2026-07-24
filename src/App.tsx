@@ -21,6 +21,7 @@ import Announcements from './pages/Announcements';
 import HrLetters from './pages/HrLetters';
 import Performance from './pages/Performance';
 import MonthlyReports from './pages/MonthlyReports';
+import BackupCenter from './pages/BackupCenter';
 
 function ProtectedPage({ children }: { children: ReactNode }) {
   return (
@@ -124,6 +125,15 @@ function App() {
             element={
               <ProtectedPage>
                 <MonthlyReports />
+              </ProtectedPage>
+            }
+          />
+
+          <Route
+            path="/backup"
+            element={
+              <ProtectedPage>
+                <BackupCenter />
               </ProtectedPage>
             }
           />
