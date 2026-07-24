@@ -4,7 +4,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, LayoutDashboard, Users, CalendarCheck, CalendarDays, Wallet, Network, ReceiptText,
-  FileSearch, UserCog, Search, ChevronDown, Settings, UserCircle, LogOut, PanelLeftClose, PanelLeftOpen, Menu, X,
+  FileSearch, UserCog, Megaphone, FileText, BarChart3, FileBarChart, Search, ChevronDown, Settings, UserCircle, LogOut, PanelLeftClose, PanelLeftOpen, Menu, X,
   CornerDownLeft,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,6 +16,10 @@ const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'manager', 'employee'] },
   { to: '/employees', label: 'Employees', icon: Users, roles: ['admin', 'manager'] },
   { to: '/profile-updates', label: 'Profile Updates', icon: UserCog, roles: ['admin', 'manager', 'employee'] },
+  { to: '/announcements', label: 'Announcements', icon: Megaphone, roles: ['admin', 'manager', 'employee'] },
+  { to: '/hr-letters', label: 'HR Letters', icon: FileText, roles: ['admin', 'manager'] },
+  { to: '/performance', label: 'Performance', icon: BarChart3, roles: ['admin', 'manager', 'employee'] },
+  { to: '/monthly-reports', label: 'Monthly Reports', icon: FileBarChart, roles: ['admin', 'manager'] },
   { to: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['admin', 'manager', 'employee'] },
   { to: '/leave', label: 'Leave', icon: CalendarDays, roles: ['admin', 'manager', 'employee'] },
   { to: '/payroll', label: 'Payroll', icon: Wallet, roles: ['admin', 'manager', 'employee'] },

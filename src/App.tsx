@@ -17,6 +17,10 @@ import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import AuditLogs from './pages/AuditLogs';
 import ProfileUpdates from './pages/ProfileUpdates';
+import Announcements from './pages/Announcements';
+import HrLetters from './pages/HrLetters';
+import Performance from './pages/Performance';
+import MonthlyReports from './pages/MonthlyReports';
 
 function ProtectedPage({ children }: { children: ReactNode }) {
   return (
@@ -84,6 +88,42 @@ function App() {
             element={
               <ProtectedPage>
                 <ProfileUpdates />
+              </ProtectedPage>
+            }
+          />
+
+          <Route
+            path="/announcements"
+            element={
+              <ProtectedPage>
+                <Announcements />
+              </ProtectedPage>
+            }
+          />
+
+          <Route
+            path="/hr-letters"
+            element={
+              <ProtectedPage>
+                <HrLetters />
+              </ProtectedPage>
+            }
+          />
+
+          <Route
+            path="/performance"
+            element={
+              <ProtectedPage>
+                <Performance />
+              </ProtectedPage>
+            }
+          />
+
+          <Route
+            path="/monthly-reports"
+            element={
+              <ProtectedPage>
+                <MonthlyReports />
               </ProtectedPage>
             }
           />

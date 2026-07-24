@@ -189,6 +189,105 @@ function buildEmployeePayload(body, { partial = false } = {}) {
   return payload;
 }
 
+
+function getPeriodRange(period) {
+  const [yearRaw, monthRaw] = String(period || '').split('-');
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+
+  if (!year || !month) {
+    const now = new Date();
+    const fallback = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return getPeriodRange(fallback);
+  }
+
+  const end = new Date(Date.UTC(year, month, 0));
+  const daysInMonth = end.getUTCDate();
+
+  return {
+    period: `${year}-${String(month).padStart(2, '0')}`,
+    startDate: `${year}-${String(month).padStart(2, '0')}-01`,
+    endDate: `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`,
+  };
+}
+
+async function countRows(table, buildQuery) {
+  let query = supabase.from(table).select('id', { count: 'exact', head: true });
+  if (buildQuery) query = buildQuery(query);
+  const { count, error } = await query;
+  if (error) return 0;
+  return count || 0;
+}
+
+async function sumRows(table, column, buildQuery) {
+  let query = supabase.from(table).select(column);
+  if (buildQuery) query = buildQuery(query);
+  const { data, error } = await query;
+  if (error) return 0;
+  return (data || []).reduce((sum, row) => sum + Number(row[column] || 0), 0);
+}
+
+async function buildMonthlyHrReport(period) {
+  const range = getPeriodRange(period);
+
+  const [
+    totalEmployees,
+    activeEmployees,
+    newJoiners,
+    attendanceRows,
+    lateCount,
+    leavePending,
+    leaveApproved,
+    claimsPending,
+    claimsApprovedAmount,
+    payrollNet,
+    holidays,
+    correctionsPending,
+  ] = await Promise.all([
+    countRows('employees'),
+    countRows('employees', (q) => q.neq('status', 'inactive')),
+    countRows('employees', (q) => q.gte('join_date', range.startDate).lte('join_date', range.endDate)),
+    countRows('attendance', (q) => q.gte('date', range.startDate).lte('date', range.endDate)),
+    countRows('attendance', (q) => q.gte('date', range.startDate).lte('date', range.endDate).eq('status', 'late')),
+    countRows('leave_requests', (q) => q.eq('status', 'pending')),
+    countRows('leave_requests', (q) => q.eq('status', 'approved').lte('start_date', range.endDate).gte('end_date', range.startDate)),
+    countRows('claims', (q) => q.not('status', 'in', '(approved,rejected,cancelled,paid)')),
+    sumRows('claims', 'amount', (q) => q.eq('status', 'approved').gte('claim_date', range.startDate).lte('claim_date', range.endDate)),
+    sumRows('payroll', 'net_pay', (q) => q.eq('period', range.period)),
+    supabase.from('company_holidays').select('*').gte('holiday_date', range.startDate).lte('holiday_date', range.endDate).then(({ data }) => data || []),
+    countRows('attendance_correction_requests', (q) => q.eq('status', 'pending')),
+  ]);
+
+  return {
+    period: range.period,
+    start_date: range.startDate,
+    end_date: range.endDate,
+    generated_at: new Date().toISOString(),
+    employees: {
+      total: totalEmployees,
+      active: activeEmployees,
+      new_joiners: newJoiners,
+    },
+    attendance: {
+      records: attendanceRows,
+      late_count: lateCount,
+      pending_corrections: correctionsPending,
+    },
+    leave: {
+      pending: leavePending,
+      approved_in_period: leaveApproved,
+    },
+    claims: {
+      pending: claimsPending,
+      approved_amount: Math.round(claimsApprovedAmount * 100) / 100,
+    },
+    payroll: {
+      total_net_pay: Math.round(payrollNet * 100) / 100,
+    },
+    holidays,
+  };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -209,6 +308,53 @@ export default async function handler(req, res) {
     // =========================
     if (req.method === 'GET') {
       const { email, id, documents, employee_id, profile_update_requests } = req.query;
+
+      if (req.query?.announcements === 'true') {
+        const { data, error } = await supabase
+          .from('company_announcements')
+          .select('*')
+          .order('pinned', { ascending: false })
+          .order('created_at', { ascending: false });
+
+        if (error) return res.status(500).json({ error: error.message });
+
+        return res.status(200).json(data || []);
+      }
+
+      if (req.query?.hr_letters === 'true') {
+        let query = supabase
+          .from('hr_letters')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (employee_id) query = query.eq('employee_id', Number(employee_id));
+
+        const { data, error } = await query;
+        if (error) return res.status(500).json({ error: error.message });
+
+        return res.status(200).json(data || []);
+      }
+
+      if (req.query?.performance_reviews === 'true') {
+        let query = supabase
+          .from('performance_reviews')
+          .select('*')
+          .order('review_period', { ascending: false })
+          .order('created_at', { ascending: false });
+
+        if (employee_id) query = query.eq('employee_id', Number(employee_id));
+
+        const { data, error } = await query;
+        if (error) return res.status(500).json({ error: error.message });
+
+        return res.status(200).json(data || []);
+      }
+
+      if (req.query?.monthly_hr_report === 'true') {
+        const report = await buildMonthlyHrReport(req.query.period);
+
+        return res.status(200).json(report);
+      }
 
       if (profile_update_requests === 'true') {
         let query = supabase
@@ -373,6 +519,201 @@ export default async function handler(req, res) {
     // =========================
     if (req.method === 'POST') {
       const body = req.body || {};
+
+      if (body.action === 'announcement_save') {
+        const payload = {
+          title: cleanString(body.title),
+          body: cleanString(body.body),
+          category: body.category || 'General',
+          pinned: Boolean(body.pinned),
+          expires_at: body.expires_at || null,
+          updated_at: new Date().toISOString(),
+        };
+
+        if (!payload.title || !payload.body) {
+          return res.status(400).json({ error: 'Title and announcement body are required.' });
+        }
+
+        let query;
+        if (body.id) {
+          query = supabase.from('company_announcements').update(payload).eq('id', Number(body.id));
+        } else {
+          query = supabase.from('company_announcements').insert({
+            ...payload,
+            created_by: body.changed_by || null,
+            created_by_name: body.changed_by_name || null,
+          });
+        }
+
+        const { data, error } = await query.select().single();
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'announcements',
+          action: body.id ? 'announcement_update' : 'announcement_create',
+          record_id: data?.id || null,
+          changed_by: body.changed_by || null,
+          changed_by_name: body.changed_by_name || null,
+          new_data: data,
+        });
+
+        return res.status(body.id ? 200 : 201).json(data);
+      }
+
+      if (body.action === 'announcement_delete') {
+        if (!body.id) return res.status(400).json({ error: 'id is required.' });
+
+        const { data: oldRow } = await supabase
+          .from('company_announcements')
+          .select('*')
+          .eq('id', Number(body.id))
+          .maybeSingle();
+
+        const { error } = await supabase
+          .from('company_announcements')
+          .delete()
+          .eq('id', Number(body.id));
+
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'announcements',
+          action: 'announcement_delete',
+          record_id: Number(body.id),
+          changed_by: body.changed_by || null,
+          changed_by_name: body.changed_by_name || null,
+          old_data: oldRow,
+        });
+
+        return res.status(200).json({ ok: true });
+      }
+
+      if (body.action === 'hr_letter_save') {
+        const employeeId = Number(body.employee_id);
+
+        if (!employeeId || !body.title || !body.content) {
+          return res.status(400).json({ error: 'employee_id, title and content are required.' });
+        }
+
+        const payload = {
+          employee_id: employeeId,
+          template_type: body.template_type || 'general_letter',
+          title: cleanString(body.title),
+          content: String(body.content),
+          status: body.status || 'draft',
+          generated_by: body.changed_by || null,
+          generated_by_name: body.changed_by_name || null,
+          updated_at: new Date().toISOString(),
+        };
+
+        let query;
+        if (body.id) {
+          query = supabase.from('hr_letters').update(payload).eq('id', Number(body.id));
+        } else {
+          query = supabase.from('hr_letters').insert(payload);
+        }
+
+        const { data, error } = await query.select().single();
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'hr_letters',
+          action: body.id ? 'letter_update' : 'letter_create',
+          record_id: data?.id || null,
+          employee_id: employeeId,
+          changed_by: body.changed_by || null,
+          changed_by_name: body.changed_by_name || null,
+          new_data: data,
+        });
+
+        return res.status(body.id ? 200 : 201).json(data);
+      }
+
+      if (body.action === 'hr_letter_delete') {
+        if (!body.id) return res.status(400).json({ error: 'id is required.' });
+
+        const { data: oldRow } = await supabase.from('hr_letters').select('*').eq('id', Number(body.id)).maybeSingle();
+        const { error } = await supabase.from('hr_letters').delete().eq('id', Number(body.id));
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'hr_letters',
+          action: 'letter_delete',
+          record_id: Number(body.id),
+          employee_id: oldRow?.employee_id || null,
+          changed_by: body.changed_by || null,
+          changed_by_name: body.changed_by_name || null,
+          old_data: oldRow,
+        });
+
+        return res.status(200).json({ ok: true });
+      }
+
+      if (body.action === 'performance_save') {
+        const employeeId = Number(body.employee_id);
+        if (!employeeId || !body.review_period) {
+          return res.status(400).json({ error: 'employee_id and review_period are required.' });
+        }
+
+        const payload = {
+          employee_id: employeeId,
+          review_period: cleanString(body.review_period),
+          review_type: body.review_type || 'Annual Review',
+          reviewer_id: body.reviewer_id || body.changed_by || null,
+          reviewer_name: body.reviewer_name || body.changed_by_name || null,
+          kpi_score: toNullableNumber(body.kpi_score) || 0,
+          behavior_score: toNullableNumber(body.behavior_score) || 0,
+          attendance_score: toNullableNumber(body.attendance_score) || 0,
+          overall_score: toNullableNumber(body.overall_score) || 0,
+          strengths: body.strengths || null,
+          improvements: body.improvements || null,
+          goals: body.goals || null,
+          recommendation: body.recommendation || null,
+          status: body.status || 'draft',
+          updated_at: new Date().toISOString(),
+        };
+
+        let query;
+        if (body.id) {
+          query = supabase.from('performance_reviews').update(payload).eq('id', Number(body.id));
+        } else {
+          query = supabase.from('performance_reviews').insert(payload);
+        }
+
+        const { data, error } = await query.select().single();
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'performance',
+          action: body.id ? 'review_update' : 'review_create',
+          record_id: data?.id || null,
+          employee_id: employeeId,
+          changed_by: body.changed_by || body.reviewer_id || null,
+          changed_by_name: body.changed_by_name || body.reviewer_name || null,
+          new_data: data,
+        });
+
+        return res.status(body.id ? 200 : 201).json(data);
+      }
+
+      if (body.action === 'performance_delete') {
+        if (!body.id) return res.status(400).json({ error: 'id is required.' });
+        const { data: oldRow } = await supabase.from('performance_reviews').select('*').eq('id', Number(body.id)).maybeSingle();
+        const { error } = await supabase.from('performance_reviews').delete().eq('id', Number(body.id));
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'performance',
+          action: 'review_delete',
+          record_id: Number(body.id),
+          employee_id: oldRow?.employee_id || null,
+          changed_by: body.changed_by || null,
+          changed_by_name: body.changed_by_name || null,
+          old_data: oldRow,
+        });
+
+        return res.status(200).json({ ok: true });
+      }
 
       if (body.action === 'profile_update_request_create') {
         const employeeId = Number(body.employee_id);
