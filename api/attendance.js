@@ -768,6 +768,26 @@ export default async function handler(req, res) {
         return res.status(200).json(logs);
       }
 
+      if (req.query?.correction_requests === '1') {
+        let query = supabase
+          .from('attendance_correction_requests')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(500);
+
+        if (req.query?.employee_id) {
+          query = query.eq('employee_id', Number(req.query.employee_id));
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+          return res.status(500).json({ error: error.message });
+        }
+
+        return res.status(200).json(data || []);
+      }
+
       if (req.query?.settings === '1') {
         const settings = await getAttendanceSettings();
 
@@ -809,6 +829,74 @@ export default async function handler(req, res) {
     // GPS + DEVICE VERIFIED CHECK IN
     // =========================
     if (req.method === 'POST') {
+      if (req.body?.action === 'correction_request_create') {
+        const body = req.body || {};
+        const employeeId = Number(body.employee_id);
+        const requestDate = body.request_date || body.date;
+
+        if (!employeeId || !requestDate || !body.reason) {
+          return res.status(400).json({
+            error: 'employee_id, request_date and reason are required.',
+          });
+        }
+
+        let attendanceId = body.attendance_id ? Number(body.attendance_id) : null;
+
+        if (!attendanceId) {
+          const { data: existing } = await supabase
+            .from('attendance')
+            .select('id')
+            .eq('employee_id', employeeId)
+            .eq('date', requestDate)
+            .maybeSingle();
+          attendanceId = existing?.id || null;
+        }
+
+        const requestedData = {
+          date: requestDate,
+          status: body.status || undefined,
+          check_in: body.check_in || null,
+          lunch_out: body.lunch_out || null,
+          lunch_in: body.lunch_in || null,
+          lunch_expected_return: body.lunch_expected_return || null,
+          check_out: body.check_out || null,
+          overtime_hours: body.overtime_hours ?? null,
+          lunch_break_minutes: body.lunch_break_minutes ?? null,
+          lunch_late_minutes: body.lunch_late_minutes ?? null,
+          lunch_status: body.lunch_status || undefined,
+        };
+
+        const { data, error } = await supabase
+          .from('attendance_correction_requests')
+          .insert({
+            attendance_id: attendanceId,
+            employee_id: employeeId,
+            request_date: requestDate,
+            requested_by: body.requested_by || employeeId,
+            requested_by_name: body.requested_by_name || null,
+            requested_data: requestedData,
+            reason: String(body.reason).trim(),
+            status: 'pending',
+          })
+          .select()
+          .single();
+
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'attendance',
+          action: 'correction_request_create',
+          record_id: data?.id || null,
+          employee_id: employeeId,
+          changed_by: body.requested_by || employeeId,
+          changed_by_name: body.requested_by_name || null,
+          new_data: data,
+          reason: body.reason,
+        });
+
+        return res.status(201).json(data);
+      }
+
       const {
         employee_id,
         date,
@@ -925,6 +1013,127 @@ export default async function handler(req, res) {
     if (req.method === 'PUT') {
       const body = req.body || {};
       const action = body.action || 'check_out';
+
+      if (action === 'correction_request_decision') {
+        const requestId = Number(body.id || body.request_id);
+        const decision = String(body.status || '').toLowerCase();
+
+        if (!requestId || !['approved', 'rejected'].includes(decision)) {
+          return res.status(400).json({
+            error: 'Valid request id and status approved/rejected are required.',
+          });
+        }
+
+        const { data: requestRow, error: requestError } = await supabase
+          .from('attendance_correction_requests')
+          .select('*')
+          .eq('id', requestId)
+          .maybeSingle();
+
+        if (requestError) return res.status(500).json({ error: requestError.message });
+        if (!requestRow) return res.status(404).json({ error: 'Correction request not found.' });
+        if (requestRow.status !== 'pending') {
+          return res.status(409).json({ error: 'Correction request already decided.' });
+        }
+
+        let oldAttendance = null;
+        let updatedAttendance = null;
+
+        if (decision === 'approved') {
+          let attendanceId = requestRow.attendance_id;
+
+          if (!attendanceId) {
+            const { data: created, error: createError } = await supabase
+              .from('attendance')
+              .insert({
+                employee_id: requestRow.employee_id,
+                date: requestRow.request_date,
+                status: requestRow.requested_data?.status || 'present',
+              })
+              .select()
+              .single();
+
+            if (createError) return res.status(500).json({ error: createError.message });
+            attendanceId = created.id;
+            oldAttendance = null;
+          } else {
+            const { data: existing, error: existingError } = await supabase
+              .from('attendance')
+              .select('*')
+              .eq('id', attendanceId)
+              .maybeSingle();
+
+            if (existingError) return res.status(500).json({ error: existingError.message });
+            oldAttendance = existing;
+          }
+
+          const requested = requestRow.requested_data || {};
+          const updatePayload = {};
+
+          if (requested.date !== undefined) updatePayload.date = requested.date;
+          if (requested.status !== undefined) updatePayload.status = requested.status;
+          if (requested.check_in !== undefined) updatePayload.check_in = nullableTimestamp(requested.check_in);
+          if (requested.lunch_out !== undefined) updatePayload.lunch_out = nullableTimestamp(requested.lunch_out);
+          if (requested.lunch_in !== undefined) updatePayload.lunch_in = nullableTimestamp(requested.lunch_in);
+          if (requested.lunch_expected_return !== undefined) updatePayload.lunch_expected_return = nullableTimestamp(requested.lunch_expected_return);
+          if (requested.check_out !== undefined) updatePayload.check_out = nullableTimestamp(requested.check_out);
+          if (requested.overtime_hours !== undefined) updatePayload.overtime_hours = nullableNumber(requested.overtime_hours) ?? 0;
+          if (requested.lunch_break_minutes !== undefined) updatePayload.lunch_break_minutes = nullableNumber(requested.lunch_break_minutes) ?? 0;
+          if (requested.lunch_late_minutes !== undefined) updatePayload.lunch_late_minutes = nullableNumber(requested.lunch_late_minutes) ?? 0;
+          if (requested.lunch_status !== undefined) updatePayload.lunch_status = requested.lunch_status;
+
+          const { data: updated, error: updateError } = await supabase
+            .from('attendance')
+            .update(updatePayload)
+            .eq('id', attendanceId)
+            .select()
+            .single();
+
+          if (updateError) return res.status(500).json({ error: updateError.message });
+          updatedAttendance = updated;
+
+          await supabase.from('attendance_audit_logs').insert({
+            attendance_id: attendanceId,
+            employee_id: requestRow.employee_id,
+            changed_by: body.decided_by || null,
+            changed_by_name: body.decided_by_name || null,
+            action: 'employee_correction_request_approved',
+            old_data: oldAttendance,
+            new_data: updatedAttendance,
+            reason: requestRow.reason,
+          });
+        }
+
+        const { data, error } = await supabase
+          .from('attendance_correction_requests')
+          .update({
+            status: decision,
+            admin_remarks: body.admin_remarks || null,
+            decided_by: body.decided_by || null,
+            decided_by_name: body.decided_by_name || null,
+            decided_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', requestId)
+          .select()
+          .single();
+
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'attendance',
+          action: `correction_request_${decision}`,
+          record_id: requestId,
+          employee_id: requestRow.employee_id,
+          changed_by: body.decided_by || null,
+          changed_by_name: body.decided_by_name || null,
+          old_data: requestRow,
+          new_data: { request: data, attendance: updatedAttendance },
+          reason: body.admin_remarks || requestRow.reason,
+        });
+
+        return res.status(200).json(data);
+      }
 
       // =========================
       // ATTENDANCE SETTINGS UPDATE

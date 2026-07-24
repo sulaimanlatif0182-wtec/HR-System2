@@ -24,6 +24,12 @@ interface Employee {
   department?: string | null;
   status?: string | null;
   date_of_birth?: string | null;
+  probation_end_date?: string | null;
+  contract_end_date?: string | null;
+  work_permit_expiry?: string | null;
+  passport_expiry?: string | null;
+  driving_license_expiry?: string | null;
+  medical_checkup_expiry?: string | null;
 }
 
 interface AttendanceRecord {
@@ -97,6 +103,17 @@ function currentPeriod() {
   const date = new Date();
 
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function daysUntil(dateValue?: string | null) {
+  if (!dateValue) return null;
+
+  const today = new Date(`${formatLocalDate()}T00:00:00`);
+  const target = new Date(`${dateValue}T00:00:00`);
+
+  if (Number.isNaN(target.getTime())) return null;
+
+  return Math.ceil((target.getTime() - today.getTime()) / 86400000);
 }
 
 function StatCard({
@@ -254,6 +271,26 @@ export default function Dashboard() {
     .sort((a, b) => a.key.localeCompare(b.key))
     .slice(0, 5);
 
+  const expiryAlerts = visibleEmployees
+    .flatMap((employee) =>
+      [
+        ['Probation End', employee.probation_end_date],
+        ['Contract End', employee.contract_end_date],
+        ['Work Permit', employee.work_permit_expiry],
+        ['Passport', employee.passport_expiry],
+        ['Driving License', employee.driving_license_expiry],
+        ['Medical Checkup', employee.medical_checkup_expiry],
+      ].map(([label, date]) => ({
+        employee,
+        label,
+        date: date as string | null | undefined,
+        days: daysUntil(date as string | null | undefined),
+      }))
+    )
+    .filter((item) => item.days !== null && item.days <= 90)
+    .sort((a, b) => Number(a.days) - Number(b.days))
+    .slice(0, 8);
+
   if (loading) return <LoadingState label="Loading dashboard…" />;
 
   if (error) return <ErrorState message={error} onRetry={fetchDashboard} />;
@@ -288,6 +325,7 @@ export default function Dashboard() {
         <StatCard icon={ReceiptText} label="Pending Claims" value={pendingClaims.length} tone="amber" />
         <StatCard icon={Wallet} label="Payroll Draft/Review" value={draftPayroll} tone="primary" />
         <StatCard icon={CalendarCheck} label="Upcoming Holidays" value={upcomingHolidays.length} tone="emerald" />
+        <StatCard icon={AlertTriangle} label="Expiry Alerts" value={expiryAlerts.length} tone="rose" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -356,6 +394,36 @@ export default function Dashboard() {
                   <div>
                     <p className="font-semibold text-sm">{employee.name}</p>
                     <p className="text-xs text-muted">{key}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="glass rounded-2xl p-5">
+          <h3 className="font-display font-semibold mb-4">Probation / Contract / Permit Alerts</h3>
+          {expiryAlerts.length === 0 ? (
+            <EmptyState label="No expiry alerts within 90 days." />
+          ) : (
+            <div className="space-y-2">
+              {expiryAlerts.map((item) => (
+                <div
+                  key={`${item.employee.id}-${item.label}-${item.date}`}
+                  className="rounded-xl bg-surface border border-white/10 p-3"
+                >
+                  <div className="flex justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-sm">{item.employee.name}</p>
+                      <p className="text-xs text-muted mt-1">
+                        {item.label} · {item.date}
+                      </p>
+                    </div>
+                    <Badge tone={Number(item.days) < 0 ? 'danger' : Number(item.days) <= 30 ? 'warning' : 'info'}>
+                      {Number(item.days) < 0
+                        ? `${Math.abs(Number(item.days))}d overdue`
+                        : `${item.days}d left`}
+                    </Badge>
                   </div>
                 </div>
               ))}

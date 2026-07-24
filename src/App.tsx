@@ -16,6 +16,7 @@ import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import AuditLogs from './pages/AuditLogs';
+import ProfileUpdates from './pages/ProfileUpdates';
 
 function ProtectedPage({ children }: { children: ReactNode }) {
   return (
@@ -74,6 +75,15 @@ function App() {
             element={
               <ProtectedPage>
                 <Employees />
+              </ProtectedPage>
+            }
+          />
+
+          <Route
+            path="/profile-updates"
+            element={
+              <ProtectedPage>
+                <ProfileUpdates />
               </ProtectedPage>
             }
           />

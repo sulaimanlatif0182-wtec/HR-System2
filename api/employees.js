@@ -46,6 +46,44 @@ function toNullableNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function toNullableInteger(value) {
+  if (value === null || value === undefined || value === '') return null;
+
+  const number = Number(value);
+
+  return Number.isInteger(number) ? number : null;
+}
+
+function pickProfileUpdateData(data = {}) {
+  const allowed = [
+    'phone',
+    'address',
+    'bank_name',
+    'bank_account_no',
+    'epf_no',
+    'socso_no',
+    'income_tax_no',
+    'emergency_contact_name',
+    'emergency_contact_relationship',
+    'emergency_contact_phone',
+    'marital_status',
+    'number_of_children',
+  ];
+
+  const result = {};
+
+  allowed.forEach((key) => {
+    if (data[key] !== undefined) {
+      result[key] =
+        key === 'number_of_children'
+          ? toNullableInteger(data[key]) || 0
+          : cleanString(data[key]) || null;
+    }
+  });
+
+  return result;
+}
+
 function buildEmployeePayload(body, { partial = false } = {}) {
   const payload = {};
 
@@ -114,6 +152,40 @@ function buildEmployeePayload(body, { partial = false } = {}) {
     );
   }
 
+  const extraTextFields = [
+    'bank_name',
+    'bank_account_no',
+    'epf_no',
+    'socso_no',
+    'income_tax_no',
+    'address',
+    'emergency_contact_name',
+    'emergency_contact_relationship',
+    'emergency_contact_phone',
+    'marital_status',
+  ];
+
+  extraTextFields.forEach((field) => {
+    assign(field, body[field] ? cleanString(body[field]) : partial ? undefined : null);
+  });
+
+  if (body.number_of_children !== undefined || !partial) {
+    assign('number_of_children', toNullableInteger(body.number_of_children) ?? 0);
+  }
+
+  const dateFields = [
+    'probation_end_date',
+    'contract_end_date',
+    'work_permit_expiry',
+    'passport_expiry',
+    'driving_license_expiry',
+    'medical_checkup_expiry',
+  ];
+
+  dateFields.forEach((field) => {
+    assign(field, body[field] ? cleanString(body[field]) : partial ? undefined : null);
+  });
+
   return payload;
 }
 
@@ -136,7 +208,27 @@ export default async function handler(req, res) {
     // /api/employees?id=1
     // =========================
     if (req.method === 'GET') {
-      const { email, id, documents, employee_id } = req.query;
+      const { email, id, documents, employee_id, profile_update_requests } = req.query;
+
+      if (profile_update_requests === 'true') {
+        let query = supabase
+          .from('employee_profile_update_requests')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(500);
+
+        if (employee_id) {
+          query = query.eq('employee_id', Number(employee_id));
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+          return res.status(500).json({ error: error.message });
+        }
+
+        return res.status(200).json(data || []);
+      }
 
       if (documents === 'true') {
         const employeeId = Number(employee_id || id);
@@ -282,6 +374,47 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const body = req.body || {};
 
+      if (body.action === 'profile_update_request_create') {
+        const employeeId = Number(body.employee_id);
+        const requestedData = pickProfileUpdateData(body.requested_data || body);
+
+        if (!employeeId || Object.keys(requestedData).length === 0) {
+          return res.status(400).json({
+            error: 'employee_id and at least one requested field are required.',
+          });
+        }
+
+        const { data, error } = await supabase
+          .from('employee_profile_update_requests')
+          .insert({
+            employee_id: employeeId,
+            requested_by: body.requested_by || employeeId,
+            requested_by_name: body.requested_by_name || null,
+            requested_data: requestedData,
+            reason: body.reason ? cleanString(body.reason) : null,
+            status: 'pending',
+          })
+          .select()
+          .single();
+
+        if (error) {
+          return res.status(500).json({ error: error.message });
+        }
+
+        await safeInsertSystemAudit({
+          module: 'employee_profile',
+          action: 'profile_update_request_create',
+          record_id: data?.id || null,
+          employee_id: employeeId,
+          changed_by: body.requested_by || employeeId,
+          changed_by_name: body.requested_by_name || null,
+          new_data: data,
+          reason: body.reason || null,
+        });
+
+        return res.status(201).json(data);
+      }
+
       if (body.action === 'document_create') {
         const employeeId = Number(body.employee_id);
 
@@ -354,6 +487,74 @@ export default async function handler(req, res) {
     // =========================
     if (req.method === 'PUT') {
       const body = req.body || {};
+
+      if (body.action === 'profile_update_decision') {
+        const requestId = Number(body.id || body.request_id);
+        const decision = cleanString(body.status).toLowerCase();
+
+        if (!requestId || !['approved', 'rejected'].includes(decision)) {
+          return res.status(400).json({
+            error: 'Valid request id and status approved/rejected are required.',
+          });
+        }
+
+        const { data: requestRow, error: requestError } = await supabase
+          .from('employee_profile_update_requests')
+          .select('*')
+          .eq('id', requestId)
+          .maybeSingle();
+
+        if (requestError) return res.status(500).json({ error: requestError.message });
+        if (!requestRow) return res.status(404).json({ error: 'Request not found.' });
+        if (requestRow.status !== 'pending') {
+          return res.status(409).json({ error: 'Request already decided.' });
+        }
+
+        let updatedEmployee = null;
+
+        if (decision === 'approved') {
+          const { data: employeeData, error: employeeError } = await supabase
+            .from('employees')
+            .update(pickProfileUpdateData(requestRow.requested_data || {}))
+            .eq('id', requestRow.employee_id)
+            .select()
+            .single();
+
+          if (employeeError) return res.status(500).json({ error: employeeError.message });
+          updatedEmployee = employeeData;
+        }
+
+        const { data, error } = await supabase
+          .from('employee_profile_update_requests')
+          .update({
+            status: decision,
+            admin_remarks: body.admin_remarks || null,
+            decided_by: body.decided_by || null,
+            decided_by_name: body.decided_by_name || null,
+            decided_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', requestId)
+          .select()
+          .single();
+
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'employee_profile',
+          action: `profile_update_${decision}`,
+          record_id: requestId,
+          employee_id: requestRow.employee_id,
+          changed_by: body.decided_by || null,
+          changed_by_name: body.decided_by_name || null,
+          old_data: requestRow,
+          new_data: { request: data, employee: updatedEmployee },
+          reason: body.admin_remarks || null,
+        });
+
+        return res.status(200).json(data);
+      }
+
       const id = Number(body.id || req.query.id);
 
       if (!id) {

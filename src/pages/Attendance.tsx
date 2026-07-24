@@ -223,6 +223,52 @@ const DEFAULT_HOLIDAY_FORM: HolidayForm = {
   notes: '',
 };
 
+interface AttendanceCorrectionRequest {
+  id: number;
+  attendance_id?: number | null;
+  employee_id: number;
+  request_date: string;
+  requested_by?: number | null;
+  requested_by_name?: string | null;
+  requested_data: Record<string, unknown>;
+  status: string;
+  reason: string;
+  admin_remarks?: string | null;
+  decided_by_name?: string | null;
+  decided_at?: string | null;
+  created_at: string;
+}
+
+interface CorrectionRequestForm {
+  request_date: string;
+  status: string;
+  check_in: string;
+  lunch_out: string;
+  lunch_in: string;
+  lunch_expected_return: string;
+  check_out: string;
+  overtime_hours: string;
+  lunch_break_minutes: string;
+  lunch_late_minutes: string;
+  lunch_status: string;
+  reason: string;
+}
+
+const DEFAULT_CORRECTION_REQUEST_FORM: CorrectionRequestForm = {
+  request_date: '',
+  status: '',
+  check_in: '',
+  lunch_out: '',
+  lunch_in: '',
+  lunch_expected_return: '',
+  check_out: '',
+  overtime_hours: '',
+  lunch_break_minutes: '',
+  lunch_late_minutes: '',
+  lunch_status: '',
+  reason: '',
+};
+
 interface AttendanceSettings {
   id?: number;
   check_in_start: string;
@@ -850,6 +896,11 @@ export default function Attendance() {
     useState<HolidayForm>(DEFAULT_HOLIDAY_FORM);
   const [savingHoliday, setSavingHoliday] = useState(false);
   const [holidayMessage, setHolidayMessage] = useState('');
+  const [correctionRequests, setCorrectionRequests] = useState<AttendanceCorrectionRequest[]>([]);
+  const [correctionRequestForm, setCorrectionRequestForm] =
+    useState<CorrectionRequestForm>(DEFAULT_CORRECTION_REQUEST_FORM);
+  const [savingCorrectionRequest, setSavingCorrectionRequest] = useState(false);
+  const [correctionRequestMessage, setCorrectionRequestMessage] = useState('');
 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -930,11 +981,16 @@ export default function Attendance() {
     setError('');
 
     try {
-      const [att, emp, settings, holidayRows] = await Promise.all([
+      const [att, emp, settings, holidayRows, correctionRows] = await Promise.all([
         fetch('/api/attendance').then((r) => r.json()),
         fetch('/api/employees').then((r) => r.json()),
         fetch('/api/attendance?settings=1').then((r) => r.json()),
         fetch('/api/attendance?holidays=1').then((r) => r.json()),
+        fetch(
+          isAdmin
+            ? '/api/attendance?correction_requests=1'
+            : `/api/attendance?correction_requests=1&employee_id=${profile?.id ?? ''}`
+        ).then((r) => r.json()),
       ]);
 
       const normalizedSettings = normalizeAttendanceSettings(settings);
@@ -944,6 +1000,7 @@ export default function Attendance() {
       setAttendanceSettings(normalizedSettings);
       setSettingsForm(normalizedSettings);
       setHolidays(Array.isArray(holidayRows) ? holidayRows : []);
+      setCorrectionRequests(Array.isArray(correctionRows) ? correctionRows : []);
     } catch {
       setError('Failed to load attendance records.');
     } finally {
@@ -1364,6 +1421,97 @@ export default function Attendance() {
     );
 
     return false;
+  };
+
+  const submitCorrectionRequest = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!profile?.id) return;
+
+    if (!correctionRequestForm.request_date || !correctionRequestForm.reason.trim()) {
+      setCorrectionRequestMessage('Request date and reason are required.');
+      return;
+    }
+
+    setSavingCorrectionRequest(true);
+    setCorrectionRequestMessage('');
+
+    try {
+      const res = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'correction_request_create',
+          employee_id: profile.id,
+          requested_by: profile.id,
+          requested_by_name: profile.name,
+          ...correctionRequestForm,
+          date: correctionRequestForm.request_date,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to submit correction request.');
+      }
+
+      setCorrectionRequestForm(DEFAULT_CORRECTION_REQUEST_FORM);
+      setCorrectionRequestMessage('Correction request submitted successfully.');
+      await fetchAll();
+    } catch (err) {
+      setCorrectionRequestMessage(
+        err instanceof Error ? err.message : 'Failed to submit correction request.'
+      );
+    } finally {
+      setSavingCorrectionRequest(false);
+    }
+  };
+
+  const decideCorrectionRequest = async (
+    request: AttendanceCorrectionRequest,
+    status: 'approved' | 'rejected'
+  ) => {
+    if (!isAdmin || !profile) return;
+
+    const adminRemarks = window.prompt(
+      status === 'approved' ? 'Approval remarks (optional):' : 'Reject reason:'
+    );
+
+    if (status === 'rejected' && !adminRemarks?.trim()) return;
+
+    setSavingCorrectionRequest(true);
+    setCorrectionRequestMessage('');
+
+    try {
+      const res = await fetch('/api/attendance', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'correction_request_decision',
+          id: request.id,
+          status,
+          admin_remarks: adminRemarks || null,
+          decided_by: profile.id,
+          decided_by_name: profile.name,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to update correction request.');
+      }
+
+      await fetchAll();
+      setCorrectionRequestMessage(`Correction request ${status}.`);
+    } catch (err) {
+      setCorrectionRequestMessage(
+        err instanceof Error ? err.message : 'Failed to update correction request.'
+      );
+    } finally {
+      setSavingCorrectionRequest(false);
+    }
   };
 
   const resetHolidayForm = () => {
@@ -1919,6 +2067,261 @@ export default function Attendance() {
           ) : undefined
         }
       />
+
+      <div className="glass rounded-2xl p-5 mb-6">
+        <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-5">
+          {!isAdmin && (
+            <form onSubmit={submitCorrectionRequest} className="flex-1 space-y-3">
+              <div>
+                <h3 className="font-display font-semibold text-lg">
+                  Request Attendance Correction
+                </h3>
+                <p className="text-xs text-muted mt-1">
+                  Submit missing/incorrect attendance time for Admin approval.
+                </p>
+              </div>
+
+              {correctionRequestMessage && (
+                <div
+                  className={`rounded-xl border px-4 py-3 text-sm ${
+                    correctionRequestMessage.includes('success') ||
+                    correctionRequestMessage.includes('approved')
+                      ? 'border-emerald/30 bg-emerald/10 text-emerald'
+                      : 'border-rose/30 bg-rose/10 text-rose'
+                  }`}
+                >
+                  {correctionRequestMessage}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Date</span>
+                  <input
+                    type="date"
+                    value={correctionRequestForm.request_date}
+                    onChange={(e) =>
+                      setCorrectionRequestForm({
+                        ...correctionRequestForm,
+                        request_date: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  />
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Status</span>
+                  <select
+                    value={correctionRequestForm.status}
+                    onChange={(e) =>
+                      setCorrectionRequestForm({
+                        ...correctionRequestForm,
+                        status: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  >
+                    <option value="">No change</option>
+                    {STATUS_OPTIONS.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-sm">
+                  <span className="block text-xs text-muted mb-1">Lunch Status</span>
+                  <select
+                    value={correctionRequestForm.lunch_status}
+                    onChange={(e) =>
+                      setCorrectionRequestForm({
+                        ...correctionRequestForm,
+                        lunch_status: e.target.value,
+                      })
+                    }
+                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  >
+                    <option value="">No change</option>
+                    {LUNCH_STATUS_OPTIONS.map((status) => (
+                      <option key={status} value={status}>
+                        {status.replace(/_/g, ' ')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                {[
+                  ['check_in', 'Check In'],
+                  ['lunch_out', 'Lunch Out'],
+                  ['lunch_expected_return', 'Lunch Expected'],
+                  ['lunch_in', 'Lunch In'],
+                  ['check_out', 'Check Out'],
+                ].map(([key, label]) => (
+                  <label key={key} className="text-sm">
+                    <span className="block text-xs text-muted mb-1">{label}</span>
+                    <input
+                      type="datetime-local"
+                      value={correctionRequestForm[key as keyof CorrectionRequestForm]}
+                      onChange={(e) =>
+                        setCorrectionRequestForm({
+                          ...correctionRequestForm,
+                          [key]: e.target.value,
+                        })
+                      }
+                      className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {[
+                  ['overtime_hours', 'OT Hours'],
+                  ['lunch_break_minutes', 'Lunch Break Minutes'],
+                  ['lunch_late_minutes', 'Lunch Late Minutes'],
+                ].map(([key, label]) => (
+                  <label key={key} className="text-sm">
+                    <span className="block text-xs text-muted mb-1">{label}</span>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={correctionRequestForm[key as keyof CorrectionRequestForm]}
+                      onChange={(e) =>
+                        setCorrectionRequestForm({
+                          ...correctionRequestForm,
+                          [key]: e.target.value,
+                        })
+                      }
+                      className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <label className="text-sm block">
+                <span className="block text-xs text-muted mb-1">Reason</span>
+                <textarea
+                  rows={3}
+                  value={correctionRequestForm.reason}
+                  onChange={(e) =>
+                    setCorrectionRequestForm({
+                      ...correctionRequestForm,
+                      reason: e.target.value,
+                    })
+                  }
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
+                />
+              </label>
+
+              <button
+                type="submit"
+                disabled={savingCorrectionRequest}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {savingCorrectionRequest ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Save size={16} />
+                )}
+                Submit Correction Request
+              </button>
+            </form>
+          )}
+
+          <div className={isAdmin ? 'w-full' : 'xl:w-[430px] w-full'}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-display font-semibold text-lg">
+                  {isAdmin ? 'Attendance Correction Requests' : 'My Correction Requests'}
+                </h3>
+                <p className="text-xs text-muted mt-1">
+                  {isAdmin
+                    ? 'Approve or reject employee attendance correction requests.'
+                    : 'Track submitted correction requests.'}
+                </p>
+              </div>
+              <Badge tone="warning">
+                {correctionRequests.filter((r) => r.status === 'pending').length} pending
+              </Badge>
+            </div>
+
+            {isAdmin && correctionRequestMessage && (
+              <div className="mb-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+                {correctionRequestMessage}
+              </div>
+            )}
+
+            {correctionRequests.length === 0 ? (
+              <EmptyState label="No attendance correction requests yet." />
+            ) : (
+              <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                {correctionRequests.slice(0, 10).map((request) => (
+                  <div
+                    key={request.id}
+                    className="rounded-xl border border-white/10 bg-surface px-4 py-3 text-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">
+                          {empMap[request.employee_id]?.name ?? `#${request.employee_id}`}
+                        </p>
+                        <p className="text-xs text-muted mt-1">
+                          {request.request_date} · {request.reason}
+                        </p>
+                      </div>
+                      <Badge
+                        tone={
+                          request.status === 'approved'
+                            ? 'success'
+                            : request.status === 'rejected'
+                              ? 'danger'
+                              : 'warning'
+                        }
+                      >
+                        {request.status}
+                      </Badge>
+                    </div>
+
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-xs text-primary font-semibold">
+                        View requested changes
+                      </summary>
+                      <pre className="mt-2 max-h-32 overflow-auto rounded-xl bg-black/20 p-3 text-[10px] text-muted whitespace-pre-wrap">
+                        {JSON.stringify(request.requested_data, null, 2)}
+                      </pre>
+                    </details>
+
+                    {isAdmin && request.status === 'pending' && (
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          type="button"
+                          onClick={() => decideCorrectionRequest(request, 'approved')}
+                          disabled={savingCorrectionRequest}
+                          className="rounded-xl bg-emerald/15 text-emerald border border-emerald/25 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => decideCorrectionRequest(request, 'rejected')}
+                          disabled={savingCorrectionRequest}
+                          className="rounded-xl bg-rose/15 text-rose border border-rose/25 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {isAdmin && (
         <form

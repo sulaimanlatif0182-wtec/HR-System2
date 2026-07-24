@@ -117,6 +117,23 @@ interface Employee {
   date_of_birth?: string | null;
   identity_type?: string | null;
   identity_last4?: string | null;
+  bank_name?: string | null;
+  bank_account_no?: string | null;
+  epf_no?: string | null;
+  socso_no?: string | null;
+  income_tax_no?: string | null;
+  address?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_relationship?: string | null;
+  emergency_contact_phone?: string | null;
+  marital_status?: string | null;
+  number_of_children?: number | null;
+  probation_end_date?: string | null;
+  contract_end_date?: string | null;
+  work_permit_expiry?: string | null;
+  passport_expiry?: string | null;
+  driving_license_expiry?: string | null;
+  medical_checkup_expiry?: string | null;
 }
 
 interface EmployeeFormState {
@@ -132,6 +149,23 @@ interface EmployeeFormState {
   identity_last4: string;
   salary: string;
   status: string;
+  bank_name: string;
+  bank_account_no: string;
+  epf_no: string;
+  socso_no: string;
+  income_tax_no: string;
+  address: string;
+  emergency_contact_name: string;
+  emergency_contact_relationship: string;
+  emergency_contact_phone: string;
+  marital_status: string;
+  number_of_children: string;
+  probation_end_date: string;
+  contract_end_date: string;
+  work_permit_expiry: string;
+  passport_expiry: string;
+  driving_license_expiry: string;
+  medical_checkup_expiry: string;
 }
 
 interface EmployeeDocument {
@@ -173,6 +207,23 @@ function emptyForm(): EmployeeFormState {
     identity_last4: '',
     salary: '',
     status: 'active',
+    bank_name: '',
+    bank_account_no: '',
+    epf_no: '',
+    socso_no: '',
+    income_tax_no: '',
+    address: '',
+    emergency_contact_name: '',
+    emergency_contact_relationship: '',
+    emergency_contact_phone: '',
+    marital_status: '',
+    number_of_children: '0',
+    probation_end_date: '',
+    contract_end_date: '',
+    work_permit_expiry: '',
+    passport_expiry: '',
+    driving_license_expiry: '',
+    medical_checkup_expiry: '',
   };
 }
 
@@ -190,6 +241,23 @@ function formFromEmployee(employee: Employee): EmployeeFormState {
     identity_last4: employee.identity_last4 ?? '',
     salary: employee.salary !== null && employee.salary !== undefined ? String(employee.salary) : '',
     status: employee.status ?? 'active',
+    bank_name: employee.bank_name ?? '',
+    bank_account_no: employee.bank_account_no ?? '',
+    epf_no: employee.epf_no ?? '',
+    socso_no: employee.socso_no ?? '',
+    income_tax_no: employee.income_tax_no ?? '',
+    address: employee.address ?? '',
+    emergency_contact_name: employee.emergency_contact_name ?? '',
+    emergency_contact_relationship: employee.emergency_contact_relationship ?? '',
+    emergency_contact_phone: employee.emergency_contact_phone ?? '',
+    marital_status: employee.marital_status ?? '',
+    number_of_children: String(employee.number_of_children ?? 0),
+    probation_end_date: employee.probation_end_date ?? '',
+    contract_end_date: employee.contract_end_date ?? '',
+    work_permit_expiry: employee.work_permit_expiry ?? '',
+    passport_expiry: employee.passport_expiry ?? '',
+    driving_license_expiry: employee.driving_license_expiry ?? '',
+    medical_checkup_expiry: employee.medical_checkup_expiry ?? '',
   };
 }
 
@@ -423,7 +491,13 @@ export default function Employees() {
     setDocumentError('');
 
     try {
-      const res = await fetch(`/api/employees?document_id=${document.id}`, {
+      const params = new URLSearchParams({
+        document_id: String(document.id),
+        changed_by: String(profile?.id ?? ''),
+        changed_by_name: String(profile?.name ?? ''),
+      });
+
+      const res = await fetch(`/api/employees?${params.toString()}`, {
         method: 'DELETE',
       });
 
@@ -971,6 +1045,119 @@ export default function Employees() {
             ))}
           </select>
         </div>
+
+        <div className="grid grid-cols-1 gap-3 border-t border-white/10 pt-3">
+          <p className="text-xs font-semibold text-muted uppercase tracking-wide">
+            Emergency Contact & Bank Info
+          </p>
+          <input
+            placeholder="Address"
+            value={values.address}
+            onChange={(e) => setValues({ ...values, address: e.target.value })}
+            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              placeholder="Bank name"
+              value={values.bank_name}
+              onChange={(e) => setValues({ ...values, bank_name: e.target.value })}
+              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+            />
+            <input
+              placeholder="Bank account no"
+              value={values.bank_account_no}
+              onChange={(e) => setValues({ ...values, bank_account_no: e.target.value })}
+              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <input
+              placeholder="EPF no"
+              value={values.epf_no}
+              onChange={(e) => setValues({ ...values, epf_no: e.target.value })}
+              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+            />
+            <input
+              placeholder="SOCSO no"
+              value={values.socso_no}
+              onChange={(e) => setValues({ ...values, socso_no: e.target.value })}
+              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+            />
+            <input
+              placeholder="Income tax no"
+              value={values.income_tax_no}
+              onChange={(e) => setValues({ ...values, income_tax_no: e.target.value })}
+              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <input
+              placeholder="Emergency contact name"
+              value={values.emergency_contact_name}
+              onChange={(e) => setValues({ ...values, emergency_contact_name: e.target.value })}
+              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+            />
+            <input
+              placeholder="Relationship"
+              value={values.emergency_contact_relationship}
+              onChange={(e) => setValues({ ...values, emergency_contact_relationship: e.target.value })}
+              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+            />
+            <input
+              placeholder="Emergency phone"
+              value={values.emergency_contact_phone}
+              onChange={(e) => setValues({ ...values, emergency_contact_phone: e.target.value })}
+              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              value={values.marital_status}
+              onChange={(e) => setValues({ ...values, marital_status: e.target.value })}
+              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+            >
+              <option value="">Marital status</option>
+              <option value="single">Single</option>
+              <option value="married">Married</option>
+              <option value="divorced">Divorced</option>
+              <option value="widowed">Widowed</option>
+            </select>
+            <input
+              type="number"
+              min="0"
+              placeholder="No. of children"
+              value={values.number_of_children}
+              onChange={(e) => setValues({ ...values, number_of_children: e.target.value })}
+              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 border-t border-white/10 pt-3">
+          <p className="text-xs font-semibold text-muted uppercase tracking-wide col-span-2">
+            Expiry / Alert Dates
+          </p>
+          {[
+            ['probation_end_date', 'Probation end'],
+            ['contract_end_date', 'Contract end'],
+            ['work_permit_expiry', 'Work permit expiry'],
+            ['passport_expiry', 'Passport expiry'],
+            ['driving_license_expiry', 'Driving license expiry'],
+            ['medical_checkup_expiry', 'Medical checkup expiry'],
+          ].map(([key, label]) => (
+            <label key={key} className="text-xs text-muted">
+              {label}
+              <input
+                type="date"
+                value={values[key as keyof EmployeeFormState]}
+                onChange={(e) =>
+                  setValues({ ...values, [key]: e.target.value })
+                }
+                className="mt-1 w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+              />
+            </label>
+          ))}
+        </div>
       </>
     );
   };
@@ -1360,6 +1547,40 @@ export default function Employees() {
                           ).toLocaleString()}`}
                         />
                       )}
+
+                      <InfoRow
+                        icon={MapPin}
+                        label="Address"
+                        value={selected.address ?? '—'}
+                      />
+                      <InfoRow
+                        icon={DollarSign}
+                        label="Bank"
+                        value={`${selected.bank_name ?? '—'} · ${
+                          selected.bank_account_no ?? '—'
+                        }`}
+                      />
+                      <InfoRow
+                        icon={IdCard}
+                        label="Statutory Numbers"
+                        value={`EPF: ${selected.epf_no ?? '—'} · SOCSO: ${
+                          selected.socso_no ?? '—'
+                        } · Tax: ${selected.income_tax_no ?? '—'}`}
+                      />
+                      <InfoRow
+                        icon={Phone}
+                        label="Emergency Contact"
+                        value={`${selected.emergency_contact_name ?? '—'} · ${
+                          selected.emergency_contact_relationship ?? '—'
+                        } · ${selected.emergency_contact_phone ?? '—'}`}
+                      />
+                      <InfoRow
+                        icon={Calendar}
+                        label="Probation / Contract"
+                        value={`Probation: ${selected.probation_end_date ?? '—'} · Contract: ${
+                          selected.contract_end_date ?? '—'
+                        }`}
+                      />
                     </>
                   )}
 
