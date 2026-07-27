@@ -290,7 +290,16 @@ export default function AdminConfig() {
       if (!res.ok) throw new Error(data?.error || 'Failed to run reminders.');
 
       setReminderResults(Array.isArray(data?.results) ? data.results : []);
-      setMessage(`Reminder check completed. ${data?.results?.length || 0} reminder(s) found.`);
+      const emailInfo = data?.email?.sent
+        ? ` Email sent to ${data.email.sent} recipient(s).`
+        : data?.email?.skipped
+          ? ` Email skipped: ${data.email.reason}`
+          : data?.email?.error
+            ? ` Email error: ${data.email.error}`
+            : '';
+      setMessage(
+        `Reminder check completed. ${data?.results?.length || 0} reminder(s) found.${emailInfo}`
+      );
       await fetchAll();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Failed to run reminders.');
@@ -547,7 +556,7 @@ export default function AdminConfig() {
               className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
             >
               {running ? <Loader2 size={16} className="animate-spin" /> : <BellRing size={16} />}
-              Run Reminder Check
+              Run Reminder Check & Email
             </button>
           </div>
         </form>

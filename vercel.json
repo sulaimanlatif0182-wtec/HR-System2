@@ -1,5 +1,8 @@
 {
-  "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  "crons": [
+    {
+      "path": "/api/employees?cron_reminders=1",
+      "schedule": "0 1 * * *"
+    }
   ]
 }

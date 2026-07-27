@@ -22,6 +22,140 @@ function cleanString(value) {
   return String(value ?? '').trim();
 }
 
+function getAppBaseUrl() {
+  return (process.env.APP_BASE_URL || 'https://hr-system2.vercel.app').replace(/\/+$/, '');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function sendSmtpEmail({ to, subject, html, text }) {
+  const recipients = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
+
+  if (!recipients.length) return { sent: 0, skipped: true, reason: 'No recipients.' };
+
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASSWORD;
+
+  if (!host || !user || !pass) {
+    return {
+      sent: 0,
+      skipped: true,
+      reason: 'SMTP env variables are not configured.',
+    };
+  }
+
+  const nodemailer = await import('nodemailer');
+  const transporter = nodemailer.default.createTransport({
+    host,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true',
+    auth: {
+      user,
+      pass,
+    },
+  });
+
+  const info = await transporter.sendMail({
+    from: `"${process.env.SMTP_FROM_NAME || 'WtecHR'}" <${process.env.SMTP_FROM || user}>`,
+    to: recipients.join(','),
+    subject,
+    html,
+    text,
+  });
+
+  return {
+    sent: recipients.length,
+    messageId: info.messageId,
+  };
+}
+
+async function getAdminEmails() {
+  const { data, error } = await supabase
+    .from('employees')
+    .select('email')
+    .eq('role', 'admin')
+    .neq('status', 'inactive');
+
+  if (error) return [];
+
+  return Array.from(
+    new Set((data || []).map((row) => cleanString(row.email)).filter(Boolean))
+  );
+}
+
+function buildReminderEmail(results = []) {
+  const appUrl = getAppBaseUrl();
+  const rows = results
+    .slice(0, 80)
+    .map(
+      (item) => `
+        <tr>
+          <td style="padding:8px;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.reminder_type)}</td>
+          <td style="padding:8px;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.employee_name || 'General')}</td>
+          <td style="padding:8px;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.title)}</td>
+          <td style="padding:8px;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.message)}</td>
+        </tr>`
+    )
+    .join('');
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#111827;line-height:1.5;">
+      <h2 style="margin:0 0 8px;color:#1f4fa3;">WtecHR Reminder Summary</h2>
+      <p style="margin:0 0 16px;color:#4b5563;">${results.length} reminder(s) generated.</p>
+      <table style="border-collapse:collapse;width:100%;font-size:13px;">
+        <thead>
+          <tr style="background:#f3f4f6;text-align:left;">
+            <th style="padding:8px;">Type</th>
+            <th style="padding:8px;">Employee</th>
+            <th style="padding:8px;">Title</th>
+            <th style="padding:8px;">Message</th>
+          </tr>
+        </thead>
+        <tbody>${rows || '<tr><td colspan="4" style="padding:12px;">No reminders.</td></tr>'}</tbody>
+      </table>
+      <p style="margin-top:18px;">
+        <a href="${appUrl}/admin-config" style="background:#1f4fa3;color:white;text-decoration:none;padding:10px 14px;border-radius:8px;display:inline-block;">Open Admin Config</a>
+      </p>
+      <p style="font-size:12px;color:#6b7280;margin-top:18px;">This email was generated automatically by WtecHR.</p>
+    </div>`;
+
+  const text = [
+    `WtecHR Reminder Summary`,
+    `${results.length} reminder(s) generated.`,
+    '',
+    ...results.slice(0, 80).map((item) => `- [${item.reminder_type}] ${item.employee_name || 'General'}: ${item.title} - ${item.message}`),
+    '',
+    `${appUrl}/admin-config`,
+  ].join('\n');
+
+  return { html, text };
+}
+
+async function sendReminderSummaryEmail(results = []) {
+  const adminEmails = await getAdminEmails();
+
+  if (!adminEmails.length) {
+    return { sent: 0, skipped: true, reason: 'No admin email recipients found.' };
+  }
+
+  const { html, text } = buildReminderEmail(results);
+
+  return sendSmtpEmail({
+    to: adminEmails,
+    subject: `WtecHR Reminder Summary - ${results.length} reminder(s)`,
+    html,
+    text,
+  });
+}
+
 function normalizeEmail(value) {
   return cleanString(value).toLowerCase();
 }
@@ -450,6 +584,57 @@ async function buildReminderResults() {
   return results;
 }
 
+async function runReminderWorkflow({
+  sendEmail = true,
+  generatedBy = null,
+  generatedByName = null,
+  source = 'manual',
+} = {}) {
+  const results = await buildReminderResults();
+
+  if (results.length > 0) {
+    await supabase.from('reminder_logs').insert(
+      results.map((item) => ({
+        rule_id: item.rule_id || null,
+        reminder_type: item.reminder_type,
+        employee_id: item.employee_id || null,
+        title: item.title,
+        message: item.message,
+        status: sendEmail ? 'generated_email_pending' : 'generated',
+        generated_by: generatedBy,
+        generated_by_name: generatedByName || source,
+      }))
+    );
+  }
+
+  let emailResult = null;
+
+  if (sendEmail) {
+    try {
+      emailResult = await sendReminderSummaryEmail(results);
+    } catch (err) {
+      emailResult = {
+        sent: 0,
+        error: err?.message || String(err),
+      };
+    }
+  }
+
+  await safeInsertSystemAudit({
+    module: 'reminders',
+    action: source === 'vercel_cron' ? 'cron_run_reminders' : 'run_reminders',
+    changed_by: generatedBy,
+    changed_by_name: generatedByName || source,
+    new_data: {
+      count: results.length,
+      email: emailResult,
+      source,
+    },
+  });
+
+  return { results, email: emailResult };
+}
+
 async function buildMonthlyHrReport(period) {
   const range = getPeriodRange(period);
 
@@ -531,6 +716,28 @@ export default async function handler(req, res) {
     // =========================
     if (req.method === 'GET') {
       const { email, id, documents, employee_id, profile_update_requests } = req.query;
+
+      if (req.query?.cron_reminders === '1') {
+        const expectedSecret = process.env.CRON_SECRET;
+        const authHeader = req.headers.authorization || '';
+
+        if (expectedSecret && authHeader !== `Bearer ${expectedSecret}`) {
+          return res.status(401).json({ error: 'Unauthorized cron request.' });
+        }
+
+        const result = await runReminderWorkflow({
+          sendEmail: true,
+          generatedBy: null,
+          generatedByName: 'Vercel Cron',
+          source: 'vercel_cron',
+        });
+
+        return res.status(200).json({
+          ok: true,
+          count: result.results.length,
+          email: result.email,
+        });
+      }
 
       if (req.query?.admin_config === 'true') {
         const config = await getAdminConfig();
@@ -848,32 +1055,14 @@ export default async function handler(req, res) {
       }
 
       if (body.action === 'run_reminders') {
-        const results = await buildReminderResults();
-
-        if (results.length > 0) {
-          await supabase.from('reminder_logs').insert(
-            results.map((item) => ({
-              rule_id: item.rule_id || null,
-              reminder_type: item.reminder_type,
-              employee_id: item.employee_id || null,
-              title: item.title,
-              message: item.message,
-              status: 'generated',
-              generated_by: body.changed_by || null,
-              generated_by_name: body.changed_by_name || null,
-            }))
-          );
-        }
-
-        await safeInsertSystemAudit({
-          module: 'reminders',
-          action: 'run_reminders',
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
-          new_data: { count: results.length },
+        const result = await runReminderWorkflow({
+          sendEmail: body.send_email !== false,
+          generatedBy: body.changed_by || null,
+          generatedByName: body.changed_by_name || null,
+          source: 'manual',
         });
 
-        return res.status(200).json({ results });
+        return res.status(200).json(result);
       }
 
       if (body.action === 'announcement_save') {
