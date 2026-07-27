@@ -22,6 +22,7 @@ import HrLetters from './pages/HrLetters';
 import Performance from './pages/Performance';
 import MonthlyReports from './pages/MonthlyReports';
 import BackupCenter from './pages/BackupCenter';
+import AdminConfig from './pages/AdminConfig';
 
 function ProtectedPage({ children }: { children: ReactNode }) {
   return (
@@ -134,6 +135,15 @@ function App() {
             element={
               <ProtectedPage>
                 <BackupCenter />
+              </ProtectedPage>
+            }
+          />
+
+          <Route
+            path="/admin-config"
+            element={
+              <ProtectedPage>
+                <AdminConfig />
               </ProtectedPage>
             }
           />

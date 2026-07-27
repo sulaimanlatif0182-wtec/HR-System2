@@ -14,6 +14,7 @@ import NotificationsBell from './NotificationsBell';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'manager', 'employee'] },
+  { to: '/admin-config', label: 'Admin Config', icon: Settings, roles: ['admin'] },
   { to: '/employees', label: 'Employees', icon: Users, roles: ['admin', 'manager'] },
   { to: '/profile-updates', label: 'Profile Updates', icon: UserCog, roles: ['admin', 'manager', 'employee'] },
   { to: '/announcements', label: 'Announcements', icon: Megaphone, roles: ['admin', 'manager', 'employee'] },
