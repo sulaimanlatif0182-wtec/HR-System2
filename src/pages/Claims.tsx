@@ -548,13 +548,13 @@ export default function Claims() {
                 : 'Submit and track your claims.'
         }
         action={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-2">
             {isAdminOrManager && (
               <button
                 type="button"
                 onClick={handleExportCsv}
                 disabled={visible.length === 0}
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
               >
                 <Download size={16} />
                 Export CSV
@@ -564,7 +564,7 @@ export default function Claims() {
             <button
               type="button"
               onClick={openClaimModal}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:scale-[1.02] transition-all"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:scale-[1.02] transition-all"
             >
               <Plus size={16} />
               Submit Claim
@@ -573,7 +573,7 @@ export default function Claims() {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
         <div className="glass rounded-2xl p-5">
           <p className="text-xs text-muted">Active Claims</p>
           <p className="font-display text-2xl font-bold mt-1">
@@ -663,7 +663,7 @@ export default function Claims() {
                 "{claim.description}"
               </p>
 
-              <div className="grid grid-cols-2 gap-2 text-xs text-muted mb-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted mb-3">
                 <p>Vehicle: {claim.vehicle_no ?? '—'}</p>
                 <p>Receipt: {claim.receipt_no ?? '—'}</p>
                 <p>From: {claim.from_location ?? '—'}</p>
@@ -675,7 +675,7 @@ export default function Claims() {
                     <p>Odo End: {claim.odometer_end ?? '—'}</p>
                     <p>Distance: {claim.distance_km ?? '—'} km</p>
                     <p>Fuel Liters: {claim.fuel_liters ?? '—'}</p>
-                    <p className="col-span-2">
+                    <p className="sm:col-span-2">
                       Petrol Station: {claim.petrol_station ?? '—'}
                     </p>
                   </>
@@ -711,13 +711,13 @@ export default function Claims() {
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-2 mt-3">
+              <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2 mt-3">
                 {canManagerApprove(claim) && (
                   <button
                     type="button"
                     onClick={() => handleAction(claim, 'manager_approve')}
                     disabled={actingId === claim.id}
-                    className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-emerald/15 text-emerald border border-emerald/25 py-2 text-xs font-medium hover:bg-emerald/25 transition-all disabled:opacity-50"
+                    className="w-full sm:flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-emerald/15 text-emerald border border-emerald/25 py-2 text-xs font-medium hover:bg-emerald/25 transition-all disabled:opacity-50"
                   >
                     {actingId === claim.id ? (
                       <Loader2 size={13} className="animate-spin" />
@@ -733,7 +733,7 @@ export default function Claims() {
                     type="button"
                     onClick={() => handleAction(claim, 'finance_approve')}
                     disabled={actingId === claim.id}
-                    className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-accent/15 text-accent border border-accent/25 py-2 text-xs font-medium hover:bg-accent/25 transition-all disabled:opacity-50"
+                    className="w-full sm:flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-accent/15 text-accent border border-accent/25 py-2 text-xs font-medium hover:bg-accent/25 transition-all disabled:opacity-50"
                   >
                     {actingId === claim.id ? (
                       <Loader2 size={13} className="animate-spin" />
@@ -754,7 +754,7 @@ export default function Claims() {
                       type="button"
                       onClick={() => handleAction(claim, 'reject')}
                       disabled={actingId === claim.id}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-rose/15 text-rose border border-rose/25 py-2 text-xs font-medium hover:bg-rose/25 transition-all disabled:opacity-50"
+                      className="w-full sm:flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-rose/15 text-rose border border-rose/25 py-2 text-xs font-medium hover:bg-rose/25 transition-all disabled:opacity-50"
                     >
                       <XCircle size={13} />
                       Reject
@@ -766,7 +766,7 @@ export default function Claims() {
                     type="button"
                     onClick={() => handleAction(claim, 'cancel')}
                     disabled={actingId === claim.id}
-                    className="flex items-center justify-center gap-1.5 rounded-lg bg-white/5 text-muted border border-white/10 px-3 py-2 text-xs font-medium hover:bg-white/10 transition-all disabled:opacity-50"
+                    className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-lg bg-white/5 text-muted border border-white/10 px-3 py-2 text-xs font-medium hover:bg-white/10 transition-all disabled:opacity-50"
                   >
                     <Ban size={13} />
                     Cancel
@@ -796,7 +796,7 @@ export default function Claims() {
               className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
             >
               <div
-                className="glass-solid rounded-2xl p-6 w-full max-w-xl pointer-events-auto max-h-[90vh] overflow-y-auto"
+                className="glass-solid rounded-2xl p-4 sm:p-6 w-full max-w-xl pointer-events-auto max-h-[92vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between mb-5">
@@ -849,7 +849,7 @@ export default function Claims() {
                     ))}
                   </select>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs text-muted mb-1 block">
                         Claim Date
@@ -895,7 +895,7 @@ export default function Claims() {
                     className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 resize-none"
                   />
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <input
                       placeholder="From Location optional"
                       value={form.from_location}
@@ -935,7 +935,7 @@ export default function Claims() {
                         className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                       />
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <input
                           type="number"
                           step="0.1"
@@ -977,7 +977,7 @@ export default function Claims() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <input
                           readOnly
                           placeholder="Distance KM auto"
