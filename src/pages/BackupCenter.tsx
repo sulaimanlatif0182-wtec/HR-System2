@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Archive, Download, Database, Loader2, RefreshCw } from 'lucide-react';
-import { PageHeader, Badge, EmptyState } from '../components/ui';
+import { useAuth } from '../contexts/AuthContext';
+import { PageHeader, Badge, EmptyState, ErrorState } from '../components/ui';
 
 interface BackupItem {
   key: string;
@@ -73,6 +74,9 @@ function flattenRow(row: Record<string, unknown>) {
 }
 
 export default function BackupCenter() {
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+
   const [loading, setLoading] = useState(false);
   const [lastBackup, setLastBackup] = useState<Record<string, unknown> | null>(null);
   const [message, setMessage] = useState('');
@@ -123,6 +127,15 @@ export default function BackupCenter() {
       setLoading(false);
     }
   };
+
+  if (!isAdmin) {
+    return (
+      <ErrorState
+        message="Backup Center is available for Admin only."
+        onRetry={() => undefined}
+      />
+    );
+  }
 
   return (
     <div>

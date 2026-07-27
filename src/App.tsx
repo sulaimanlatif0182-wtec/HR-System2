@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
@@ -25,10 +25,51 @@ import BackupCenter from './pages/BackupCenter';
 import AdminConfig from './pages/AdminConfig';
 import SystemHealth from './pages/SystemHealth';
 
-function ProtectedPage({ children }: { children: ReactNode }) {
+type Role = 'admin' | 'manager' | 'employee';
+
+function AccessDenied({ allowedRoles }: { allowedRoles: Role[] }) {
+  return (
+    <div className="glass rounded-2xl p-8 max-w-2xl mx-auto text-center">
+      <h1 className="font-display text-2xl font-bold">Access restricted</h1>
+      <p className="text-muted mt-2">
+        This page is only available for: {allowedRoles.join(', ')}.
+      </p>
+      <p className="text-xs text-muted mt-3">
+        If you believe this is wrong, please contact HR/Admin to check your role.
+      </p>
+    </div>
+  );
+}
+
+function RoleGate({
+  children,
+  allowedRoles,
+}: {
+  children: ReactNode;
+  allowedRoles?: Role[];
+}) {
+  const { profile } = useAuth();
+  const role = (profile?.role || 'employee') as Role;
+
+  if (!allowedRoles || allowedRoles.includes(role)) {
+    return <>{children}</>;
+  }
+
+  return <AccessDenied allowedRoles={allowedRoles} />;
+}
+
+function ProtectedPage({
+  children,
+  allowedRoles,
+}: {
+  children: ReactNode;
+  allowedRoles?: Role[];
+}) {
   return (
     <ProtectedRoute>
-      <Layout>{children}</Layout>
+      <Layout>
+        <RoleGate allowedRoles={allowedRoles}>{children}</RoleGate>
+      </Layout>
     </ProtectedRoute>
   );
 }
@@ -80,7 +121,7 @@ function App() {
           <Route
             path="/employees"
             element={
-              <ProtectedPage>
+              <ProtectedPage allowedRoles={['admin', 'manager']}>
                 <Employees />
               </ProtectedPage>
             }
@@ -107,7 +148,7 @@ function App() {
           <Route
             path="/hr-letters"
             element={
-              <ProtectedPage>
+              <ProtectedPage allowedRoles={['admin', 'manager']}>
                 <HrLetters />
               </ProtectedPage>
             }
@@ -125,7 +166,7 @@ function App() {
           <Route
             path="/monthly-reports"
             element={
-              <ProtectedPage>
+              <ProtectedPage allowedRoles={['admin', 'manager']}>
                 <MonthlyReports />
               </ProtectedPage>
             }
@@ -134,7 +175,7 @@ function App() {
           <Route
             path="/backup"
             element={
-              <ProtectedPage>
+              <ProtectedPage allowedRoles={['admin']}>
                 <BackupCenter />
               </ProtectedPage>
             }
@@ -143,7 +184,7 @@ function App() {
           <Route
             path="/admin-config"
             element={
-              <ProtectedPage>
+              <ProtectedPage allowedRoles={['admin']}>
                 <AdminConfig />
               </ProtectedPage>
             }
@@ -152,7 +193,7 @@ function App() {
           <Route
             path="/system-health"
             element={
-              <ProtectedPage>
+              <ProtectedPage allowedRoles={['admin']}>
                 <SystemHealth />
               </ProtectedPage>
             }
@@ -206,7 +247,7 @@ function App() {
           <Route
             path="/audit-logs"
             element={
-              <ProtectedPage>
+              <ProtectedPage allowedRoles={['admin']}>
                 <AuditLogs />
               </ProtectedPage>
             }
