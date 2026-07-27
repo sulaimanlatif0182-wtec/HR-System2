@@ -50,6 +50,17 @@ interface ReminderResult {
   reminder_type: string;
 }
 
+interface ReminderLog {
+  id: number;
+  reminder_type: string;
+  employee_id?: number | null;
+  title: string;
+  message: string;
+  status: string;
+  generated_by_name?: string | null;
+  created_at: string;
+}
+
 const DEFAULT_CONFIG: AdminConfigMap = {
   document_required_types: ['IC Copy', 'Offer Letter', 'Employment Contract'],
   profile_required_fields: [
@@ -161,6 +172,7 @@ export default function AdminConfig() {
   );
   const [checklist, setChecklist] = useState<MissingChecklistRow[]>([]);
   const [reminderRules, setReminderRules] = useState<ReminderRule[]>([]);
+  const [reminderLogs, setReminderLogs] = useState<ReminderLog[]>([]);
   const [reminderResults, setReminderResults] = useState<ReminderResult[]>([]);
   const [ruleForm, setRuleForm] = useState({
     id: null as number | null,
@@ -180,10 +192,11 @@ export default function AdminConfig() {
     setError('');
 
     try {
-      const [configData, checklistData, ruleData] = await Promise.all([
+      const [configData, checklistData, ruleData, logData] = await Promise.all([
         fetch('/api/employees?admin_config=true').then((r) => r.json()),
         fetch('/api/employees?document_checklist=true').then((r) => r.json()),
         fetch('/api/employees?reminder_rules=true').then((r) => r.json()),
+        fetch('/api/employees?reminder_logs=true').then((r) => r.json()),
       ]);
 
       const mergedConfig = { ...DEFAULT_CONFIG, ...(configData || {}) };
@@ -195,6 +208,7 @@ export default function AdminConfig() {
       setPerformanceTypesText((mergedConfig.performance_review_types || []).join(', '));
       setChecklist(Array.isArray(checklistData) ? checklistData : []);
       setReminderRules(Array.isArray(ruleData) ? ruleData : []);
+      setReminderLogs(Array.isArray(logData) ? logData : []);
     } catch {
       setError('Failed to load admin configuration center.');
     } finally {
@@ -395,6 +409,21 @@ export default function AdminConfig() {
         Missing_Documents: row.missing_documents.join('; '),
         Missing_Profile_Fields: row.missing_profile_fields.join('; '),
         Total_Missing: row.total_missing,
+      }))
+    );
+  };
+
+  const exportReminderHistory = () => {
+    downloadCsv(
+      'reminder-history.csv',
+      reminderLogs.map((log) => ({
+        ID: log.id,
+        Type: log.reminder_type,
+        Title: log.title,
+        Message: log.message,
+        Status: log.status,
+        Generated_By: log.generated_by_name || '',
+        Created_At: log.created_at,
       }))
     );
   };
@@ -757,6 +786,40 @@ export default function AdminConfig() {
               </div>
             </div>
           )}
+
+          <div className="mt-5 border-t border-white/10 pt-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h4 className="font-display font-semibold">Reminder History Report</h4>
+              <button
+                type="button"
+                onClick={exportReminderHistory}
+                disabled={reminderLogs.length === 0}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+              >
+                <Download size={14} /> CSV
+              </button>
+            </div>
+            {reminderLogs.length === 0 ? (
+              <EmptyState label="No reminder history found yet." />
+            ) : (
+              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                {reminderLogs.slice(0, 20).map((log) => (
+                  <div key={log.id} className="rounded-xl border border-white/10 bg-surface p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-sm">{log.title}</p>
+                        <p className="text-xs text-muted mt-1">{log.message}</p>
+                      </div>
+                      <Badge tone="info">{log.reminder_type}</Badge>
+                    </div>
+                    <p className="text-[11px] text-muted mt-2">
+                      {log.status} · {log.generated_by_name || 'System'} · {log.created_at}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

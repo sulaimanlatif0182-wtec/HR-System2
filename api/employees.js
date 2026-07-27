@@ -959,6 +959,18 @@ export default async function handler(req, res) {
         return res.status(200).json(data || []);
       }
 
+      if (req.query?.reminder_logs === 'true') {
+        const { data, error } = await supabase
+          .from('reminder_logs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(500);
+
+        if (error) return res.status(500).json({ error: error.message });
+
+        return res.status(200).json(data || []);
+      }
+
       if (req.query?.announcements === 'true') {
         const { data, error } = await supabase
           .from('company_announcements')

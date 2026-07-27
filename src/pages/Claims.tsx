@@ -11,6 +11,7 @@ import {
   XCircle,
   ReceiptText,
   Ban,
+  Printer,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import supabase from '../lib/supabase';
@@ -470,6 +471,99 @@ export default function Claims() {
     }
   };
 
+  const printClaimForm = (claim: Claim) => {
+    const employee = empMap[claim.employee_id];
+    const printWindow = window.open('', '_blank', 'width=1000,height=800');
+
+    if (!printWindow) {
+      alert('Popup blocked. Please allow popups to print claim form.');
+      return;
+    }
+
+    const escapeHtml = (value: unknown) =>
+      String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+    const html = `
+      <html>
+        <head>
+          <title>Claim Form - ${escapeHtml(employee?.name || claim.employee_id)}</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #111827; padding: 36px; line-height: 1.45; }
+            .header { display:flex; align-items:center; justify-content:space-between; border-bottom:4px solid #1f4fa3; padding-bottom:16px; margin-bottom:24px; }
+            .logo { max-height:70px; max-width:260px; object-fit:contain; }
+            h1 { margin:0; color:#1f4fa3; font-size:24px; }
+            h2 { margin-top:24px; font-size:15px; border-bottom:1px solid #e5e7eb; padding-bottom:6px; }
+            .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+            .box { border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#f8fafc; }
+            .label { font-size:11px; color:#6b7280; margin-bottom:4px; }
+            .value { font-weight:bold; white-space:pre-wrap; }
+            .signature { display:grid; grid-template-columns:1fr 1fr 1fr; gap:40px; margin-top:60px; }
+            .line { border-top:1px solid #111827; padding-top:8px; font-size:12px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <img src="/profile_logo.png" class="logo" />
+            <div style="text-align:right">
+              <h1>Employee Claim Form</h1>
+              <div style="font-size:12px;color:#6b7280;">Human Resource / Finance Department</div>
+              <div style="font-size:12px;color:#6b7280;">Printed: ${escapeHtml(new Date().toLocaleString())}</div>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="box"><div class="label">Employee</div><div class="value">${escapeHtml(employee?.name || `#${claim.employee_id}`)}</div></div>
+            <div class="box"><div class="label">Department</div><div class="value">${escapeHtml(employee?.department || '—')}</div></div>
+            <div class="box"><div class="label">Claim Type</div><div class="value">${escapeHtml(claim.claim_type)}</div></div>
+            <div class="box"><div class="label">Claim Date</div><div class="value">${escapeHtml(claim.claim_date)}</div></div>
+            <div class="box"><div class="label">Amount</div><div class="value">${escapeHtml(money(claim.amount))}</div></div>
+            <div class="box"><div class="label">Status</div><div class="value">${escapeHtml(claim.status.replace('_', ' '))}</div></div>
+          </div>
+
+          <h2>Description / Purpose</h2>
+          <div class="box"><div class="value">${escapeHtml(claim.description)}</div></div>
+
+          <h2>Claim Details</h2>
+          <div class="grid">
+            <div class="box"><div class="label">Vehicle No</div><div class="value">${escapeHtml(claim.vehicle_no || '—')}</div></div>
+            <div class="box"><div class="label">Receipt No</div><div class="value">${escapeHtml(claim.receipt_no || '—')}</div></div>
+            <div class="box"><div class="label">From</div><div class="value">${escapeHtml(claim.from_location || '—')}</div></div>
+            <div class="box"><div class="label">To</div><div class="value">${escapeHtml(claim.to_location || '—')}</div></div>
+            <div class="box"><div class="label">Odometer Start</div><div class="value">${escapeHtml(claim.odometer_start || '—')}</div></div>
+            <div class="box"><div class="label">Odometer End</div><div class="value">${escapeHtml(claim.odometer_end || '—')}</div></div>
+            <div class="box"><div class="label">Distance KM</div><div class="value">${escapeHtml(claim.distance_km || '—')}</div></div>
+            <div class="box"><div class="label">Fuel Liters</div><div class="value">${escapeHtml(claim.fuel_liters || '—')}</div></div>
+            <div class="box"><div class="label">Petrol Station</div><div class="value">${escapeHtml(claim.petrol_station || '—')}</div></div>
+            <div class="box"><div class="label">Payroll Period</div><div class="value">${escapeHtml(claim.payroll_period || '—')}</div></div>
+          </div>
+
+          <h2>Approval Information</h2>
+          <div class="grid">
+            <div class="box"><div class="label">Manager Approved By</div><div class="value">${escapeHtml(claim.manager_approved_by || '—')}</div></div>
+            <div class="box"><div class="label">Finance Approved By</div><div class="value">${escapeHtml(claim.finance_approved_by || '—')}</div></div>
+            <div class="box"><div class="label">Rejected By</div><div class="value">${escapeHtml(claim.rejected_by || '—')}</div></div>
+            <div class="box"><div class="label">Rejection Reason</div><div class="value">${escapeHtml(claim.rejection_reason || '—')}</div></div>
+          </div>
+
+          <div class="signature">
+            <div class="line">Employee Signature</div>
+            <div class="line">Manager Signature</div>
+            <div class="line">Finance / HR Signature</div>
+          </div>
+          <script>window.print()</script>
+        </body>
+      </html>`;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
   const canManagerApprove = (claim: Claim) => {
     if (!profile || claim.status !== 'pending_manager') return false;
 
@@ -712,6 +806,15 @@ export default function Claims() {
               </div>
 
               <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={() => printClaimForm(claim)}
+                  className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-lg bg-white/5 text-muted border border-white/10 px-3 py-2 text-xs font-medium hover:bg-white/10 transition-all"
+                >
+                  <Printer size={13} />
+                  Print
+                </button>
+
                 {canManagerApprove(claim) && (
                   <button
                     type="button"

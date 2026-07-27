@@ -769,6 +769,45 @@ export default function Payroll() {
     downloadCsv(`payroll-${selectedPeriod}.csv`, rows);
   };
 
+  const handleExportStatutorySummary = () => {
+    const totals = visible.reduce(
+      (acc, record) => {
+        acc.EPF_Employee += numberValue(record.epf_employee);
+        acc.EPF_Employer += numberValue(record.epf_employer);
+        acc.SOCSO_Employee += numberValue(record.socso_employee);
+        acc.SOCSO_Employer += numberValue(record.socso_employer);
+        acc.EIS_Employee += numberValue(record.eis_employee);
+        acc.EIS_Employer += numberValue(record.eis_employer);
+        acc.PCB += numberValue(record.pcb);
+        acc.Net_Pay += numberValue(record.net_pay);
+        return acc;
+      },
+      {
+        EPF_Employee: 0,
+        EPF_Employer: 0,
+        SOCSO_Employee: 0,
+        SOCSO_Employer: 0,
+        EIS_Employee: 0,
+        EIS_Employer: 0,
+        PCB: 0,
+        Net_Pay: 0,
+      }
+    );
+
+    const rows = [
+      { Period: selectedPeriod, Item: 'EPF Employee', Amount: totals.EPF_Employee },
+      { Period: selectedPeriod, Item: 'EPF Employer', Amount: totals.EPF_Employer },
+      { Period: selectedPeriod, Item: 'SOCSO Employee', Amount: totals.SOCSO_Employee },
+      { Period: selectedPeriod, Item: 'SOCSO Employer', Amount: totals.SOCSO_Employer },
+      { Period: selectedPeriod, Item: 'EIS Employee', Amount: totals.EIS_Employee },
+      { Period: selectedPeriod, Item: 'EIS Employer', Amount: totals.EIS_Employer },
+      { Period: selectedPeriod, Item: 'PCB', Amount: totals.PCB },
+      { Period: selectedPeriod, Item: 'Net Pay', Amount: totals.Net_Pay },
+    ];
+
+    downloadCsv(`payroll-statutory-summary-${selectedPeriod}.csv`, rows);
+  };
+
   const handleExportSinglePayslip = async (record: PayRec) => {
     try {
       if (!['released', 'paid'].includes(String(record.status).toLowerCase())) {
@@ -1313,15 +1352,26 @@ export default function Payroll() {
         }
         action={
           isAdminOrManager ? (
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              disabled={visible.length === 0}
-              className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
-            >
-              <Download size={16} />
-              Export CSV
-            </button>
+            <div className="grid grid-cols-1 sm:flex gap-2">
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                disabled={visible.length === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+              >
+                <Download size={16} />
+                Export CSV
+              </button>
+              <button
+                type="button"
+                onClick={handleExportStatutorySummary}
+                disabled={visible.length === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+              >
+                <Download size={16} />
+                Statutory Summary
+              </button>
+            </div>
           ) : undefined
         }
       />
