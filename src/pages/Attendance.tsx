@@ -2220,7 +2220,7 @@ export default function Attendance() {
               <button
                 type="submit"
                 disabled={savingCorrectionRequest}
-                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {savingCorrectionRequest ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -2296,7 +2296,7 @@ export default function Attendance() {
                     </details>
 
                     {isAdmin && request.status === 'pending' && (
-                      <div className="flex gap-2 mt-3">
+                      <div className="grid grid-cols-1 sm:flex gap-2 mt-3">
                         <button
                           type="button"
                           onClick={() => decideCorrectionRequest(request, 'approved')}
@@ -2688,7 +2688,7 @@ export default function Attendance() {
                 </label>
               </div>
 
-              <div className="flex flex-wrap justify-end gap-3 mt-4">
+              <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:justify-end gap-3 mt-4">
                 {holidayForm.id && (
                   <button
                     type="button"
@@ -2702,7 +2702,7 @@ export default function Attendance() {
                 <button
                   type="submit"
                   disabled={savingHoliday}
-                  className="inline-flex items-center gap-2 rounded-xl bg-amber px-4 py-2.5 text-sm font-semibold text-slate-950 disabled:opacity-50"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-amber px-4 py-2.5 text-sm font-semibold text-slate-950 disabled:opacity-50"
                 >
                   {savingHoliday ? (
                     <Loader2 size={16} className="animate-spin" />
@@ -2872,7 +2872,7 @@ export default function Attendance() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
           <button
             type="button"
             onClick={fetchDevices}
@@ -2989,7 +2989,7 @@ export default function Attendance() {
           </div>
         </div>
 
-        <div className="flex flex-wrap justify-center gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:flex xl:flex-wrap justify-center gap-3 w-full xl:w-auto">
           <button
             type="button"
             onClick={checkIn}
@@ -2999,7 +2999,7 @@ export default function Attendance() {
               !checkInWindow.allowed ||
               !hasApprovedDevice
             }
-            className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 px-4 py-2.5 text-sm font-semibold shadow-lg disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] transition-all"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 px-4 py-2.5 text-sm font-semibold shadow-lg disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] transition-all"
           >
             {busy ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
             {!hasApprovedDevice ? 'Device Approval Required' : checkInWindow.label}
@@ -3016,7 +3016,7 @@ export default function Attendance() {
               !lunchOutWindow.allowed ||
               !hasApprovedDevice
             }
-            className="flex items-center justify-center gap-2 rounded-xl bg-amber/15 text-amber border border-amber/25 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-amber/25 transition-all"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-amber/15 text-amber border border-amber/25 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-amber/25 transition-all"
           >
             <Utensils size={16} />
             {!hasApprovedDevice ? 'Device Approval Required' : lunchOutWindow.label}
@@ -3034,7 +3034,7 @@ export default function Attendance() {
               !lunchInWindow.allowed ||
               !hasApprovedDevice
             }
-            className="flex items-center justify-center gap-2 rounded-xl bg-accent/15 text-accent border border-accent/25 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent/25 transition-all"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-accent/15 text-accent border border-accent/25 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-accent/25 transition-all"
           >
             <Utensils size={16} />
             {!hasApprovedDevice ? 'Device Approval Required' : lunchInWindow.label}
@@ -3050,7 +3050,7 @@ export default function Attendance() {
               !checkOutWindow.allowed ||
               !hasApprovedDevice
             }
-            className="flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
           >
             <LogOut size={16} />
             {!hasApprovedDevice ? 'Device Approval Required' : checkOutWindow.label}
@@ -3644,7 +3644,7 @@ export default function Attendance() {
                 <button
                   type="submit"
                   disabled={savingCorrection}
-                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
                 >
                   {savingCorrection ? (
                     <Loader2 size={16} className="animate-spin" />

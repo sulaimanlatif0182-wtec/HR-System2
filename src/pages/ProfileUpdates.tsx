@@ -256,7 +256,7 @@ export default function ProfileUpdates() {
           <button
             type="button"
             onClick={fetchAll}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-white/[0.05]"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-white/[0.05]"
           >
             <RefreshCw size={16} />
             Refresh
@@ -290,7 +290,7 @@ export default function ProfileUpdates() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {UPDATE_FIELDS.map(([key, label]) => (
               <label key={key} className="text-sm">
                 <span className="block text-xs text-muted mb-1">{label}</span>
@@ -334,7 +334,7 @@ export default function ProfileUpdates() {
           <button
             type="submit"
             disabled={saving || !myEmployee}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
             Submit Request
@@ -376,12 +376,12 @@ export default function ProfileUpdates() {
                   )}
 
                   {isAdmin && request.status === 'pending' && (
-                    <div className="flex gap-2 mt-3">
+                    <div className="grid grid-cols-1 sm:flex gap-2 mt-3">
                       <button
                         type="button"
                         onClick={() => decideRequest(request, 'approved')}
                         disabled={deciding === request.id}
-                        className="inline-flex items-center gap-2 rounded-xl bg-emerald/15 text-emerald border border-emerald/25 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-emerald/15 text-emerald border border-emerald/25 px-3 py-2 text-xs font-semibold disabled:opacity-50"
                       >
                         {deciding === request.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                         Approve
@@ -390,7 +390,7 @@ export default function ProfileUpdates() {
                         type="button"
                         onClick={() => decideRequest(request, 'rejected')}
                         disabled={deciding === request.id}
-                        className="inline-flex items-center gap-2 rounded-xl bg-rose/15 text-rose border border-rose/25 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-rose/15 text-rose border border-rose/25 px-3 py-2 text-xs font-semibold disabled:opacity-50"
                       >
                         <XCircle size={14} />
                         Reject

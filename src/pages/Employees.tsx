@@ -951,7 +951,7 @@ export default function Employees() {
           </p>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-muted mb-1 block">
               Birthday
@@ -1020,7 +1020,7 @@ export default function Employees() {
           Example: 9508201234
         </p>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <input
             placeholder="Phone"
             value={values.phone}
@@ -1056,7 +1056,7 @@ export default function Employees() {
             onChange={(e) => setValues({ ...values, address: e.target.value })}
             className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               placeholder="Bank name"
               value={values.bank_name}
@@ -1070,7 +1070,7 @@ export default function Employees() {
               className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
             />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <input
               placeholder="EPF no"
               value={values.epf_no}
@@ -1090,7 +1090,7 @@ export default function Employees() {
               className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
             />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <input
               placeholder="Emergency contact name"
               value={values.emergency_contact_name}
@@ -1110,7 +1110,7 @@ export default function Employees() {
               className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <select
               value={values.marital_status}
               onChange={(e) => setValues({ ...values, marital_status: e.target.value })}
@@ -1133,7 +1133,7 @@ export default function Employees() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 border-t border-white/10 pt-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-white/10 pt-3">
           <p className="text-xs font-semibold text-muted uppercase tracking-wide col-span-2">
             Expiry / Alert Dates
           </p>
@@ -1179,7 +1179,7 @@ export default function Employees() {
                 type="button"
                 onClick={handleExportCsv}
                 disabled={filtered.length === 0}
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
               >
                 <Download size={16} />
                 Export CSV
@@ -1188,7 +1188,7 @@ export default function Employees() {
               <button
                 type="button"
                 onClick={handleOpenAdd}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] transition-all"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] transition-all"
               >
                 <UserPlus size={16} />
                 Add Employee
