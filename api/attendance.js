@@ -852,6 +852,25 @@ export default async function handler(req, res) {
           attendanceId = existing?.id || null;
         }
 
+        const { data: pendingDuplicate, error: pendingDuplicateError } = await supabase
+          .from('attendance_correction_requests')
+          .select('id')
+          .eq('employee_id', employeeId)
+          .eq('request_date', requestDate)
+          .eq('status', 'pending')
+          .limit(1)
+          .maybeSingle();
+
+        if (pendingDuplicateError) {
+          return res.status(500).json({ error: pendingDuplicateError.message });
+        }
+
+        if (pendingDuplicate) {
+          return res.status(409).json({
+            error: 'You already have a pending attendance correction request for this date.',
+          });
+        }
+
         const requestedData = {
           date: requestDate,
           status: body.status || undefined,
@@ -1197,6 +1216,27 @@ export default async function handler(req, res) {
           updated_at: new Date().toISOString(),
         };
 
+        let duplicateHolidayQuery = supabase
+          .from('company_holidays')
+          .select('id, name')
+          .eq('holiday_date', holiday_date)
+          .limit(1);
+
+        if (id) duplicateHolidayQuery = duplicateHolidayQuery.neq('id', Number(id));
+
+        const { data: duplicateHoliday, error: duplicateHolidayError } =
+          await duplicateHolidayQuery.maybeSingle();
+
+        if (duplicateHolidayError) {
+          return res.status(500).json({ error: duplicateHolidayError.message });
+        }
+
+        if (duplicateHoliday) {
+          return res.status(409).json({
+            error: `A holiday already exists on ${holiday_date}: ${duplicateHoliday.name}. Please edit the existing holiday instead.`,
+          });
+        }
+
         let query;
 
         if (id) {
@@ -1216,7 +1256,9 @@ export default async function handler(req, res) {
 
         if (error) {
           return res.status(500).json({
-            error: error.message,
+            error: error.message?.includes('duplicate')
+              ? 'A holiday with this date already exists. Please edit the existing holiday.'
+              : error.message,
           });
         }
 

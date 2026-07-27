@@ -1160,6 +1160,27 @@ export default async function handler(req, res) {
       if (action === 'save_wage_table') {
         const payload = wageTablePayloadFromBody(body);
 
+        let overlapQuery = supabase
+          .from('statutory_wage_tables')
+          .select('id, wage_from, wage_to')
+          .eq('scheme', payload.scheme)
+          .eq('active', true)
+          .lte('wage_from', payload.wage_to === null ? 999999999 : payload.wage_to)
+          .or(`wage_to.is.null,wage_to.gte.${payload.wage_from}`)
+          .limit(1);
+
+        if (body.id) overlapQuery = overlapQuery.neq('id', Number(body.id));
+
+        const { data: overlappingRow, error: overlapError } = await overlapQuery.maybeSingle();
+
+        if (overlapError) throw overlapError;
+
+        if (overlappingRow && payload.active) {
+          return res.status(409).json({
+            error: `${payload.scheme} wage range overlaps with an existing row (${overlappingRow.wage_from} - ${overlappingRow.wage_to || 'above'}). Please edit the existing row or adjust the range.`,
+          });
+        }
+
         if (body.id) {
           const { data, error } = await supabase
             .from('statutory_wage_tables')
@@ -1358,6 +1379,22 @@ export default async function handler(req, res) {
       if (!payload.employee_id || !payload.period) {
         return res.status(400).json({
           error: 'employee_id and period are required.',
+        });
+      }
+
+      const { data: duplicatePayroll, error: duplicatePayrollError } = await supabase
+        .from('payroll')
+        .select('id, status')
+        .eq('employee_id', payload.employee_id)
+        .eq('period', payload.period)
+        .limit(1)
+        .maybeSingle();
+
+      if (duplicatePayrollError) throw duplicatePayrollError;
+
+      if (duplicatePayroll) {
+        return res.status(409).json({
+          error: `Payroll record already exists for this employee and period. Please edit the existing ${duplicatePayroll.status || ''} record instead.`,
         });
       }
 

@@ -126,6 +126,25 @@ async function getEmployee(employeeId) {
   return data || null;
 }
 
+async function findOverlappingLeave({ employeeId, startDate, endDate, requestMode }) {
+  let query = supabase
+    .from('leave_requests')
+    .select('id, leave_type, start_date, end_date, status')
+    .eq('employee_id', Number(employeeId))
+    .in('status', ['pending', 'approved'])
+    .lte('start_date', endDate)
+    .gte('end_date', startDate)
+    .limit(1);
+
+  if (requestMode) query = query.eq('request_mode', requestMode);
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) throw error;
+
+  return data || null;
+}
+
 async function getApprovedUsedDays(employeeId, leaveType) {
   const { data, error } = await supabase
     .from('leave_requests')
@@ -624,6 +643,19 @@ export default async function handler(req, res) {
             error: 'Please use Time Off mode for Time Off requests.',
           });
         }
+
+        const overlappingLeave = await findOverlappingLeave({
+          employeeId: body.employee_id,
+          startDate: body.start_date,
+          endDate: body.end_date,
+          requestMode: 'leave',
+        });
+
+        if (overlappingLeave) {
+          return res.status(409).json({
+            error: `You already have a ${overlappingLeave.status} leave request overlapping this date range (${overlappingLeave.start_date} to ${overlappingLeave.end_date}).`,
+          });
+        }
       }
 
       const { data, error } = await supabase
@@ -632,7 +664,13 @@ export default async function handler(req, res) {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        return res.status(500).json({
+          error: error.message?.includes('duplicate')
+            ? 'This leave request appears to already exist. Please refresh and check your request history.'
+            : error.message,
+        });
+      }
 
       await safeNotify(notifyLeaveSubmitted, data);
 

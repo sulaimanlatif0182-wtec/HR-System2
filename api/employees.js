@@ -160,6 +160,37 @@ function normalizeEmail(value) {
   return cleanString(value).toLowerCase();
 }
 
+function friendlyDatabaseError(error, fallback = 'Unable to save. Please check the details and try again.') {
+  const message = String(error?.message || error || '');
+
+  if (message.toLowerCase().includes('duplicate') || message.includes('23505')) {
+    return 'Duplicate record found. Please check existing data before saving.';
+  }
+
+  if (message.toLowerCase().includes('violates foreign key')) {
+    return 'Related record was not found. Please refresh and try again.';
+  }
+
+  return message || fallback;
+}
+
+async function recordExists(table, filters = [], excludeId = null) {
+  let query = supabase.from(table).select('id').limit(1);
+
+  filters.forEach(([column, value, operator = 'eq']) => {
+    if (operator === 'ilike') query = query.ilike(column, value);
+    else query = query.eq(column, value);
+  });
+
+  if (excludeId) query = query.neq('id', Number(excludeId));
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) throw error;
+
+  return Boolean(data);
+}
+
 function normalizeIdentityLast4(value, type) {
   const raw = cleanString(value);
 
@@ -1166,6 +1197,12 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: 'Reminder rule name is required.' });
         }
 
+        if (await recordExists('reminder_rules', [['name', payload.name, 'ilike']], body.id)) {
+          return res.status(409).json({
+            error: 'A reminder rule with this name already exists.',
+          });
+        }
+
         let query;
         if (body.id) {
           query = supabase.from('reminder_rules').update(payload).eq('id', Number(body.id));
@@ -1245,6 +1282,18 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: 'Title and announcement body are required.' });
         }
 
+        if (
+          await recordExists(
+            'company_announcements',
+            [['title', payload.title, 'ilike']],
+            body.id
+          )
+        ) {
+          return res.status(409).json({
+            error: 'An announcement with this title already exists. Please edit the existing announcement or use a different title.',
+          });
+        }
+
         let query;
         if (body.id) {
           query = supabase.from('company_announcements').update(payload).eq('id', Number(body.id));
@@ -1306,6 +1355,21 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: 'employee_id, title and content are required.' });
         }
 
+        if (
+          await recordExists(
+            'hr_letters',
+            [
+              ['employee_id', employeeId],
+              ['title', cleanString(body.title), 'ilike'],
+            ],
+            body.id
+          )
+        ) {
+          return res.status(409).json({
+            error: 'This employee already has an HR letter with the same title.',
+          });
+        }
+
         const payload = {
           employee_id: employeeId,
           template_type: body.template_type || 'general_letter',
@@ -1364,6 +1428,22 @@ export default async function handler(req, res) {
         const employeeId = Number(body.employee_id);
         if (!employeeId || !body.review_period) {
           return res.status(400).json({ error: 'employee_id and review_period are required.' });
+        }
+
+        if (
+          await recordExists(
+            'performance_reviews',
+            [
+              ['employee_id', employeeId],
+              ['review_period', cleanString(body.review_period)],
+              ['review_type', body.review_type || 'Annual Review'],
+            ],
+            body.id
+          )
+        ) {
+          return res.status(409).json({
+            error: 'This employee already has the same review type for this review period.',
+          });
         }
 
         const payload = {
@@ -1436,6 +1516,24 @@ export default async function handler(req, res) {
           });
         }
 
+        const { data: pendingRequest, error: pendingRequestError } = await supabase
+          .from('employee_profile_update_requests')
+          .select('id')
+          .eq('employee_id', employeeId)
+          .eq('status', 'pending')
+          .limit(1)
+          .maybeSingle();
+
+        if (pendingRequestError) {
+          return res.status(500).json({ error: pendingRequestError.message });
+        }
+
+        if (pendingRequest) {
+          return res.status(409).json({
+            error: 'You already have a pending profile update request. Please wait for Admin decision before submitting another.',
+          });
+        }
+
         const { data, error } = await supabase
           .from('employee_profile_update_requests')
           .insert({
@@ -1473,6 +1571,18 @@ export default async function handler(req, res) {
         if (!employeeId || !body.title || !body.file_path) {
           return res.status(400).json({
             error: 'employee_id, title and file_path are required.',
+          });
+        }
+
+        if (
+          await recordExists('employee_documents', [
+            ['employee_id', employeeId],
+            ['document_type', body.document_type || 'Other HR Document'],
+            ['title', cleanString(body.title), 'ilike'],
+          ])
+        ) {
+          return res.status(409).json({
+            error: 'This employee already has a document with the same type and title.',
           });
         }
 
@@ -1518,6 +1628,12 @@ export default async function handler(req, res) {
 
       const payload = buildEmployeePayload(body, { partial: false });
 
+      if (await recordExists('employees', [['email', payload.email, 'ilike']])) {
+        return res.status(409).json({
+          error: 'An employee with this email already exists. Please use a different email or edit the existing employee.',
+        });
+      }
+
       const { data, error } = await supabase
         .from('employees')
         .insert(payload)
@@ -1526,7 +1642,7 @@ export default async function handler(req, res) {
 
       if (error) {
         return res.status(500).json({
-          error: error.message,
+          error: friendlyDatabaseError(error, 'Failed to add employee. Please try again.'),
         });
       }
 
@@ -1635,6 +1751,12 @@ export default async function handler(req, res) {
 
       const payload = buildEmployeePayload(body, { partial: true });
 
+      if (payload.email && await recordExists('employees', [['email', payload.email, 'ilike']], id)) {
+        return res.status(409).json({
+          error: 'Another employee already uses this email address.',
+        });
+      }
+
       if (Object.keys(payload).length === 0) {
         return res.status(400).json({
           error: 'No fields to update.',
@@ -1650,7 +1772,7 @@ export default async function handler(req, res) {
 
       if (error) {
         return res.status(500).json({
-          error: error.message,
+          error: friendlyDatabaseError(error, 'Failed to update employee. Please try again.'),
         });
       }
 
