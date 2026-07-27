@@ -23,6 +23,7 @@ import Performance from './pages/Performance';
 import MonthlyReports from './pages/MonthlyReports';
 import BackupCenter from './pages/BackupCenter';
 import AdminConfig from './pages/AdminConfig';
+import SystemHealth from './pages/SystemHealth';
 
 function ProtectedPage({ children }: { children: ReactNode }) {
   return (
@@ -144,6 +145,15 @@ function App() {
             element={
               <ProtectedPage>
                 <AdminConfig />
+              </ProtectedPage>
+            }
+          />
+
+          <Route
+            path="/system-health"
+            element={
+              <ProtectedPage>
+                <SystemHealth />
               </ProtectedPage>
             }
           />

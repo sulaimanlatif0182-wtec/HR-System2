@@ -371,6 +371,32 @@ const DEFAULT_ADMIN_CONFIG = {
     'emergency_contact_phone',
   ],
   expiry_alert_days: 90,
+  master_departments: [
+    'Engineering',
+    'QA',
+    'Managing Director',
+    'Sales',
+    'Human Resource',
+    'Finance',
+    'Executive Director',
+    'Administration',
+    'Shipping',
+    'Maintenance',
+    'QC',
+    'Store',
+    'Planner',
+    'IT',
+    'Purchasing',
+    'Marketing',
+  ],
+  master_locations: ['Factory 1', 'Factory 2', 'Factory 3', 'Factory 4'],
+  announcement_categories: ['General', 'HR', 'Payroll', 'Holiday', 'Safety', 'Policy'],
+  performance_review_types: [
+    'Annual Review',
+    'Probation Review',
+    'Promotion Review',
+    'Performance Improvement',
+  ],
 };
 
 async function getAdminConfig() {
@@ -381,6 +407,10 @@ async function getAdminConfig() {
       'document_required_types',
       'profile_required_fields',
       'expiry_alert_days',
+      'master_departments',
+      'master_locations',
+      'announcement_categories',
+      'performance_review_types',
     ]);
 
   if (error) return DEFAULT_ADMIN_CONFIG;
@@ -401,6 +431,18 @@ async function getAdminConfig() {
       ? config.profile_required_fields
       : DEFAULT_ADMIN_CONFIG.profile_required_fields,
     expiry_alert_days: Number(config.expiry_alert_days || 90),
+    master_departments: Array.isArray(config.master_departments)
+      ? config.master_departments
+      : DEFAULT_ADMIN_CONFIG.master_departments,
+    master_locations: Array.isArray(config.master_locations)
+      ? config.master_locations
+      : DEFAULT_ADMIN_CONFIG.master_locations,
+    announcement_categories: Array.isArray(config.announcement_categories)
+      ? config.announcement_categories
+      : DEFAULT_ADMIN_CONFIG.announcement_categories,
+    performance_review_types: Array.isArray(config.performance_review_types)
+      ? config.performance_review_types
+      : DEFAULT_ADMIN_CONFIG.performance_review_types,
   };
 }
 
@@ -415,6 +457,18 @@ async function saveAdminConfig(config, actor = {}) {
       ? config.profile_required_fields.map(cleanString).filter(Boolean)
       : DEFAULT_ADMIN_CONFIG.profile_required_fields,
     expiry_alert_days: Number(config?.expiry_alert_days || 90),
+    master_departments: Array.isArray(config?.master_departments)
+      ? config.master_departments.map(cleanString).filter(Boolean)
+      : DEFAULT_ADMIN_CONFIG.master_departments,
+    master_locations: Array.isArray(config?.master_locations)
+      ? config.master_locations.map(cleanString).filter(Boolean)
+      : DEFAULT_ADMIN_CONFIG.master_locations,
+    announcement_categories: Array.isArray(config?.announcement_categories)
+      ? config.announcement_categories.map(cleanString).filter(Boolean)
+      : DEFAULT_ADMIN_CONFIG.announcement_categories,
+    performance_review_types: Array.isArray(config?.performance_review_types)
+      ? config.performance_review_types.map(cleanString).filter(Boolean)
+      : DEFAULT_ADMIN_CONFIG.performance_review_types,
   };
 
   const rows = Object.entries(cleanConfig).map(([key, value]) => ({
@@ -635,6 +689,112 @@ async function runReminderWorkflow({
   return { results, email: emailResult };
 }
 
+async function checkTableHealth(table, buildQuery) {
+  try {
+    let query = supabase.from(table).select('id', { count: 'exact', head: true });
+    if (buildQuery) query = buildQuery(query);
+    const { count, error } = await query;
+
+    return {
+      ok: !error,
+      count: count || 0,
+      error: error?.message || null,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      count: 0,
+      error: err?.message || String(err),
+    };
+  }
+}
+
+async function buildSystemHealth() {
+  const checks = await Promise.all([
+    checkTableHealth('employees'),
+    checkTableHealth('attendance'),
+    checkTableHealth('leave_requests'),
+    checkTableHealth('claims'),
+    checkTableHealth('payroll'),
+    checkTableHealth('company_announcements'),
+    checkTableHealth('reminder_rules'),
+    checkTableHealth('reminder_logs'),
+    checkTableHealth('system_audit_logs'),
+    checkTableHealth('employee_documents'),
+  ]);
+
+  const tableNames = [
+    'employees',
+    'attendance',
+    'leave_requests',
+    'claims',
+    'payroll',
+    'company_announcements',
+    'reminder_rules',
+    'reminder_logs',
+    'system_audit_logs',
+    'employee_documents',
+  ];
+
+  let storageBuckets = [];
+  let storageError = null;
+
+  try {
+    const { data, error } = await supabase.storage.listBuckets();
+    storageBuckets = (data || []).map((bucket) => ({
+      name: bucket.name,
+      public: bucket.public,
+    }));
+    storageError = error?.message || null;
+  } catch (err) {
+    storageError = err?.message || String(err);
+  }
+
+  const { data: lastReminderLogs } = await supabase
+    .from('reminder_logs')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  return {
+    ok: checks.every((item) => item.ok),
+    checked_at: new Date().toISOString(),
+    app: {
+      app_base_url: process.env.APP_BASE_URL || 'https://hr-system2.vercel.app',
+      node_env: process.env.NODE_ENV || null,
+      cron_path: '/api/employees?cron_reminders=1',
+      cron_schedule: '0 1 * * * UTC / 09:00 Malaysia time',
+    },
+    environment: {
+      supabase_url: Boolean(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL),
+      supabase_service_key: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY),
+      smtp_host: Boolean(process.env.SMTP_HOST),
+      smtp_user: Boolean(process.env.SMTP_USER),
+      smtp_password: Boolean(process.env.SMTP_PASSWORD),
+      smtp_from: Boolean(process.env.SMTP_FROM),
+      app_base_url: Boolean(process.env.APP_BASE_URL),
+      cron_secret: Boolean(process.env.CRON_SECRET),
+    },
+    tables: Object.fromEntries(tableNames.map((name, index) => [name, checks[index]])),
+    storage: {
+      ok: !storageError,
+      error: storageError,
+      buckets: storageBuckets,
+      required_buckets: [
+        'employee-documents',
+        'leave-attachments',
+        'claim-attachments',
+      ].map((name) => ({
+        name,
+        exists: storageBuckets.some((bucket) => bucket.name === name),
+      })),
+    },
+    reminders: {
+      last_logs: lastReminderLogs || [],
+    },
+  };
+}
+
 async function buildMonthlyHrReport(period) {
   const range = getPeriodRange(period);
 
@@ -737,6 +897,12 @@ export default async function handler(req, res) {
           count: result.results.length,
           email: result.email,
         });
+      }
+
+      if (req.query?.system_health === 'true') {
+        const health = await buildSystemHealth();
+
+        return res.status(200).json(health);
       }
 
       if (req.query?.admin_config === 'true') {

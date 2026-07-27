@@ -18,6 +18,10 @@ interface AdminConfigMap {
   document_required_types: string[];
   profile_required_fields: string[];
   expiry_alert_days: number;
+  master_departments: string[];
+  master_locations: string[];
+  announcement_categories: string[];
+  performance_review_types: string[];
 }
 
 interface MissingChecklistRow {
@@ -56,6 +60,32 @@ const DEFAULT_CONFIG: AdminConfigMap = {
     'emergency_contact_phone',
   ],
   expiry_alert_days: 90,
+  master_departments: [
+    'Engineering',
+    'QA',
+    'Managing Director',
+    'Sales',
+    'Human Resource',
+    'Finance',
+    'Executive Director',
+    'Administration',
+    'Shipping',
+    'Maintenance',
+    'QC',
+    'Store',
+    'Planner',
+    'IT',
+    'Purchasing',
+    'Marketing',
+  ],
+  master_locations: ['Factory 1', 'Factory 2', 'Factory 3', 'Factory 4'],
+  announcement_categories: ['General', 'HR', 'Payroll', 'Holiday', 'Safety', 'Policy'],
+  performance_review_types: [
+    'Annual Review',
+    'Probation Review',
+    'Promotion Review',
+    'Performance Improvement',
+  ],
 };
 
 const PROFILE_FIELD_OPTIONS = [
@@ -117,6 +147,18 @@ export default function AdminConfig() {
   const [documentTypesText, setDocumentTypesText] = useState(
     DEFAULT_CONFIG.document_required_types.join(', ')
   );
+  const [departmentsText, setDepartmentsText] = useState(
+    DEFAULT_CONFIG.master_departments.join(', ')
+  );
+  const [locationsText, setLocationsText] = useState(
+    DEFAULT_CONFIG.master_locations.join(', ')
+  );
+  const [announcementCategoriesText, setAnnouncementCategoriesText] = useState(
+    DEFAULT_CONFIG.announcement_categories.join(', ')
+  );
+  const [performanceTypesText, setPerformanceTypesText] = useState(
+    DEFAULT_CONFIG.performance_review_types.join(', ')
+  );
   const [checklist, setChecklist] = useState<MissingChecklistRow[]>([]);
   const [reminderRules, setReminderRules] = useState<ReminderRule[]>([]);
   const [reminderResults, setReminderResults] = useState<ReminderResult[]>([]);
@@ -147,6 +189,10 @@ export default function AdminConfig() {
       const mergedConfig = { ...DEFAULT_CONFIG, ...(configData || {}) };
       setConfig(mergedConfig);
       setDocumentTypesText((mergedConfig.document_required_types || []).join(', '));
+      setDepartmentsText((mergedConfig.master_departments || []).join(', '));
+      setLocationsText((mergedConfig.master_locations || []).join(', '));
+      setAnnouncementCategoriesText((mergedConfig.announcement_categories || []).join(', '));
+      setPerformanceTypesText((mergedConfig.performance_review_types || []).join(', '));
       setChecklist(Array.isArray(checklistData) ? checklistData : []);
       setReminderRules(Array.isArray(ruleData) ? ruleData : []);
     } catch {
@@ -176,6 +222,10 @@ export default function AdminConfig() {
       const nextConfig = {
         ...config,
         document_required_types: commaToList(documentTypesText),
+        master_departments: commaToList(departmentsText),
+        master_locations: commaToList(locationsText),
+        announcement_categories: commaToList(announcementCategoriesText),
+        performance_review_types: commaToList(performanceTypesText),
       };
 
       const res = await fetch('/api/employees', {
@@ -308,6 +358,33 @@ export default function AdminConfig() {
     }
   };
 
+  const downloadTemplate = (type: string) => {
+    if (type === 'holidays') {
+      downloadCsv('holiday-import-template.csv', [
+        { holiday_date: '2026-01-01', name: 'New Year Day', type: 'public_holiday', is_working_day: 'false', notes: '' },
+      ]);
+      return;
+    }
+
+    if (type === 'wage_table') {
+      downloadCsv('socso-eis-wage-table-template.csv', [
+        { scheme: 'SOCSO', wage_from: 0, wage_to: 30, employee_amount: 0, employer_amount: 0, effective_from: '', effective_to: '', active: 'true', notes: 'Replace with official amount' },
+      ]);
+      return;
+    }
+
+    if (type === 'payroll_profiles') {
+      downloadCsv('payroll-profiles-template.csv', [
+        { employee_id: 1, citizenship_type: 'local', date_of_birth: '1990-01-01', pcb_monthly_amount: 0, socso_enabled: 'true', eis_enabled: 'true' },
+      ]);
+      return;
+    }
+
+    downloadCsv('employee-extra-fields-template.csv', [
+      { employee_id: 1, bank_name: '', bank_account_no: '', epf_no: '', socso_no: '', income_tax_no: '', emergency_contact_phone: '' },
+    ]);
+  };
+
   const exportChecklist = () => {
     downloadCsv(
       'document-missing-checklist.csv',
@@ -419,6 +496,65 @@ export default function AdminConfig() {
               className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
             />
           </label>
+
+          <div className="border-t border-white/10 pt-4 space-y-3">
+            <div>
+              <h4 className="font-display font-semibold text-sm">Master Data Cleanup</h4>
+              <p className="text-xs text-muted mt-1">
+                Central reference lists for future dropdown cleanup. Separate values with comma.
+              </p>
+            </div>
+
+            <label className="text-sm block">
+              <span className="block text-xs text-muted mb-1">Departments</span>
+              <textarea
+                rows={2}
+                value={departmentsText}
+                onChange={(e) => setDepartmentsText(e.target.value)}
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
+              />
+            </label>
+
+            <label className="text-sm block">
+              <span className="block text-xs text-muted mb-1">Locations</span>
+              <input
+                value={locationsText}
+                onChange={(e) => setLocationsText(e.target.value)}
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm block">
+              <span className="block text-xs text-muted mb-1">Announcement Categories</span>
+              <input
+                value={announcementCategoriesText}
+                onChange={(e) => setAnnouncementCategoriesText(e.target.value)}
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm block">
+              <span className="block text-xs text-muted mb-1">Performance Review Types</span>
+              <input
+                value={performanceTypesText}
+                onChange={(e) => setPerformanceTypesText(e.target.value)}
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+          </div>
+
+          <div className="border-t border-white/10 pt-4">
+            <h4 className="font-display font-semibold text-sm">Data Import Templates</h4>
+            <p className="text-xs text-muted mt-1 mb-3">
+              Download CSV templates first. The next phase can connect these templates to guided imports.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => downloadTemplate('holidays')} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold">Holiday CSV</button>
+              <button type="button" onClick={() => downloadTemplate('wage_table')} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold">SOCSO/EIS CSV</button>
+              <button type="button" onClick={() => downloadTemplate('payroll_profiles')} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold">Payroll Profiles CSV</button>
+              <button type="button" onClick={() => downloadTemplate('employee_extra')} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold">Employee Extra Fields CSV</button>
+            </div>
+          </div>
 
           <button
             type="submit"

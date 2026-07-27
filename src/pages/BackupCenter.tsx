@@ -20,6 +20,7 @@ const BACKUP_ITEMS: BackupItem[] = [
   { key: 'hr_letters', label: 'HR Letters', endpoint: '/api/employees?hr_letters=true' },
   { key: 'performance', label: 'Performance Reviews', endpoint: '/api/employees?performance_reviews=true' },
   { key: 'audit_logs', label: 'Audit Logs', endpoint: '/api/attendance?audit_logs=1' },
+  { key: 'system_health', label: 'System Health', endpoint: '/api/employees?system_health=true' },
 ];
 
 function todayKey() {
