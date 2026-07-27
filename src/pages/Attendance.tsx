@@ -3201,7 +3201,7 @@ export default function Attendance() {
         </div>
       </div>
 
-      <div className="glass rounded-2xl p-6 overflow-x-auto">
+      <div className="glass rounded-2xl p-4 md:p-6 overflow-x-auto">
         {reportTab === 'missing' ? (
           missingCheckInReport.length === 0 ? (
             <EmptyState label="No missing check-in records found for the selected date range." />
@@ -3239,7 +3239,71 @@ export default function Attendance() {
         ) : recent.length === 0 ? (
           <EmptyState label="No attendance records found for the selected filters." />
         ) : (
-          <table className="min-w-full text-sm">
+          <>
+            <div className="md:hidden space-y-3">
+              {recent.map((record) => (
+                <div
+                  key={`mobile-${record.id}`}
+                  className="rounded-2xl border border-white/10 bg-surface p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm truncate">
+                        {empMap[record.employee_id]?.name ?? `#${record.employee_id}`}
+                      </p>
+                      <p className="text-xs text-muted mt-1">
+                        {record.date} · {empMap[record.employee_id]?.department ?? '—'}
+                      </p>
+                    </div>
+                    <Badge tone={STATUS_TONE[record.status] ?? 'default'}>
+                      {record.status}
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mt-4 text-xs">
+                    <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                      <p className="text-muted">Check In</p>
+                      <p className="font-semibold mt-1">{formatTime(record.check_in)}</p>
+                      <p className="text-muted mt-1">{formatType(record.check_in_type)}</p>
+                    </div>
+                    <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                      <p className="text-muted">Check Out</p>
+                      <p className="font-semibold mt-1">{formatTime(record.check_out)}</p>
+                      <p className="text-muted mt-1">OT {Number(record.overtime_hours ?? 0)}h</p>
+                    </div>
+                    <div className="rounded-xl bg-white/5 border border-white/10 p-3 col-span-2">
+                      <p className="text-muted">Lunch</p>
+                      <p className="font-semibold mt-1">
+                        Out {formatTime(record.lunch_out)} · In {formatTime(record.lunch_in)}
+                      </p>
+                      <p className="text-muted mt-1">
+                        Break {record.lunch_break_minutes ?? 0}m · Late {record.lunch_late_minutes ?? 0}m
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <VerificationStatus
+                      gps={record.check_in_verified || record.check_out_verified}
+                      passkey={record.check_in_webauthn_verified || record.check_out_webauthn_verified}
+                    />
+                  </div>
+
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => openCorrection(record)}
+                      className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold hover:bg-white/10 transition-all"
+                    >
+                      <Pencil size={13} />
+                      Edit
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+          <table className="hidden md:table min-w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-white/10">
                 <th className="py-3 pr-4">Date</th>
@@ -3371,6 +3435,7 @@ export default function Attendance() {
               ))}
             </tbody>
           </table>
+          </>
         )}
 
         {reportTab !== 'missing' && currentReportRows.length > 50 && (

@@ -1133,8 +1133,8 @@ export default function Employees() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-white/10 pt-3">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wide col-span-2">
+        <div className="grid grid-cols-1 gap-3 border-t border-white/10 pt-3">
+          <p className="text-xs font-semibold text-muted uppercase tracking-wide">
             Expiry / Alert Dates
           </p>
           {[
