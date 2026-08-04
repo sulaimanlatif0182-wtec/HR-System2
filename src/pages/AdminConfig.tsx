@@ -270,6 +270,13 @@ export default function AdminConfig() {
 
   const draftDiffers = Object.keys(dirtyFlags).length > 0;
 
+  const isFeatureEnabled = (key: FeatureFlagKey) => {
+    const flag = effectiveFlags.find((item) => item.key === key);
+    return flag?.enabled !== false;
+  };
+
+  const reminderSchedulerEnabled = isFeatureEnabled('reminder_scheduler');
+
   const saveFeatureToggles = async () => {
     if (!isAdmin || !profile) return;
 
@@ -423,6 +430,11 @@ export default function AdminConfig() {
 
   const runReminders = async () => {
     if (!isAdmin || !profile) return;
+
+    if (!reminderSchedulerEnabled) {
+      setMessage('Reminder Scheduler is currently disabled by Admin.');
+      return;
+    }
 
     setRunning(true);
     setMessage('');
@@ -736,180 +748,190 @@ export default function AdminConfig() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <form onSubmit={saveReminderRule} className="glass rounded-2xl p-5 space-y-3">
-          <div className="flex items-start gap-3">
-            <div className="w-11 h-11 rounded-xl bg-accent/15 text-accent grid place-items-center">
-              <BellRing size={20} />
+      {reminderSchedulerEnabled ? (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <form onSubmit={saveReminderRule} className="glass rounded-2xl p-5 space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-xl bg-accent/15 text-accent grid place-items-center">
+                <BellRing size={20} />
+              </div>
+              <div>
+                <h3 className="font-display font-semibold">Reminder / Notification Scheduler</h3>
+                <p className="text-xs text-muted mt-1">
+                  Create reminder rules and run checks manually. Later this can be connected to cron/email.
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-display font-semibold">Reminder / Notification Scheduler</h3>
-              <p className="text-xs text-muted mt-1">
-                Create reminder rules and run checks manually. Later this can be connected to cron/email.
-              </p>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <input
-              value={ruleForm.name}
-              onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })}
-              placeholder="Reminder rule name"
-              className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
-            />
-            <select
-              value={ruleForm.reminder_type}
-              onChange={(e) => setRuleForm({ ...ruleForm, reminder_type: e.target.value })}
-              className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
-            >
-              {REMINDER_TYPES.map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min="0"
-              value={ruleForm.days_before}
-              onChange={(e) => setRuleForm({ ...ruleForm, days_before: e.target.value })}
-              placeholder="Days before"
-              className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
-            />
-            <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <input
-                type="checkbox"
-                checked={ruleForm.enabled}
-                onChange={(e) => setRuleForm({ ...ruleForm, enabled: e.target.checked })}
+                value={ruleForm.name}
+                onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })}
+                placeholder="Reminder rule name"
+                className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
-              Enabled
-            </label>
-          </div>
+              <select
+                value={ruleForm.reminder_type}
+                onChange={(e) => setRuleForm({ ...ruleForm, reminder_type: e.target.value })}
+                className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              >
+                {REMINDER_TYPES.map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min="0"
+                value={ruleForm.days_before}
+                onChange={(e) => setRuleForm({ ...ruleForm, days_before: e.target.value })}
+                placeholder="Days before"
+                className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  checked={ruleForm.enabled}
+                  onChange={(e) => setRuleForm({ ...ruleForm, enabled: e.target.checked })}
+                />
+                Enabled
+              </label>
+            </div>
 
-          <div className="flex flex-wrap justify-end gap-2">
-            {ruleForm.id && (
+            <div className="flex flex-wrap justify-end gap-2">
+              {ruleForm.id && (
+                <button
+                  type="button"
+                  onClick={() => setRuleForm({ id: null, name: '', reminder_type: 'expiry', days_before: '30', enabled: true })}
+                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold"
+                >
+                  Cancel Edit
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                {ruleForm.id ? 'Update Rule' : 'Add Rule'}
+              </button>
               <button
                 type="button"
-                onClick={() => setRuleForm({ id: null, name: '', reminder_type: 'expiry', days_before: '30', enabled: true })}
-                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold"
+                onClick={runReminders}
+                disabled={running}
+                className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
               >
-                Cancel Edit
+                {running ? <Loader2 size={16} className="animate-spin" /> : <BellRing size={16} />}
+                Run Reminder Check & Email
               </button>
-            )}
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-              {ruleForm.id ? 'Update Rule' : 'Add Rule'}
-            </button>
-            <button
-              type="button"
-              onClick={runReminders}
-              disabled={running}
-              className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {running ? <Loader2 size={16} className="animate-spin" /> : <BellRing size={16} />}
-              Run Reminder Check & Email
-            </button>
-          </div>
-        </form>
+            </div>
+          </form>
 
-        <div className="glass rounded-2xl p-5">
-          <h3 className="font-display font-semibold mb-4">Reminder Rules</h3>
-          {reminderRules.length === 0 ? (
-            <EmptyState label="No reminder rules configured yet." />
-          ) : (
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-              {reminderRules.map((rule) => (
-                <div key={rule.id} className="rounded-xl border border-white/10 bg-surface p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-sm">{rule.name}</p>
-                      <p className="text-xs text-muted mt-1">
-                        {rule.reminder_type} · {rule.days_before} day(s) before
+          <div className="glass rounded-2xl p-5">
+            <h3 className="font-display font-semibold mb-4">Reminder Rules</h3>
+            {reminderRules.length === 0 ? (
+              <EmptyState label="No reminder rules configured yet." />
+            ) : (
+              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                {reminderRules.map((rule) => (
+                  <div key={rule.id} className="rounded-xl border border-white/10 bg-surface p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-sm">{rule.name}</p>
+                        <p className="text-xs text-muted mt-1">
+                          {rule.reminder_type} · {rule.days_before} day(s) before
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Badge tone={rule.enabled ? 'success' : 'default'}>{rule.enabled ? 'enabled' : 'disabled'}</Badge>
+                        <button
+                          type="button"
+                          onClick={() => setRuleForm({
+                            id: rule.id,
+                            name: rule.name,
+                            reminder_type: rule.reminder_type,
+                            days_before: String(rule.days_before),
+                            enabled: rule.enabled,
+                          })}
+                          className="rounded-lg border border-white/10 bg-white/5 p-2"
+                        >
+                          <Save size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteReminderRule(rule)}
+                          className="rounded-lg border border-rose/20 bg-rose/10 p-2 text-rose"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {reminderResults.length > 0 && (
+              <div className="mt-5">
+                <h4 className="font-display font-semibold mb-3">Latest Reminder Results</h4>
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                  {reminderResults.map((item, index) => (
+                    <div key={`${item.title}-${index}`} className="rounded-xl border border-white/10 bg-surface p-3">
+                      <p className="font-semibold text-sm">{item.title}</p>
+                      <p className="text-xs text-muted mt-1">{item.message}</p>
+                      {item.employee_name && (
+                        <p className="text-[11px] text-muted mt-1">Employee: {item.employee_name}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-5 border-t border-white/10 pt-4">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h4 className="font-display font-semibold">Reminder History Report</h4>
+                <button
+                  type="button"
+                  onClick={exportReminderHistory}
+                  disabled={reminderLogs.length === 0}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                >
+                  <Download size={14} /> CSV
+                </button>
+              </div>
+              {reminderLogs.length === 0 ? (
+                <EmptyState label="No reminder history found yet." />
+              ) : (
+                <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                  {reminderLogs.slice(0, 20).map((log) => (
+                    <div key={log.id} className="rounded-xl border border-white/10 bg-surface p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-semibold text-sm">{log.title}</p>
+                          <p className="text-xs text-muted mt-1">{log.message}</p>
+                        </div>
+                        <Badge tone="info">{log.reminder_type}</Badge>
+                      </div>
+                      <p className="text-[11px] text-muted mt-2">
+                        {log.status} · {log.generated_by_name || 'System'} · {log.created_at}
                       </p>
                     </div>
-                    <div className="flex gap-1">
-                      <Badge tone={rule.enabled ? 'success' : 'default'}>{rule.enabled ? 'enabled' : 'disabled'}</Badge>
-                      <button
-                        type="button"
-                        onClick={() => setRuleForm({
-                          id: rule.id,
-                          name: rule.name,
-                          reminder_type: rule.reminder_type,
-                          days_before: String(rule.days_before),
-                          enabled: rule.enabled,
-                        })}
-                        className="rounded-lg border border-white/10 bg-white/5 p-2"
-                      >
-                        <Save size={13} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteReminderRule(rule)}
-                        className="rounded-lg border border-rose/20 bg-rose/10 p-2 text-rose"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          )}
-
-          {reminderResults.length > 0 && (
-            <div className="mt-5">
-              <h4 className="font-display font-semibold mb-3">Latest Reminder Results</h4>
-              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                {reminderResults.map((item, index) => (
-                  <div key={`${item.title}-${index}`} className="rounded-xl border border-white/10 bg-surface p-3">
-                    <p className="font-semibold text-sm">{item.title}</p>
-                    <p className="text-xs text-muted mt-1">{item.message}</p>
-                    {item.employee_name && (
-                      <p className="text-[11px] text-muted mt-1">Employee: {item.employee_name}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="mt-5 border-t border-white/10 pt-4">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <h4 className="font-display font-semibold">Reminder History Report</h4>
-              <button
-                type="button"
-                onClick={exportReminderHistory}
-                disabled={reminderLogs.length === 0}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold disabled:opacity-50"
-              >
-                <Download size={14} /> CSV
-              </button>
-            </div>
-            {reminderLogs.length === 0 ? (
-              <EmptyState label="No reminder history found yet." />
-            ) : (
-              <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
-                {reminderLogs.slice(0, 20).map((log) => (
-                  <div key={log.id} className="rounded-xl border border-white/10 bg-surface p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold text-sm">{log.title}</p>
-                        <p className="text-xs text-muted mt-1">{log.message}</p>
-                      </div>
-                      <Badge tone="info">{log.reminder_type}</Badge>
-                    </div>
-                    <p className="text-[11px] text-muted mt-2">
-                      {log.status} · {log.generated_by_name || 'System'} · {log.created_at}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="glass rounded-2xl p-5">
+          <h3 className="font-display font-semibold">Reminder Scheduler Disabled</h3>
+          <p className="text-sm text-muted mt-1">
+            Reminder / Notification Scheduler is currently disabled by Admin.
+            Cron and reminder emails will not run while this feature is off.
+          </p>
+        </div>
+      )}
 
       <div className="glass rounded-2xl p-5 mt-6">
         <div className="flex items-start justify-between gap-3 mb-5">

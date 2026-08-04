@@ -13,6 +13,7 @@ export const DEFAULT_FEATURE_FLAGS = [
   { key: 'monthly_reports', label: 'Monthly Reports', category: 'Reports', enabled: true },
   { key: 'backup', label: 'Backup Center', category: 'Administration', enabled: true },
   { key: 'system_health', label: 'System Health', category: 'Administration', enabled: true },
+  { key: 'reminder_scheduler', label: 'Reminder Scheduler', category: 'Administration', enabled: true },
   { key: 'org_chart', label: 'Org Chart', category: 'Organization', enabled: true },
   { key: 'audit_logs', label: 'Audit Logs', category: 'Administration', enabled: true },
   { key: 'profile_updates', label: 'Profile Updates', category: 'Profile', enabled: true },

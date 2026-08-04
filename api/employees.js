@@ -1,6 +1,7 @@
 import supabase from './db-client.js';
 import {
   getFeatureFlags,
+  isFeatureEnabled,
   saveFeatureFlag,
   saveFeatureFlags,
 } from './feature-flags.js';
@@ -921,6 +922,13 @@ export default async function handler(req, res) {
           return res.status(401).json({ error: 'Unauthorized cron request.' });
         }
 
+        if (!(await isFeatureEnabled('reminder_scheduler'))) {
+          return res.status(403).json({
+            ok: false,
+            error: 'Reminder Scheduler is currently disabled by Admin.',
+          });
+        }
+
         const result = await runReminderWorkflow({
           sendEmail: true,
           generatedBy: null,
@@ -1351,6 +1359,12 @@ export default async function handler(req, res) {
       }
 
       if (body.action === 'run_reminders') {
+        if (!(await isFeatureEnabled('reminder_scheduler'))) {
+          return res.status(403).json({
+            error: 'Reminder Scheduler is currently disabled by Admin.',
+          });
+        }
+
         const result = await runReminderWorkflow({
           sendEmail: body.send_email !== false,
           generatedBy: body.changed_by || null,
