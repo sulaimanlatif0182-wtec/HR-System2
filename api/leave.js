@@ -1,4 +1,5 @@
 import supabase from './db-client.js';
+import { isFeatureEnabled } from './feature-flags.js';
 import {
   notifyLeaveSubmitted,
   notifyLeaveDecision,
@@ -481,6 +482,12 @@ export default async function handler(req, res) {
       // =========================
       // CREATE LEAVE REQUEST
       // =========================
+      if (!(await isFeatureEnabled('leave_request'))) {
+        return res.status(403).json({
+          error: 'Leave request submission is currently disabled.',
+        });
+      }
+
       const leaveType = normalizeLeaveType(body.leave_type);
       const requestMode = body.request_mode || 'leave';
       const today = todayMalaysia();
@@ -722,6 +729,12 @@ export default async function handler(req, res) {
       };
 
       if (status) {
+        if (!(await isFeatureEnabled('leave_approval'))) {
+          return res.status(403).json({
+            error: 'Leave approval is currently disabled.',
+          });
+        }
+
         const role = String(actor_role || '').toLowerCase();
 
         if (!actor_id || !role) {

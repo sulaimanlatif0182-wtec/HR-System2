@@ -24,6 +24,8 @@ import MonthlyReports from './pages/MonthlyReports';
 import BackupCenter from './pages/BackupCenter';
 import AdminConfig from './pages/AdminConfig';
 import SystemHealth from './pages/SystemHealth';
+import { FeatureFlagsProvider, useFeatureFlags } from './lib/featureFlags';
+import type { FeatureFlagKey } from './lib/featureFlags';
 
 type Role = 'admin' | 'manager' | 'employee';
 
@@ -74,11 +76,35 @@ function ProtectedPage({
   );
 }
 
+function FeatureGate({
+  children,
+  feature,
+}: {
+  children: ReactNode;
+  feature: FeatureFlagKey | FeatureFlagKey[];
+}) {
+  const { isEnabled } = useFeatureFlags();
+
+  if (!isEnabled(feature)) {
+    return (
+      <div className="glass rounded-2xl p-8 max-w-2xl mx-auto text-center">
+        <h1 className="font-display text-2xl font-bold">Feature disabled</h1>
+        <p className="text-muted mt-2">
+          This feature has been disabled by your administrator.
+        </p>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
+      <FeatureFlagsProvider>
+        <BrowserRouter>
+          <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
@@ -122,7 +148,9 @@ function App() {
             path="/employees"
             element={
               <ProtectedPage allowedRoles={['admin', 'manager']}>
-                <Employees />
+                <FeatureGate feature="employees">
+                  <Employees />
+                </FeatureGate>
               </ProtectedPage>
             }
           />
@@ -131,7 +159,9 @@ function App() {
             path="/profile-updates"
             element={
               <ProtectedPage>
-                <ProfileUpdates />
+                <FeatureGate feature="profile_updates">
+                  <ProfileUpdates />
+                </FeatureGate>
               </ProtectedPage>
             }
           />
@@ -140,7 +170,9 @@ function App() {
             path="/announcements"
             element={
               <ProtectedPage>
-                <Announcements />
+                <FeatureGate feature="announcements">
+                  <Announcements />
+                </FeatureGate>
               </ProtectedPage>
             }
           />
@@ -149,7 +181,9 @@ function App() {
             path="/hr-letters"
             element={
               <ProtectedPage allowedRoles={['admin', 'manager']}>
-                <HrLetters />
+                <FeatureGate feature="hr_letters">
+                  <HrLetters />
+                </FeatureGate>
               </ProtectedPage>
             }
           />
@@ -158,7 +192,9 @@ function App() {
             path="/performance"
             element={
               <ProtectedPage>
-                <Performance />
+                <FeatureGate feature="performance">
+                  <Performance />
+                </FeatureGate>
               </ProtectedPage>
             }
           />
@@ -167,7 +203,9 @@ function App() {
             path="/monthly-reports"
             element={
               <ProtectedPage allowedRoles={['admin', 'manager']}>
-                <MonthlyReports />
+                <FeatureGate feature="monthly_reports">
+                  <MonthlyReports />
+                </FeatureGate>
               </ProtectedPage>
             }
           />
@@ -176,7 +214,9 @@ function App() {
             path="/backup"
             element={
               <ProtectedPage allowedRoles={['admin']}>
-                <BackupCenter />
+                <FeatureGate feature="backup">
+                  <BackupCenter />
+                </FeatureGate>
               </ProtectedPage>
             }
           />
@@ -194,7 +234,9 @@ function App() {
             path="/system-health"
             element={
               <ProtectedPage allowedRoles={['admin']}>
-                <SystemHealth />
+                <FeatureGate feature="system_health">
+                  <SystemHealth />
+                </FeatureGate>
               </ProtectedPage>
             }
           />
@@ -203,7 +245,9 @@ function App() {
             path="/attendance"
             element={
               <ProtectedPage>
-                <Attendance />
+                <FeatureGate feature="attendance">
+                  <Attendance />
+                </FeatureGate>
               </ProtectedPage>
             }
           />
@@ -212,7 +256,9 @@ function App() {
             path="/leave"
             element={
               <ProtectedPage>
-                <Leave />
+                <FeatureGate feature={['leave_request', 'leave_approval']}>
+                  <Leave />
+                </FeatureGate>
               </ProtectedPage>
             }
           />
@@ -221,7 +267,9 @@ function App() {
             path="/payroll"
             element={
               <ProtectedPage>
-                <Payroll />
+                <FeatureGate feature="payroll">
+                  <Payroll />
+                </FeatureGate>
               </ProtectedPage>
             }
           />
@@ -230,7 +278,9 @@ function App() {
             path="/claims"
             element={
               <ProtectedPage>
-                <Claims />
+                <FeatureGate feature={['claims_request', 'claims_approval']}>
+                  <Claims />
+                </FeatureGate>
               </ProtectedPage>
             }
           />
@@ -239,7 +289,9 @@ function App() {
             path="/org-chart"
             element={
               <ProtectedPage>
-                <OrgChart />
+                <FeatureGate feature="org_chart">
+                  <OrgChart />
+                </FeatureGate>
               </ProtectedPage>
             }
           />
@@ -248,14 +300,17 @@ function App() {
             path="/audit-logs"
             element={
               <ProtectedPage allowedRoles={['admin']}>
-                <AuditLogs />
+                <FeatureGate feature="audit_logs">
+                  <AuditLogs />
+                </FeatureGate>
               </ProtectedPage>
             }
           />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </BrowserRouter>
+        </BrowserRouter>
+      </FeatureFlagsProvider>
     </AuthProvider>
   );
 }

@@ -10,9 +10,12 @@ import {
   Plus,
   Trash2,
   Download,
+  ToggleLeft,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { PageHeader, Badge, LoadingState, ErrorState, EmptyState } from '../components/ui';
+import { useFeatureFlags, flagLabel, FEATURE_FLAG_KEYS } from '../lib/featureFlags';
+import type { FeatureFlags } from '../lib/featureFlags';
 
 interface AdminConfigMap {
   document_required_types: string[];
@@ -150,6 +153,35 @@ function commaToList(value: string) {
     .filter(Boolean);
 }
 
+function ToggleSwitch({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+        checked ? 'bg-primary' : 'bg-white/10'
+      }`}
+    >
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+          checked ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </button>
+  );
+}
+
 export default function AdminConfig() {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
@@ -187,6 +219,10 @@ export default function AdminConfig() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
+  const { flags: contextFlags, refresh: refreshFlags } = useFeatureFlags();
+  const [dirtyFlags, setDirtyFlags] = useState<Partial<FeatureFlags>>({});
+  const [flagsSaving, setFlagsSaving] = useState(false);
+
   const fetchAll = async () => {
     setLoading(true);
     setError('');
@@ -219,6 +255,46 @@ export default function AdminConfig() {
   useEffect(() => {
     fetchAll();
   }, []);
+
+  const effectiveFlags = { ...contextFlags, ...dirtyFlags };
+
+  const draftDiffers = Object.keys(dirtyFlags).length > 0;
+
+  const saveFeatureToggles = async () => {
+    if (!isAdmin || !profile) return;
+
+    setFlagsSaving(true);
+    setMessage('');
+
+    try {
+      const res = await fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'feature_flags_save',
+          flags: effectiveFlags,
+          actor_role: 'admin',
+          changed_by: profile.id,
+          changed_by_name: profile.name,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to save feature toggles.');
+
+      setMessage('Feature toggles saved successfully.');
+      await refreshFlags();
+      setDirtyFlags({});
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Failed to save feature toggles.');
+    } finally {
+      setFlagsSaving(false);
+    }
+  };
+
+  const resetFeatureToggles = () => {
+    setDirtyFlags({});
+  };
 
   const missingRows = useMemo(
     () => checklist.filter((row) => row.total_missing > 0),
@@ -820,6 +896,64 @@ export default function AdminConfig() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      <div className="glass rounded-2xl p-5 mt-6">
+        <div className="flex items-start justify-between gap-3 mb-5">
+          <div className="flex items-start gap-3">
+            <div className="w-11 h-11 rounded-xl bg-emerald/15 text-emerald grid place-items-center">
+              <ToggleLeft size={20} />
+            </div>
+            <div>
+              <h3 className="font-display font-semibold">Feature Toggles</h3>
+              <p className="text-xs text-muted mt-1">
+                Enable or disable modules across the portal. Disabled modules are hidden from
+                navigation and blocked at the API level.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={resetFeatureToggles}
+              disabled={!draftDiffers}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+            >
+              <RefreshCw size={14} /> Reset
+            </button>
+            <button
+              type="button"
+              onClick={saveFeatureToggles}
+              disabled={flagsSaving || !isAdmin}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {flagsSaving ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Save size={16} />
+              )}
+              Save Toggles
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {FEATURE_FLAG_KEYS.map((key) => (
+            <label
+              key={key}
+              className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-surface px-4 py-3"
+            >
+              <span className="text-sm font-medium">{flagLabel(key)}</span>
+              <ToggleSwitch
+                checked={effectiveFlags[key]}
+                onChange={(checked) =>
+                  setDirtyFlags((prev) => ({ ...prev, [key]: checked }))
+                }
+                label={flagLabel(key)}
+              />
+            </label>
+          ))}
         </div>
       </div>
     </div>

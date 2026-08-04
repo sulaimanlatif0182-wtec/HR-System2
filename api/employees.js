@@ -1,4 +1,5 @@
 import supabase from './db-client.js';
+import { getFeatureFlags, saveFeatureFlags } from './feature-flags.js';
 
 async function safeInsertSystemAudit(payload) {
   try {
@@ -942,6 +943,12 @@ export default async function handler(req, res) {
         return res.status(200).json(config);
       }
 
+      if (req.query?.feature_flags === 'true') {
+        const flags = await getFeatureFlags();
+
+        return res.status(200).json(flags);
+      }
+
       if (req.query?.document_checklist === 'true') {
         const checklist = await buildDocumentChecklist();
 
@@ -1194,6 +1201,28 @@ export default async function handler(req, res) {
         });
 
         return res.status(200).json(savedConfig);
+      }
+
+      if (body.action === 'feature_flags_save') {
+        const role = String(body.actor_role || '').toLowerCase();
+
+        if (role !== 'admin') {
+          return res.status(403).json({
+            error: 'Only admin can update feature flags.',
+          });
+        }
+
+        const savedFlags = await saveFeatureFlags(body.flags || {}, body);
+
+        await safeInsertSystemAudit({
+          module: 'feature_flags',
+          action: 'flags_update',
+          changed_by: body.changed_by || null,
+          changed_by_name: body.changed_by_name || null,
+          new_data: savedFlags,
+        });
+
+        return res.status(200).json(savedFlags);
       }
 
       if (body.action === 'reminder_rule_save') {

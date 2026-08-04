@@ -1,4 +1,5 @@
 import supabase from './db-client.js';
+import { isFeatureEnabled } from './feature-flags.js';
 
 async function safeInsertSystemAudit(payload) {
   try {
@@ -829,6 +830,12 @@ export default async function handler(req, res) {
     // GPS + DEVICE VERIFIED CHECK IN
     // =========================
     if (req.method === 'POST') {
+      if (!(await isFeatureEnabled('attendance'))) {
+        return res.status(403).json({
+          error: 'Attendance is currently disabled.',
+        });
+      }
+
       if (req.body?.action === 'correction_request_create') {
         const body = req.body || {};
         const employeeId = Number(body.employee_id);
@@ -1033,9 +1040,21 @@ export default async function handler(req, res) {
       const body = req.body || {};
       const action = body.action || 'check_out';
 
+      if (action === 'check_out' && !(await isFeatureEnabled('attendance'))) {
+        return res.status(403).json({
+          error: 'Attendance is currently disabled.',
+        });
+      }
+
       if (action === 'correction_request_decision') {
         const requestId = Number(body.id || body.request_id);
         const decision = String(body.status || '').toLowerCase();
+
+        if (!(await isFeatureEnabled('attendance'))) {
+          return res.status(403).json({
+            error: 'Attendance is currently disabled.',
+          });
+        }
 
         if (!requestId || !['approved', 'rejected'].includes(decision)) {
           return res.status(400).json({

@@ -1,4 +1,5 @@
 import supabase from './db-client.js';
+import { isFeatureEnabled } from './feature-flags.js';
 
 async function safeInsertSystemAudit(payload) {
   try {
@@ -1252,6 +1253,12 @@ export default async function handler(req, res) {
       }
 
       if (action === 'create_batch') {
+        if (!(await isFeatureEnabled('payroll'))) {
+          return res.status(403).json({
+            error: 'Payroll is currently disabled.',
+          });
+        }
+
         const batch = await getOrCreateBatch(body.period);
         const summary = await recomputeBatch(body.period);
 
@@ -1265,12 +1272,24 @@ export default async function handler(req, res) {
           });
         }
 
+        if (!(await isFeatureEnabled('payroll'))) {
+          return res.status(403).json({
+            error: 'Payroll is currently disabled.',
+          });
+        }
+
         const result = await generatePayrollFromSources(body.period);
 
         return res.status(200).json(result);
       }
 
       if (action === 'import_records') {
+        if (!(await isFeatureEnabled('payroll'))) {
+          return res.status(403).json({
+            error: 'Payroll is currently disabled.',
+          });
+        }
+
         const period = cleanString(body.period);
         const rows = Array.isArray(body.rows) ? body.rows : [];
 
@@ -1418,6 +1437,15 @@ export default async function handler(req, res) {
     if (req.method === 'PUT') {
       const body = req.body || {};
       const action = body.action;
+
+      if (
+        (action === 'approve_batch' || action === 'release_batch') &&
+        !(await isFeatureEnabled('payroll'))
+      ) {
+        return res.status(403).json({
+          error: 'Payroll is currently disabled.',
+        });
+      }
 
       if (action === 'approve_batch') {
         const period = cleanString(body.period);

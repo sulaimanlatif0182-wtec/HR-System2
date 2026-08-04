@@ -8,27 +8,38 @@ import {
   CornerDownLeft,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useFeatureFlags } from '../lib/featureFlags';
+import type { FeatureFlagKey } from '../lib/featureFlags';
 import supabase from '../lib/supabase';
 import NotificationsBell from './NotificationsBell';
 
+type LayoutRole = 'admin' | 'manager' | 'employee';
 
-const NAV = [
+interface NavItem {
+  to: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  roles: LayoutRole[];
+  feature?: FeatureFlagKey | FeatureFlagKey[];
+}
+
+const NAV: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'manager', 'employee'] },
   { to: '/admin-config', label: 'Admin Config', icon: Settings, roles: ['admin'] },
-  { to: '/employees', label: 'Employees', icon: Users, roles: ['admin', 'manager'] },
-  { to: '/profile-updates', label: 'Profile Updates', icon: UserCog, roles: ['admin', 'manager', 'employee'] },
-  { to: '/announcements', label: 'Announcements', icon: Megaphone, roles: ['admin', 'manager', 'employee'] },
-  { to: '/hr-letters', label: 'HR Letters', icon: FileText, roles: ['admin', 'manager'] },
-  { to: '/performance', label: 'Performance', icon: BarChart3, roles: ['admin', 'manager', 'employee'] },
-  { to: '/monthly-reports', label: 'Monthly Reports', icon: FileBarChart, roles: ['admin', 'manager'] },
-  { to: '/backup', label: 'Backup Center', icon: Archive, roles: ['admin'] },
-  { to: '/system-health', label: 'System Health', icon: Activity, roles: ['admin'] },
-  { to: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['admin', 'manager', 'employee'] },
-  { to: '/leave', label: 'Leave', icon: CalendarDays, roles: ['admin', 'manager', 'employee'] },
-  { to: '/payroll', label: 'Payroll', icon: Wallet, roles: ['admin', 'manager', 'employee'] },
-  { to: '/claims', label: 'Claims', icon: ReceiptText, roles: ['admin', 'manager', 'employee'] },
-  { to: '/org-chart', label: 'Org Chart', icon: Network, roles: ['admin', 'manager', 'employee'] },
-  { to: '/audit-logs', label: 'Audit Logs', icon: FileSearch, roles: ['admin'] },
+  { to: '/employees', label: 'Employees', icon: Users, roles: ['admin', 'manager'], feature: 'employees' },
+  { to: '/profile-updates', label: 'Profile Updates', icon: UserCog, roles: ['admin', 'manager', 'employee'], feature: 'profile_updates' },
+  { to: '/announcements', label: 'Announcements', icon: Megaphone, roles: ['admin', 'manager', 'employee'], feature: 'announcements' },
+  { to: '/hr-letters', label: 'HR Letters', icon: FileText, roles: ['admin', 'manager'], feature: 'hr_letters' },
+  { to: '/performance', label: 'Performance', icon: BarChart3, roles: ['admin', 'manager', 'employee'], feature: 'performance' },
+  { to: '/monthly-reports', label: 'Monthly Reports', icon: FileBarChart, roles: ['admin', 'manager'], feature: 'monthly_reports' },
+  { to: '/backup', label: 'Backup Center', icon: Archive, roles: ['admin'], feature: 'backup' },
+  { to: '/system-health', label: 'System Health', icon: Activity, roles: ['admin'], feature: 'system_health' },
+  { to: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['admin', 'manager', 'employee'], feature: 'attendance' },
+  { to: '/leave', label: 'Leave', icon: CalendarDays, roles: ['admin', 'manager', 'employee'], feature: ['leave_request', 'leave_approval'] },
+  { to: '/payroll', label: 'Payroll', icon: Wallet, roles: ['admin', 'manager', 'employee'], feature: 'payroll' },
+  { to: '/claims', label: 'Claims', icon: ReceiptText, roles: ['admin', 'manager', 'employee'], feature: ['claims_request', 'claims_approval'] },
+  { to: '/org-chart', label: 'Org Chart', icon: Network, roles: ['admin', 'manager', 'employee'], feature: 'org_chart' },
+  { to: '/audit-logs', label: 'Audit Logs', icon: FileSearch, roles: ['admin'], feature: 'audit_logs' },
 ];
 
 interface EmpLite {
@@ -49,6 +60,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const { profile, user } = useAuth();
+  const { isEnabled } = useFeatureFlags();
   const navigate = useNavigate();
 
   // ── Global search state ─────────────────────────
@@ -61,7 +73,9 @@ export default function Layout({ children }: { children: ReactNode }) {
   const role = profile?.role ?? 'employee';
   const displayName = profile?.name ?? user?.email?.split('@')[0] ?? 'User';
   const initials = displayName.slice(0, 2).toUpperCase();
-  const items = NAV.filter((n) => n.roles.includes(role));
+  const items = NAV.filter(
+    (n) => n.roles.includes(role) && (!n.feature || isEnabled(n.feature))
+  );
 
   // Lazy-load the employee directory the first time the user types
   useEffect(() => {

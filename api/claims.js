@@ -1,4 +1,5 @@
 import supabase from './db-client.js';
+import { isFeatureEnabled } from './feature-flags.js';
 import {
   notifyClaimSubmitted,
   notifyClaimPendingFinance,
@@ -122,6 +123,12 @@ export default async function handler(req, res) {
     // =========================
     if (req.method === 'POST') {
       const body = req.body || {};
+
+      if (!(await isFeatureEnabled('claims_request'))) {
+        return res.status(403).json({
+          error: 'Claim submission is currently disabled.',
+        });
+      }
 
       if (!body.employee_id) {
         return res.status(400).json({
@@ -276,6 +283,12 @@ export default async function handler(req, res) {
       const admin = isAdmin(role);
       const manager = isManager(role);
       const financeManager = isFinanceManager(role, actor_department);
+
+      if (action !== 'cancel' && !(await isFeatureEnabled('claims_approval'))) {
+        return res.status(403).json({
+          error: 'Claim approvals are currently disabled.',
+        });
+      }
 
       if (action === 'cancel') {
         if (!actor_id) {
