@@ -4,5 +4,11 @@
       "path": "/api/employees?cron_reminders=1",
       "schedule": "0 1 * * *"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
