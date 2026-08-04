@@ -14,8 +14,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { PageHeader, Badge, LoadingState, ErrorState, EmptyState } from '../components/ui';
-import { useFeatureFlags, flagLabel, FEATURE_FLAG_KEYS } from '../lib/featureFlags';
-import type { FeatureFlags } from '../lib/featureFlags';
+import { useFeatureFlags } from '../lib/featureFlags';
+import type { FeatureFlagKey } from '../lib/featureFlags';
 
 interface AdminConfigMap {
   document_required_types: string[];
@@ -220,8 +220,9 @@ export default function AdminConfig() {
   const [message, setMessage] = useState('');
 
   const { flags: contextFlags, refresh: refreshFlags } = useFeatureFlags();
-  const [dirtyFlags, setDirtyFlags] = useState<Partial<FeatureFlags>>({});
+  const [dirtyFlags, setDirtyFlags] = useState<Partial<Record<FeatureFlagKey, boolean>>>({});
   const [flagsSaving, setFlagsSaving] = useState(false);
+  const [flagMessage, setFlagMessage] = useState('');
 
   const fetchAll = async () => {
     setLoading(true);
@@ -256,7 +257,16 @@ export default function AdminConfig() {
     fetchAll();
   }, []);
 
-  const effectiveFlags = { ...contextFlags, ...dirtyFlags };
+  const effectiveFlags = useMemo(
+    () =>
+      contextFlags.map((flag) => ({
+        ...flag,
+        enabled: Object.prototype.hasOwnProperty.call(dirtyFlags, flag.key)
+          ? (dirtyFlags[flag.key] ?? false)
+          : flag.enabled,
+      })),
+    [contextFlags, dirtyFlags]
+  );
 
   const draftDiffers = Object.keys(dirtyFlags).length > 0;
 
@@ -264,15 +274,15 @@ export default function AdminConfig() {
     if (!isAdmin || !profile) return;
 
     setFlagsSaving(true);
-    setMessage('');
+    setFlagMessage('');
 
     try {
       const res = await fetch('/api/employees', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'feature_flags_save',
-          flags: effectiveFlags,
+          action: 'feature_flags_bulk_update',
+          flags: effectiveFlags.map((flag) => ({ key: flag.key, enabled: flag.enabled })),
           actor_role: 'admin',
           changed_by: profile.id,
           changed_by_name: profile.name,
@@ -280,13 +290,15 @@ export default function AdminConfig() {
       });
 
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Failed to save feature toggles.');
+      if (!res.ok) throw new Error(data?.error || 'Failed to save feature settings.');
 
-      setMessage('Feature toggles saved successfully.');
+      setFlagMessage('Feature settings saved successfully.');
       await refreshFlags();
       setDirtyFlags({});
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Failed to save feature toggles.');
+      setFlagMessage(
+        err instanceof Error ? err.message : 'Failed to save feature settings.'
+      );
     } finally {
       setFlagsSaving(false);
     }
@@ -933,28 +945,34 @@ export default function AdminConfig() {
               ) : (
                 <Save size={16} />
               )}
-              Save Toggles
+              {flagsSaving ? 'Saving…' : 'Save Toggles'}
             </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {FEATURE_FLAG_KEYS.map((key) => (
+          {effectiveFlags.map((flag) => (
             <label
-              key={key}
+              key={flag.key}
               className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-surface px-4 py-3"
             >
-              <span className="text-sm font-medium">{flagLabel(key)}</span>
+              <span className="text-sm font-medium">{flag.label}</span>
               <ToggleSwitch
-                checked={effectiveFlags[key]}
+                checked={flag.enabled}
                 onChange={(checked) =>
-                  setDirtyFlags((prev) => ({ ...prev, [key]: checked }))
+                  setDirtyFlags((prev) => ({ ...prev, [flag.key]: checked }))
                 }
-                label={flagLabel(key)}
+                label={flag.label}
               />
             </label>
           ))}
         </div>
+
+        {flagMessage && (
+          <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+            {flagMessage}
+          </div>
+        )}
       </div>
     </div>
   );

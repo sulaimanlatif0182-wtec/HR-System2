@@ -1,5 +1,9 @@
 import supabase from './db-client.js';
-import { getFeatureFlags, saveFeatureFlags } from './feature-flags.js';
+import {
+  getFeatureFlags,
+  saveFeatureFlag,
+  saveFeatureFlags,
+} from './feature-flags.js';
 
 async function safeInsertSystemAudit(payload) {
   try {
@@ -1203,7 +1207,7 @@ export default async function handler(req, res) {
         return res.status(200).json(savedConfig);
       }
 
-      if (body.action === 'feature_flags_save') {
+      if (body.action === 'feature_flag_update') {
         const role = String(body.actor_role || '').toLowerCase();
 
         if (role !== 'admin') {
@@ -1212,11 +1216,59 @@ export default async function handler(req, res) {
           });
         }
 
-        const savedFlags = await saveFeatureFlags(body.flags || {}, body);
+        const key = String(body.key || '').trim();
+
+        if (!key) {
+          return res.status(400).json({ error: 'Feature flag key is required.' });
+        }
+
+        let savedFlag;
+        try {
+          savedFlag = await saveFeatureFlag(
+            { key, enabled: body.enabled, label: body.label, category: body.category },
+            body
+          );
+        } catch (err) {
+          return res.status(400).json({ error: err.message });
+        }
 
         await safeInsertSystemAudit({
           module: 'feature_flags',
-          action: 'flags_update',
+          action: 'feature_flag_update',
+          record_id: key,
+          changed_by: body.changed_by || null,
+          changed_by_name: body.changed_by_name || null,
+          new_data: savedFlag,
+        });
+
+        return res.status(200).json(savedFlag);
+      }
+
+      if (body.action === 'feature_flags_bulk_update') {
+        const role = String(body.actor_role || '').toLowerCase();
+
+        if (role !== 'admin') {
+          return res.status(403).json({
+            error: 'Only admin can update feature flags.',
+          });
+        }
+
+        const flags = Array.isArray(body.flags) ? body.flags : [];
+
+        if (!flags.length) {
+          return res.status(400).json({ error: 'No feature flags provided.' });
+        }
+
+        let savedFlags;
+        try {
+          savedFlags = await saveFeatureFlags(flags, body);
+        } catch (err) {
+          return res.status(400).json({ error: err.message });
+        }
+
+        await safeInsertSystemAudit({
+          module: 'feature_flags',
+          action: 'feature_flags_bulk_update',
           changed_by: body.changed_by || null,
           changed_by_name: body.changed_by_name || null,
           new_data: savedFlags,

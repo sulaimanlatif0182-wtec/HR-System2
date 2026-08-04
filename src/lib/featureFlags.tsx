@@ -22,37 +22,38 @@ export const FEATURE_FLAG_KEYS = [
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[number];
 
-export type FeatureFlags = Record<FeatureFlagKey, boolean>;
+export interface FeatureFlag {
+  key: FeatureFlagKey;
+  label: string;
+  category: string;
+  enabled: boolean;
+}
 
-export const DEFAULT_FEATURE_FLAGS: FeatureFlags = Object.fromEntries(
-  FEATURE_FLAG_KEYS.map((key) => [key, true])
-) as FeatureFlags;
-
-const FLAG_LABELS: Record<FeatureFlagKey, string> = {
-  leave_request: 'Leave Requests',
-  leave_approval: 'Leave Approvals',
-  claims_request: 'Claims Submission',
-  claims_approval: 'Claims Approvals',
-  attendance: 'Attendance',
-  payroll: 'Payroll',
-  announcements: 'Announcements',
-  hr_letters: 'HR Letters',
-  performance: 'Performance Reviews',
-  monthly_reports: 'Monthly Reports',
-  backup: 'Backup Center',
-  system_health: 'System Health',
-  org_chart: 'Org Chart',
-  audit_logs: 'Audit Logs',
-  profile_updates: 'Profile Updates',
-  employees: 'Employee Directory',
-};
+export const DEFAULT_FEATURE_FLAGS: FeatureFlag[] = [
+  { key: 'leave_request', label: 'Leave Requests', category: 'Leave', enabled: true },
+  { key: 'leave_approval', label: 'Leave Approvals', category: 'Leave', enabled: true },
+  { key: 'claims_request', label: 'Claims Submission', category: 'Claims', enabled: true },
+  { key: 'claims_approval', label: 'Claims Approvals', category: 'Claims', enabled: true },
+  { key: 'attendance', label: 'Attendance', category: 'Attendance', enabled: true },
+  { key: 'payroll', label: 'Payroll', category: 'Payroll', enabled: true },
+  { key: 'announcements', label: 'Announcements', category: 'Communication', enabled: true },
+  { key: 'hr_letters', label: 'HR Letters', category: 'HR Documents', enabled: true },
+  { key: 'performance', label: 'Performance Reviews', category: 'Performance', enabled: true },
+  { key: 'monthly_reports', label: 'Monthly Reports', category: 'Reports', enabled: true },
+  { key: 'backup', label: 'Backup Center', category: 'Administration', enabled: true },
+  { key: 'system_health', label: 'System Health', category: 'Administration', enabled: true },
+  { key: 'org_chart', label: 'Org Chart', category: 'Organization', enabled: true },
+  { key: 'audit_logs', label: 'Audit Logs', category: 'Administration', enabled: true },
+  { key: 'profile_updates', label: 'Profile Updates', category: 'Profile', enabled: true },
+  { key: 'employees', label: 'Employee Directory', category: 'Employees', enabled: true },
+];
 
 export function flagLabel(key: FeatureFlagKey): string {
-  return FLAG_LABELS[key] ?? key;
+  return DEFAULT_FEATURE_FLAGS.find((flag) => flag.key === key)?.label ?? key;
 }
 
 interface FeatureFlagsContextValue {
-  flags: FeatureFlags;
+  flags: FeatureFlag[];
   loaded: boolean;
   isEnabled: (key: FeatureFlagKey | FeatureFlagKey[]) => boolean;
   refresh: () => Promise<void>;
@@ -66,7 +67,7 @@ const FeatureFlagsContext = createContext<FeatureFlagsContextValue>({
 });
 
 export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
-  const [flags, setFlags] = useState<FeatureFlags>(DEFAULT_FEATURE_FLAGS);
+  const [flags, setFlags] = useState<FeatureFlag[]>(DEFAULT_FEATURE_FLAGS);
   const [loaded, setLoaded] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -74,7 +75,24 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
       const res = await fetch('/api/employees?feature_flags=true');
       if (!res.ok) return;
       const data = await res.json();
-      setFlags({ ...DEFAULT_FEATURE_FLAGS, ...(data || {}) });
+      if (!Array.isArray(data)) return;
+
+      const byKey = new Map<string, { key: string; label?: string; category?: string; enabled?: boolean }>(
+        data.map((flag) => [flag.key, flag])
+      );
+
+      setFlags(
+        DEFAULT_FEATURE_FLAGS.map((def) => {
+          const row = byKey.get(def.key);
+          if (!row) return def;
+          return {
+            ...def,
+            label: row.label || def.label,
+            category: row.category || def.category,
+            enabled: row.enabled !== false,
+          };
+        })
+      );
     } catch {
       // keep defaults (all enabled) on failure
     } finally {
@@ -89,7 +107,10 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
   const isEnabled = useCallback(
     (key: FeatureFlagKey | FeatureFlagKey[]) => {
       const keys = Array.isArray(key) ? key : [key];
-      return keys.some((flagKey) => flags[flagKey] !== false);
+      return keys.some((flagKey) => {
+        const flag = flags.find((item) => item.key === flagKey);
+        return !flag || flag.enabled !== false;
+      });
     },
     [flags]
   );
