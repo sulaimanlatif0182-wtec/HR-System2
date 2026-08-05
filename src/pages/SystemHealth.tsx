@@ -29,6 +29,12 @@ interface HealthResponse {
   reminders: {
     last_logs: Array<Record<string, unknown>>;
   };
+  policy?: {
+    ok: boolean;
+    error?: string | null;
+    item_count: number;
+    incomplete_count: number;
+  };
 }
 
 function StatusBadge({ ok }: { ok: boolean }) {
@@ -142,6 +148,21 @@ export default function SystemHealth() {
             <p className="font-display font-semibold text-sm">{formatDateTime(health.checked_at)}</p>
           </div>
         </div>
+        <div className="glass rounded-2xl p-4 flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-amber/15 text-amber grid place-items-center">
+            <ShieldCheck size={20} />
+          </div>
+          <div>
+            <p className="text-xs text-muted">Policy Readiness</p>
+            <p className="font-display font-semibold text-xl">
+              {health.policy
+                ? health.policy.incomplete_count === 0
+                  ? 'Ready'
+                  : `${health.policy.incomplete_count} open`
+                : '—'}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
@@ -239,6 +260,39 @@ export default function SystemHealth() {
                   <p className="text-[11px] text-muted mt-1">{formatDateTime(String(log.created_at || ''))}</p>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        <div className="glass rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <ShieldCheck size={18} className="text-amber" />
+            <h3 className="font-display font-semibold">Policy Readiness</h3>
+          </div>
+          {!health.policy ? (
+            <EmptyState label="Policy readiness data unavailable." />
+          ) : (
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between rounded-xl bg-surface border border-white/10 px-4 py-3">
+                <span>Table exists</span>
+                <StatusBadge ok={health.policy.ok} />
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-surface border border-white/10 px-4 py-3">
+                <span>Policy items</span>
+                <span className="font-semibold">{health.policy.item_count}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-surface border border-white/10 px-4 py-3">
+                <span>Incomplete policies</span>
+                <Badge tone={health.policy.incomplete_count === 0 ? 'success' : 'warning'}>
+                  {health.policy.incomplete_count}
+                </Badge>
+              </div>
+              {health.policy.error && (
+                <p className="text-xs text-rose mt-2">{health.policy.error}</p>
+              )}
+              <p className="text-xs text-muted">
+                Track release evidence in the Policy Center (admin).
+              </p>
             </div>
           )}
         </div>

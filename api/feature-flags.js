@@ -18,6 +18,7 @@ export const DEFAULT_FEATURE_FLAGS = [
   { key: 'audit_logs', label: 'Audit Logs', category: 'Administration', enabled: true },
   { key: 'profile_updates', label: 'Profile Updates', category: 'Profile', enabled: true },
   { key: 'employees', label: 'Employee Directory', category: 'Employees', enabled: true },
+  { key: 'policy_center', label: 'Policy Center', category: 'Admin Pages', enabled: true },
 ];
 
 export function defaultFlag(key) {

@@ -24,6 +24,7 @@ import MonthlyReports from './pages/MonthlyReports';
 import BackupCenter from './pages/BackupCenter';
 import AdminConfig from './pages/AdminConfig';
 import SystemHealth from './pages/SystemHealth';
+import PolicyCenter from './pages/PolicyCenter';
 import { FeatureFlagsProvider, useFeatureFlags } from './lib/featureFlags';
 import type { FeatureFlagKey } from './lib/featureFlags';
 
@@ -236,6 +237,17 @@ function App() {
               <ProtectedPage allowedRoles={['admin']}>
                 <FeatureGate feature="system_health">
                   <SystemHealth />
+                </FeatureGate>
+              </ProtectedPage>
+            }
+          />
+
+          <Route
+            path="/policy-center"
+            element={
+              <ProtectedPage allowedRoles={['admin']}>
+                <FeatureGate feature="policy_center">
+                  <PolicyCenter />
                 </FeatureGate>
               </ProtectedPage>
             }
