@@ -1,7 +1,7 @@
 import supabase from './db-client.js';
 import { isFeatureEnabled } from './feature-flags.js';
 import {
-  notifyLeaveSubmitted,
+  notifyLeaveSubmittedToApproverSafe,
   notifyLeaveDecision,
 } from '../server/notify.js';
 
@@ -10,6 +10,7 @@ const BALANCE_TYPES = [
   'Sick Leave',
   'Unpaid Leave',
   'Maternity/Paternity',
+  'EL',
 ];
 
 const BACKDATE_ALLOWED_LEAVE_TYPES = new Set([
@@ -113,12 +114,30 @@ async function safeNotify(fn, payload) {
   }
 }
 
+async function safeInsertSystemAudit(payload) {
+  try {
+    await supabase.from('system_audit_logs').insert({
+      module: payload.module || 'general',
+      action: payload.action || 'unknown',
+      record_id: payload.record_id || null,
+      employee_id: payload.employee_id || null,
+      changed_by: payload.changed_by || null,
+      changed_by_name: payload.changed_by_name || null,
+      old_data: payload.old_data || null,
+      new_data: payload.new_data || null,
+      reason: payload.reason || null,
+    });
+  } catch (err) {
+    console.error('System audit insert failed:', err?.message || err);
+  }
+}
+
 async function getEmployee(employeeId) {
   if (!employeeId) return null;
 
   const { data, error } = await supabase
     .from('employees')
-    .select('id, name, email, role, department, title, status')
+    .select('id, name, email, role, department, title, status, supervisor_id')
     .eq('id', employeeId)
     .maybeSingle();
 
@@ -540,13 +559,22 @@ export default async function handler(req, res) {
         });
       }
 
+      // Leave approval flow: pending_supervisor -> pending_manager -> approved.
+      // Managers/Admins are approved by the department manager / admin directly.
+      const initialStatus =
+        employee.role === 'admin' || employee.role === 'manager'
+          ? 'pending_manager'
+          : employee.supervisor_id
+          ? 'pending_supervisor'
+          : 'pending_manager';
+
       const payload = {
         employee_id: Number(body.employee_id),
         leave_type: leaveType,
         start_date: body.start_date || null,
         end_date: body.end_date || null,
         days: toNumber(body.days, 0),
-        status: 'pending',
+        status: initialStatus,
         reason: String(body.reason).trim(),
         decided_by: null,
         decided_role: null,
@@ -565,6 +593,9 @@ export default async function handler(req, res) {
         time_off_start: body.time_off_start || null,
         time_off_end: body.time_off_end || null,
         time_off_hours: 0,
+        submitted_by: body.submitted_by || null,
+        submitted_by_name: body.submitted_by_name || null,
+        submitted_for_employee: Boolean(body.submitted_for_employee),
       };
 
       if (requestMode === 'time_off') {
@@ -679,7 +710,7 @@ export default async function handler(req, res) {
         });
       }
 
-      await safeNotify(notifyLeaveSubmitted, data);
+      await safeNotify(notifyLeaveSubmittedToApproverSafe, data);
 
       return res.status(201).json(data);
     }
@@ -724,6 +755,119 @@ export default async function handler(req, res) {
         });
       }
 
+      // =========================
+      // EDIT LEAVE REQUEST (admin/manager) + AUDIT LOG
+      // =========================
+      if (req.body.action === 'edit_request') {
+        const role = String(actor_role || '').toLowerCase();
+        const isAdmin = role === 'admin';
+        const isManager = role === 'manager';
+
+        if (!isAdmin && !isManager) {
+          return res.status(403).json({
+            error: 'Only admin or manager can edit leave requests.',
+          });
+        }
+
+        if (['approved', 'rejected'].includes(request.status)) {
+          return res.status(409).json({
+            error: 'Approved or rejected leave requests cannot be edited.',
+          });
+        }
+
+        if (isManager) {
+          const applicantDepartment = String(applicant.department || '')
+            .trim()
+            .toLowerCase();
+
+          const managerDepartment = String(actor_department || '')
+            .trim()
+            .toLowerCase();
+
+          if (!applicantDepartment || applicantDepartment !== managerDepartment) {
+            return res.status(403).json({
+              error: 'Managers can only edit leave requests in their own department.',
+            });
+          }
+        }
+
+        const { action, actor_department, ...editableFields } = req.body || {};
+        const allowedFields = [
+          'leave_type',
+          'start_date',
+          'end_date',
+          'days',
+          'reason',
+          'duties_covered_by',
+          'attachment_url',
+          'attachment_name',
+          'half_day_period',
+          'manager_remarks',
+          'admin_remarks',
+          'office_remarks',
+          'time_off_date',
+          'time_off_period',
+          'time_off_start',
+          'time_off_end',
+        ];
+
+        const updatePayload = {};
+
+        for (const field of allowedFields) {
+          if (editableFields[field] !== undefined) {
+            updatePayload[field] = editableFields[field];
+          }
+        }
+
+        if (!Object.keys(updatePayload).length) {
+          return res.status(400).json({
+            error: 'No editable fields provided.',
+          });
+        }
+
+        if (updatePayload.end_date && updatePayload.start_date) {
+          if (new Date(updatePayload.end_date) < new Date(updatePayload.start_date)) {
+            return res.status(400).json({
+              error: 'End date cannot be earlier than start date.',
+            });
+          }
+
+          const holidayMap = await getCompanyHolidayMap(
+            updatePayload.start_date,
+            updatePayload.end_date
+          );
+
+          updatePayload.days = countWorkingLeaveDays(
+            updatePayload.start_date,
+            updatePayload.end_date,
+            holidayMap
+          );
+        }
+
+        const { data, error } = await supabase
+          .from('leave_requests')
+          .update(updatePayload)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        await safeInsertSystemAudit({
+          module: 'leave',
+          action: 'leave_request_edit',
+          record_id: id,
+          employee_id: request.employee_id,
+          changed_by: actor_id || null,
+          changed_by_name: req.body.changed_by_name || null,
+          old_data: request,
+          new_data: data,
+          reason: req.body.reason || 'Leave request edited',
+        });
+
+        return res.status(200).json(data);
+      }
+
       const updatePayload = {
         ...rest,
       };
@@ -745,10 +889,12 @@ export default async function handler(req, res) {
 
         const isAdmin = role === 'admin';
         const isManager = role === 'manager';
+        const isSupervisor =
+          Number(actor_id) === Number(applicant.supervisor_id);
 
-        if (!isAdmin && !isManager) {
+        if (!isAdmin && !isManager && !isSupervisor) {
           return res.status(403).json({
-            error: 'Only admin or manager can approve leave.',
+            error: 'Only the supervisor, manager or admin can act on this leave.',
           });
         }
 
@@ -764,29 +910,69 @@ export default async function handler(req, res) {
           });
         }
 
-        if (isManager) {
-          const applicantDepartment = String(applicant.department || '')
-            .trim()
-            .toLowerCase();
-
-          const managerDepartment = String(actor_department || '')
-            .trim()
-            .toLowerCase();
-
-          if (!applicantDepartment || applicantDepartment !== managerDepartment) {
-            return res.status(403).json({
-              error: 'Managers can only approve leave in their own department.',
-            });
-          }
-
-          if (Number(actor_id) === Number(applicant.id)) {
-            return res.status(403).json({
-              error: 'Managers cannot approve their own leave.',
-            });
-          }
+        if (Number(actor_id) === Number(applicant.id)) {
+          return res.status(403).json({
+            error: 'You cannot approve your own leave.',
+          });
         }
 
-        updatePayload.status = status;
+        if (status === 'approved') {
+          if (request.status === 'pending_supervisor') {
+            if (isAdmin) {
+              // Admin may approve directly.
+              updatePayload.status = 'approved';
+            } else if (isSupervisor) {
+              // Supervisor approves -> moves to department manager.
+              updatePayload.status = 'pending_manager';
+            } else {
+              return res.status(403).json({
+                error: 'Only the supervisor or admin can approve this leave at this stage.',
+              });
+            }
+          } else if (request.status === 'pending_manager') {
+            if (isAdmin) {
+              updatePayload.status = 'approved';
+            } else if (isManager) {
+              const applicantDepartment = String(applicant.department || '')
+                .trim()
+                .toLowerCase();
+
+              const managerDepartment = String(actor_department || '')
+                .trim()
+                .toLowerCase();
+
+              if (
+                !applicantDepartment ||
+                applicantDepartment !== managerDepartment
+              ) {
+                return res.status(403).json({
+                  error: 'Managers can only approve leave in their own department.',
+                });
+              }
+
+              updatePayload.status = 'approved';
+            } else if (isSupervisor) {
+              return res.status(403).json({
+                error: 'This leave is pending the department manager approval.',
+              });
+            } else {
+              return res.status(403).json({
+                error: 'Only the department manager or admin can approve this leave.',
+              });
+            }
+          } else {
+            return res.status(409).json({
+              error: `Leave request is not in an approvable state (${request.status}).`,
+            });
+          }
+        } else if (status === 'rejected') {
+          updatePayload.status = 'rejected';
+        } else {
+          return res.status(400).json({
+            error: 'Invalid status transition.',
+          });
+        }
+
         updatePayload.decided_by = decided_by || 'Approver';
         updatePayload.decided_role = role;
         updatePayload.decided_at = new Date().toISOString();

@@ -35,6 +35,7 @@ const CLAIM_TYPES = [
 ] as const;
 
 const STATUS_TONE: Record<string, string> = {
+  pending_admin: 'warning',
   pending_manager: 'warning',
   pending_finance: 'info',
   approved: 'success',
@@ -282,6 +283,10 @@ export default function Claims() {
     (claim) => claim.status === 'pending_manager'
   ).length;
 
+  const pendingAdminCount = activeVisible.filter(
+    (claim) => claim.status === 'pending_admin'
+  ).length;
+
   const pendingFinanceCount = activeVisible.filter(
     (claim) => claim.status === 'pending_finance'
   ).length;
@@ -314,7 +319,7 @@ export default function Claims() {
 
   const uploadAttachment = async () => {
     if (!attachmentFile || !profile) {
-      throw new Error('Receipt attachment is required.');
+      return { attachment_url: null, attachment_name: null };
     }
 
     const safeName = attachmentFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -367,11 +372,6 @@ export default function Claims() {
       return;
     }
 
-    if (!attachmentFile) {
-      setFormError('Receipt attachment is required.');
-      return;
-    }
-
     setSaving(true);
     setFormError('');
 
@@ -419,7 +419,12 @@ export default function Claims() {
 
   const handleAction = async (
     claim: Claim,
-    action: 'manager_approve' | 'finance_approve' | 'reject' | 'cancel'
+    action:
+      | 'manager_approve'
+      | 'finance_approve'
+      | 'admin_approve'
+      | 'reject'
+      | 'cancel'
   ) => {
     if (!profile) return;
 
@@ -592,6 +597,12 @@ export default function Claims() {
     return Boolean(isAdmin || Number(profile?.id) === Number(claim.employee_id));
   };
 
+  const canAdminApprove = (claim: Claim) => {
+    if (!isAdmin || claim.status !== 'pending_admin') return false;
+
+    return Number(profile?.id) !== Number(claim.employee_id);
+  };
+
   const handleExportCsv = () => {
     const rows = visible.map((claim) => ({
       ID: claim.id,
@@ -676,6 +687,13 @@ export default function Claims() {
         </div>
 
         <div className="glass rounded-2xl p-5">
+          <p className="text-xs text-muted">Pending Admin</p>
+          <p className="font-display text-2xl font-bold mt-1">
+            {pendingAdminCount}
+          </p>
+        </div>
+
+        <div className="glass rounded-2xl p-5">
           <p className="text-xs text-muted">Pending Manager</p>
           <p className="font-display text-2xl font-bold mt-1">
             {pendingManagerCount}
@@ -699,6 +717,7 @@ export default function Claims() {
       <div className="flex gap-1 bg-surface border border-white/10 rounded-xl p-1 mb-6 w-fit overflow-x-auto">
         {[
           ['all', 'All'],
+          ['pending_admin', 'Pending Admin'],
           ['pending_manager', 'Pending Manager'],
           ['pending_finance', 'Pending Finance'],
           ['approved', 'Approved'],
@@ -844,6 +863,22 @@ export default function Claims() {
                       <Check size={13} />
                     )}
                     Finance Approve
+                  </button>
+                )}
+
+                {canAdminApprove(claim) && (
+                  <button
+                    type="button"
+                    onClick={() => handleAction(claim, 'admin_approve')}
+                    disabled={actingId === claim.id}
+                    className="w-full sm:flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-primary/15 text-primary border border-primary/25 py-2 text-xs font-medium hover:bg-primary/25 transition-all disabled:opacity-50"
+                  >
+                    {actingId === claim.id ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Check size={13} />
+                    )}
+                    Admin Approve
                   </button>
                 )}
 
@@ -1116,11 +1151,10 @@ export default function Claims() {
 
                   <div>
                     <label className="text-xs text-muted mb-1 block">
-                      Receipt Attachment required
+                      Receipt Attachment optional
                     </label>
 
                     <input
-                      required
                       type="file"
                       accept="image/*,.pdf"
                       onChange={(e) =>

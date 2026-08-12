@@ -118,6 +118,43 @@ export async function notifyLeaveSubmitted(leaveRequest) {
   }));
 }
 
+// Privacy-safe variant: never includes reason, duties_covered_by or
+// attachment details in the approver notification.
+export async function notifyLeaveSubmittedToApproverSafe(leaveRequest) {
+  const applicant = await getEmployee(leaveRequest.employee_id);
+
+  if (!applicant) return;
+
+  const supervisors = [];
+
+  if (applicant.supervisor_id) {
+    const supervisor = await getEmployee(applicant.supervisor_id);
+
+    if (supervisor && supervisor.email) {
+      supervisors.push(supervisor);
+    }
+  }
+
+  const managers = await getManagersByDepartment(applicant.department);
+  const admins = await getAdmins();
+
+  const recipients = uniqueRecipients([
+    ...supervisors.filter((supervisor) => supervisor.id !== applicant.id),
+    ...managers.filter((manager) => manager.id !== applicant.id),
+    ...admins,
+  ]);
+
+  const days = Number(leaveRequest.days || 0);
+
+  return emailMany(recipients, () => ({
+    subject: `Leave request pending - ${applicant.name}`,
+    title: 'Leave request pending approval',
+    message: `${applicant.name} submitted a ${leaveRequest.leave_type} request from ${leaveRequest.start_date} to ${leaveRequest.end_date}${days ? ` (${days} day${days > 1 ? 's' : ''})` : ''}.`,
+    link: '/leave',
+    actionLabel: 'Review Leave',
+  }));
+}
+
 export async function notifyLeaveDecision(leaveRequest) {
   const applicant = await getEmployee(leaveRequest.employee_id);
 
@@ -178,6 +215,26 @@ export async function notifyClaimPendingFinance(claim) {
     message: `${applicant.name}'s ${claim.claim_type} claim for RM ${Number(
       claim.amount || 0
     ).toFixed(2)} is pending Finance approval.`,
+    link: '/claims',
+    actionLabel: 'Review Claim',
+  }));
+}
+
+export async function notifyClaimPendingAdmin(claim) {
+  const applicant = await getEmployee(claim.employee_id);
+
+  if (!applicant) return;
+
+  const admins = await getAdmins();
+
+  const recipients = uniqueRecipients(admins);
+
+  return emailMany(recipients, () => ({
+    subject: `Claim pending admin approval - ${applicant.name}`,
+    title: 'Claim pending admin approval',
+    message: `${applicant.name}'s ${claim.claim_type} claim for RM ${Number(
+      claim.amount || 0
+    ).toFixed(2)} has been approved by the department manager and is pending admin approval.`,
     link: '/claims',
     actionLabel: 'Review Claim',
   }));

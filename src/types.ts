@@ -41,7 +41,12 @@ export interface LeaveRequest {
   start_date: string;
   end_date: string;
   days: number;
-  status: 'pending' | 'approved' | 'rejected';
+  status:
+    | 'pending'
+    | 'pending_supervisor'
+    | 'pending_manager'
+    | 'approved'
+    | 'rejected';
   reason: string | null;
   requested_at: string;
   decided_by: string | null;

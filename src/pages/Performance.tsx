@@ -8,6 +8,7 @@ import {
   RefreshCw,
   Printer,
   Pencil,
+  Check,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -39,6 +40,11 @@ interface Review {
   improvements?: string | null;
   goals?: string | null;
   recommendation?: string | null;
+  manager_remarks?: string | null;
+  admin_remarks?: string | null;
+  employee_acknowledged?: boolean | null;
+  employee_acknowledged_at?: string | null;
+  acknowledged_by_name?: string | null;
   status: string;
   created_at: string;
 }
@@ -55,6 +61,8 @@ interface ReviewForm {
   improvements: string;
   goals: string;
   recommendation: string;
+  manager_remarks: string;
+  admin_remarks: string;
   status: string;
 }
 
@@ -70,6 +78,8 @@ const EMPTY: ReviewForm = {
   improvements: '',
   goals: '',
   recommendation: '',
+  manager_remarks: '',
+  admin_remarks: '',
   status: 'draft',
 };
 
@@ -203,6 +213,8 @@ export default function Performance() {
       improvements: review.improvements ?? '',
       goals: review.goals ?? '',
       recommendation: review.recommendation ?? '',
+      manager_remarks: review.manager_remarks ?? '',
+      admin_remarks: review.admin_remarks ?? '',
       status: review.status,
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -223,6 +235,34 @@ export default function Performance() {
     });
 
     if (!res.ok) alert('Failed to delete.');
+    await fetchAll();
+  };
+
+  const acknowledgeReview = async (review: Review) => {
+    if (!profile) return;
+
+    if (!window.confirm('Acknowledge this performance review as accurate?')) return;
+
+    const res = await fetch('/api/employees', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'performance_acknowledge',
+        id: review.id,
+        employee_id: profile.id,
+        employee_name: profile.name,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      alert(data?.error || 'Failed to acknowledge review.');
+      return;
+    }
+
+    setMessage('Performance review acknowledged successfully.');
     await fetchAll();
   };
 
@@ -406,6 +446,17 @@ export default function Performance() {
               />
             ))}
 
+            {['manager_remarks', 'admin_remarks'].map((key) => (
+              <textarea
+                key={key}
+                rows={2}
+                value={(form as any)[key]}
+                onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                placeholder={key.replace('_', ' ')}
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 resize-none"
+              />
+            ))}
+
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value })}
@@ -456,6 +507,20 @@ export default function Performance() {
                   </div>
                   <p className="text-xs text-muted mt-2">Strengths: {review.strengths || '—'}</p>
                   <p className="text-xs text-muted mt-1">Improvements: {review.improvements || '—'}</p>
+                  {review.manager_remarks && (
+                    <p className="text-xs text-muted mt-1">Manager remarks: {review.manager_remarks}</p>
+                  )}
+                  {review.admin_remarks && (
+                    <p className="text-xs text-muted mt-1">Admin remarks: {review.admin_remarks}</p>
+                  )}
+                  {review.employee_acknowledged && (
+                    <p className="text-xs text-emerald mt-1">
+                      Acknowledged by employee{review.acknowledged_by_name ? ` (${review.acknowledged_by_name})` : ''}
+                      {review.employee_acknowledged_at
+                        ? ` · ${formatDate(review.employee_acknowledged_at)}`
+                        : ''}
+                    </p>
+                  )}
                   <div className="grid grid-cols-1 sm:flex gap-2 mt-3">
                     <button
                       type="button"
@@ -464,6 +529,17 @@ export default function Performance() {
                     >
                       <Printer size={14} /> Print
                     </button>
+                    {!isAdminOrManager &&
+                      Number(review.employee_id) === Number(profile?.id) &&
+                      !review.employee_acknowledged && (
+                        <button
+                          type="button"
+                          onClick={() => acknowledgeReview(review)}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald/25 bg-emerald/15 px-3 py-2 text-xs font-semibold text-emerald"
+                        >
+                          <Check size={14} /> Acknowledge
+                        </button>
+                      )}
                     {isAdminOrManager && (
                       <>
                         <button

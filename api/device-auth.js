@@ -7,10 +7,30 @@ import {
 } from '@simplewebauthn/server';
 import supabase from './db-client.js';
 
+function resolveAppBaseUrl() {
+  if (process.env.APP_BASE_URL) {
+    return String(process.env.APP_BASE_URL).trim().replace(/\/+$/, '');
+  }
+
+  return 'https://hr-system2.vercel.app';
+}
+
+function resolveRpId() {
+  const baseUrl = resolveAppBaseUrl();
+
+  try {
+    const { hostname } = new URL(baseUrl);
+
+    return hostname || baseUrl;
+  } catch {
+    return baseUrl.replace(/^https?:\/\//, '');
+  }
+}
+
 const RP_NAME = 'WtecHR';
-const RP_ID = process.env.WEBAUTHN_RP_ID || 'hr-system2.vercel.app';
+const RP_ID = process.env.WEBAUTHN_RP_ID || resolveRpId();
 const ORIGIN =
-  process.env.WEBAUTHN_ORIGIN || 'https://hr-system2.vercel.app';
+  process.env.WEBAUTHN_ORIGIN || resolveAppBaseUrl();
 
 function toBase64Url(value) {
   if (!value) {

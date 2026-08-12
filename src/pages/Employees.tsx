@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -301,6 +301,73 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
   URL.revokeObjectURL(url);
 }
 
+function parseCsv(text: string): Record<string, string>[] {
+  const rows: Record<string, string>[] = [];
+  const lines = text.split(/\r?\n/);
+
+  const parseLine = (line: string): string[] => {
+    const values: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let index = 0; index < line.length; index += 1) {
+      const char = line[index];
+
+      if (inQuotes) {
+        if (char === '"' && line[index + 1] === '"') {
+          current += '"';
+          index += 1;
+        } else if (char === '"') {
+          inQuotes = false;
+        } else {
+          current += char;
+        }
+      } else if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        values.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+
+    values.push(current.trim());
+
+    return values;
+  };
+
+  if (!lines.length) return rows;
+
+  const headers = parseLine(lines[0]).map((header) =>
+    header
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+  );
+
+  for (let lineIndex = 1; lineIndex < lines.length; lineIndex += 1) {
+    const rawLine = lines[lineIndex].trim();
+
+    if (!rawLine) continue;
+
+    const values = parseLine(rawLine);
+
+    if (values.every((value) => value === '')) continue;
+
+    const row: Record<string, string> = {};
+
+    headers.forEach((header, index) => {
+      row[header] = values[index] ?? '';
+    });
+
+    rows.push(row);
+  }
+
+  return rows;
+}
+
 export default function Employees() {
   const { profile } = useAuth();
 
@@ -328,6 +395,18 @@ export default function Employees() {
 
   const [showAdd, setShowAdd] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+
+  const [showImport, setShowImport] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importRows, setImportRows] = useState<Record<string, string>[]>([]);
+  const [importResults, setImportResults] = useState<null | {
+    total: number;
+    inserted: number;
+    skipped: number;
+    errors: number;
+    errorRows: { row: number; email: string; message: string }[];
+  }>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<EmployeeFormState>(emptyForm());
   const [editForm, setEditForm] = useState<EmployeeFormState>(emptyForm());
@@ -620,6 +699,100 @@ export default function Employees() {
     }));
 
     downloadCsv('employees.csv', rows);
+  };
+
+  const downloadEmployeeTemplate = () => {
+    downloadCsv('employee-import-template.csv', [
+      {
+        Name: '',
+        Email: '',
+        Title: '',
+        Department: '',
+        Phone: '',
+        Location: '',
+        Role: 'employee',
+        Status: 'active',
+        Join_Date: '',
+        Salary: '',
+        Date_Of_Birth: '',
+        Identity_Type: '',
+        Identity_Last4: '',
+        Bank_Name: '',
+        Bank_Account_No: '',
+        Epf_No: '',
+        Socso_No: '',
+        Income_Tax_No: '',
+        Address: '',
+        Emergency_Contact_Name: '',
+        Emergency_Contact_Relationship: '',
+        Emergency_Contact_Phone: '',
+        Marital_Status: '',
+        Number_Of_Children: '',
+        Probation_End_Date: '',
+        Contract_End_Date: '',
+        Work_Permit_Expiry: '',
+        Passport_Expiry: '',
+        Driving_License_Expiry: '',
+        Medical_Checkup_Expiry: '',
+      },
+    ]);
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const text = String(reader.result ?? '');
+      const rows = parseCsv(text);
+
+      if (!rows.length) {
+        alert('No rows found in CSV file.');
+        return;
+      }
+
+      setImportRows(rows);
+      setShowImport(true);
+    };
+
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleImportSubmit = async () => {
+    if (!profile || !importRows.length) return;
+
+    setImporting(true);
+
+    try {
+      const res = await fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'import_employees',
+          employees: importRows,
+          actor_role: profile.role,
+          changed_by: profile.id,
+          changed_by_name: profile.name,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to import employees.');
+      }
+
+      setImportResults(data);
+      await fetchEmployees();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to import employees.');
+    } finally {
+      setImporting(false);
+    }
   };
 
   const validateEmployeeForm = (
@@ -1175,6 +1348,36 @@ export default function Employees() {
         action={
           isAdminOrManager ? (
             <div className="flex flex-wrap items-center gap-2">
+              {isAdmin && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] transition-all"
+                  >
+                    <Upload size={16} />
+                    Import CSV
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={downloadEmployeeTemplate}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] transition-all"
+                  >
+                    <FileText size={16} />
+                    Template
+                  </button>
+                </>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleImportFile}
+              />
+
               <button
                 type="button"
                 onClick={handleExportCsv}
@@ -1867,6 +2070,139 @@ export default function Employees() {
                     )}
                   </button>
                 </form>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showImport && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 z-50"
+              onClick={() => setShowImport(false)}
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+            >
+              <div
+                className="glass-solid rounded-2xl p-6 w-full max-w-lg pointer-events-auto max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="font-display text-lg font-bold">
+                    Import Employees
+                  </h3>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowImport(false)}
+                    className="text-muted hover:text-ink"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {importResults ? (
+                  <>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                      <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                        <p className="text-xs text-muted">Total</p>
+                        <p className="font-bold text-lg">{importResults.total}</p>
+                      </div>
+                      <div className="rounded-xl bg-emerald/10 border border-emerald/20 p-3">
+                        <p className="text-xs text-muted">Inserted</p>
+                        <p className="font-bold text-lg text-emerald">
+                          {importResults.inserted}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                        <p className="text-xs text-muted">Skipped</p>
+                        <p className="font-bold text-lg">
+                          {importResults.skipped}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-rose/10 border border-rose/20 p-3">
+                        <p className="text-xs text-muted">Errors</p>
+                        <p className="font-bold text-lg text-rose">
+                          {importResults.errors}
+                        </p>
+                      </div>
+                    </div>
+
+                    {importResults.errorRows.length > 0 && (
+                      <div className="space-y-2 mb-4">
+                        <p className="text-xs text-muted">Errors detail</p>
+                        {importResults.errorRows.map((row) => (
+                          <div
+                            key={`${row.row}-${row.email}`}
+                            className="text-xs text-rose bg-rose/10 border border-rose/20 rounded-lg px-3 py-2"
+                          >
+                            Row {row.row} · {row.email || 'no email'} —{' '}
+                            {row.message}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowImport(false);
+                        setImportResults(null);
+                        setImportRows([]);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold"
+                    >
+                      Done
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted mb-4">
+                      {importRows.length} row(s) found in CSV. Review the rows
+                      and confirm import.
+                    </p>
+
+                    <div className="rounded-xl bg-white/5 border border-white/10 p-3 mb-4 max-h-48 overflow-y-auto">
+                      {importRows.slice(0, 50).map((row, index) => (
+                        <p key={index} className="text-xs text-muted py-1">
+                          Row {index + 2} · {row.name || row.Name || '—'}
+                          {row.email || row.Email
+                            ? ` · ${row.email || row.Email}`
+                            : ''}
+                        </p>
+                      ))}
+                      {importRows.length > 50 && (
+                        <p className="text-xs text-muted">
+                          … and {importRows.length - 50} more
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleImportSubmit}
+                      disabled={importing}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold disabled:opacity-60"
+                    >
+                      {importing ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Upload size={16} />
+                      )}
+                      {importing ? 'Importing…' : 'Confirm Import'}
+                    </button>
+                  </>
+                )}
               </div>
             </motion.div>
           </>

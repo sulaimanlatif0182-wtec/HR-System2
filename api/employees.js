@@ -1246,6 +1246,108 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const body = req.body || {};
 
+      if (body.action === 'import_employees') {
+        const role = String(body.actor_role || '').toLowerCase();
+
+        if (role !== 'admin') {
+          return res.status(403).json({
+            error: 'Only admin can import employees.',
+          });
+        }
+
+        const rows = Array.isArray(body.employees) ? body.employees : [];
+
+        if (!rows.length) {
+          return res.status(400).json({
+            error: 'No employee rows provided for import.',
+          });
+        }
+
+        if (rows.length > 500) {
+          return res.status(400).json({
+            error: 'Import is limited to 500 rows at a time.',
+          });
+        }
+
+        const inserted = [];
+        const skipped = [];
+        const errors = [];
+
+        for (let index = 0; index < rows.length; index += 1) {
+          const row = rows[index];
+          const rowNumber = index + 2;
+
+          if (!row || typeof row !== 'object') {
+            errors.push({ row: rowNumber, email: '', message: 'Invalid row.' });
+            continue;
+          }
+
+          const name = cleanString(row.name);
+          const email = normalizeEmail(row.email);
+
+          if (!name || !email) {
+            errors.push({
+              row: rowNumber,
+              email,
+              message: 'Name and email are required.',
+            });
+            continue;
+          }
+
+          if (await recordExists('employees', [['email', email, 'ilike']])) {
+            skipped.push({
+              row: rowNumber,
+              email,
+              message: 'Employee with this email already exists.',
+            });
+            continue;
+          }
+
+          const payload = buildEmployeePayload(row, { partial: false });
+
+          const { data, error } = await supabase
+            .from('employees')
+            .insert(payload)
+            .select()
+            .single();
+
+          if (error) {
+            errors.push({
+              row: rowNumber,
+              email,
+              message: friendlyDatabaseError(error, 'Failed to import employee.'),
+            });
+            continue;
+          }
+
+          inserted.push(data);
+        }
+
+        if (inserted.length) {
+          await safeInsertSystemAudit({
+            module: 'employees',
+            action: 'employees_import',
+            changed_by: body.changed_by || null,
+            changed_by_name: body.changed_by_name || null,
+            new_data: {
+              inserted: inserted.length,
+              skipped: skipped.length,
+              errors: errors.length,
+            },
+          });
+        }
+
+        return res.status(200).json({
+          total: rows.length,
+          inserted: inserted.length,
+          skipped: skipped.length,
+          errors: errors.length,
+          insertedRows: inserted,
+          skippedRows: skipped,
+          errorRows: errors,
+        });
+      }
+
       if (body.action === 'admin_config_save') {
         const savedConfig = await saveAdminConfig(body.config || {}, body);
 
@@ -1674,6 +1776,8 @@ export default async function handler(req, res) {
           improvements: body.improvements || null,
           goals: body.goals || null,
           recommendation: body.recommendation || null,
+          manager_remarks: body.manager_remarks || null,
+          admin_remarks: body.admin_remarks || null,
           status: body.status || 'draft',
           updated_at: new Date().toISOString(),
         };
@@ -1699,6 +1803,62 @@ export default async function handler(req, res) {
         });
 
         return res.status(body.id ? 200 : 201).json(data);
+      }
+
+      if (body.action === 'performance_acknowledge') {
+        const employeeId = Number(body.employee_id);
+        if (!employeeId || !body.id) {
+          return res.status(400).json({ error: 'id and employee_id are required.' });
+        }
+
+        const { data: existing } = await supabase
+          .from('performance_reviews')
+          .select('*')
+          .eq('id', Number(body.id))
+          .maybeSingle();
+
+        if (!existing) {
+          return res.status(404).json({ error: 'Performance review not found.' });
+        }
+
+        if (Number(existing.employee_id) !== employeeId) {
+          return res.status(403).json({
+            error: 'Employees can only acknowledge their own reviews.',
+          });
+        }
+
+        if (existing.employee_acknowledged) {
+          return res.status(409).json({
+            error: 'This review has already been acknowledged.',
+          });
+        }
+
+        const { data, error } = await supabase
+          .from('performance_reviews')
+          .update({
+            employee_acknowledged: true,
+            employee_acknowledged_at: new Date().toISOString(),
+            acknowledged_by: employeeId,
+            acknowledged_by_name: body.employee_name || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', Number(body.id))
+          .select()
+          .single();
+
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'performance',
+          action: 'review_acknowledge',
+          record_id: data?.id || null,
+          employee_id: employeeId,
+          changed_by: employeeId,
+          changed_by_name: body.employee_name || null,
+          new_data: data,
+        });
+
+        return res.status(200).json(data);
       }
 
       if (body.action === 'performance_delete') {

@@ -2,6 +2,7 @@ import supabase from './db-client.js';
 import { isFeatureEnabled } from './feature-flags.js';
 import {
   notifyClaimSubmitted,
+  notifyClaimPendingAdmin,
   notifyClaimPendingFinance,
   notifyClaimDecision,
 } from '../server/notify.js';
@@ -151,12 +152,6 @@ export default async function handler(req, res) {
       if (!body.amount || toNumber(body.amount) <= 0) {
         return res.status(400).json({
           error: 'Amount must be greater than 0.',
-        });
-      }
-
-      if (!body.attachment_url) {
-        return res.status(400).json({
-          error: 'Receipt attachment is required.',
         });
       }
 
@@ -356,9 +351,40 @@ export default async function handler(req, res) {
         const { data, error } = await supabase
           .from('claims')
           .update({
-            status: 'pending_finance',
+            status: 'pending_admin',
             manager_approved_by: actor_name || 'Manager',
             manager_approved_at: new Date().toISOString(),
+          })
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        await safeNotify(notifyClaimPendingAdmin, data);
+
+        return res.status(200).json(data);
+      }
+
+      if (action === 'admin_approve') {
+        if (claim.status !== 'pending_admin') {
+          return res.status(400).json({
+            error: 'Claim is not pending admin approval.',
+          });
+        }
+
+        if (!admin) {
+          return res.status(403).json({
+            error: 'Only admin can approve this stage.',
+          });
+        }
+
+        const { data, error } = await supabase
+          .from('claims')
+          .update({
+            status: 'pending_finance',
+            admin_approved_by: actor_name || 'Admin',
+            admin_approved_at: new Date().toISOString(),
           })
           .eq('id', id)
           .select()
@@ -403,18 +429,32 @@ export default async function handler(req, res) {
       }
 
       if (action === 'reject') {
-        if (!admin && !manager && !financeManager) {
-          return res.status(403).json({
-            error: 'Only manager, finance manager or admin can reject claims.',
-          });
-        }
-
         if (manager && !admin && !financeManager) {
+          if (claim.status !== 'pending_manager') {
+            return res.status(400).json({
+              error: 'Claim has already passed the manager stage.',
+            });
+          }
+
           if (!sameDepartment(employee.department, actor_department)) {
             return res.status(403).json({
               error: 'Manager can only reject claims from own department.',
             });
           }
+        }
+
+        if (financeManager && !admin && !manager) {
+          if (claim.status !== 'pending_finance') {
+            return res.status(400).json({
+              error: 'Claim is not pending finance approval.',
+            });
+          }
+        }
+
+        if (!admin && !manager && !financeManager) {
+          return res.status(403).json({
+            error: 'Only manager, finance manager or admin can reject claims.',
+          });
         }
 
         const { data, error } = await supabase

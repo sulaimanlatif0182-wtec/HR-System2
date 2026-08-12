@@ -26,6 +26,7 @@ const BALANCE_TYPES = [
   'Sick Leave',
   'Unpaid Leave',
   'Maternity/Paternity',
+  'EL',
 ];
 
 const OT_MULTIPLIER = 1.5;

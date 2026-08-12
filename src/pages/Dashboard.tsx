@@ -257,7 +257,9 @@ export default function Dashboard() {
 
   const pendingLeave = leave.filter(
     (request) =>
-      request.status === 'pending' && visibleEmployeeIds.has(request.employee_id)
+      ['pending', 'pending_supervisor', 'pending_manager'].includes(
+        request.status
+      ) && visibleEmployeeIds.has(request.employee_id)
   );
 
   const pendingClaims = claims.filter(
@@ -392,7 +394,13 @@ export default function Dashboard() {
                         {request.days ?? 0} day(s)
                       </p>
                     </div>
-                    <Badge tone="warning">pending</Badge>
+                    <Badge tone="warning">
+                      {request.status === 'pending_supervisor'
+                        ? 'pending supervisor'
+                        : request.status === 'pending_manager'
+                          ? 'pending manager'
+                          : 'pending'}
+                    </Badge>
                   </div>
                 </div>
               ))}

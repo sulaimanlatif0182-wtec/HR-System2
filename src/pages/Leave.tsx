@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,
   X,
-  CalendarDays,
   Check,
   XCircle,
   Loader2,
@@ -28,6 +27,8 @@ import {
 const STATUS_TONE: Record<string, string> = {
   approved: 'success',
   pending: 'warning',
+  pending_supervisor: 'info',
+  pending_manager: 'warning',
   rejected: 'danger',
 };
 
@@ -36,6 +37,7 @@ const LEAVE_TYPES = [
   'Sick Leave',
   'Unpaid Leave',
   'Maternity/Paternity',
+  'EL',
 ] as const;
 
 const BALANCE_TYPES = [
@@ -43,6 +45,7 @@ const BALANCE_TYPES = [
   'Sick Leave',
   'Unpaid Leave',
   'Maternity/Paternity',
+  'EL',
 ] as const;
 
 const HALF_DAY_OPTIONS = ['Full Day', 'AM', 'PM'] as const;
@@ -60,7 +63,6 @@ const ATTACHMENT_REQUIRED_LEAVE_TYPES = new Set([
 ]);
 
 type LeaveType = (typeof LEAVE_TYPES)[number];
-type BalanceType = (typeof BALANCE_TYPES)[number];
 type HalfDayPeriod = (typeof HALF_DAY_OPTIONS)[number];
 type TimeOffPeriod = (typeof TIME_OFF_PERIODS)[number];
 
@@ -108,6 +110,10 @@ interface LeaveReq {
   time_off_start?: string | null;
   time_off_end?: string | null;
   time_off_hours?: number | null;
+
+  submitted_by?: number | null;
+  submitted_by_name?: string | null;
+  submitted_for_employee?: boolean | null;
 }
 
 interface Emp {
@@ -117,6 +123,8 @@ interface Emp {
   department: string | null;
   title?: string | null;
   role?: string | null;
+  status?: string | null;
+  supervisor_id?: number | null;
 }
 
 interface LeaveBalance {
@@ -311,6 +319,7 @@ export default function Leave() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [deciding, setDeciding] = useState<number | null>(null);
+  const [submittedForEmployeeId, setSubmittedForEmployeeId] = useState('');
 
   const [showBalanceModal, setShowBalanceModal] = useState(false);
   const [balanceEmployeeId, setBalanceEmployeeId] = useState<number | ''>('');
@@ -445,7 +454,13 @@ export default function Leave() {
     }
 
     if (filter !== 'all') {
-      list = list.filter((request) => request.status === filter);
+      list = list.filter((request) =>
+        filter === 'pending'
+          ? ['pending', 'pending_supervisor', 'pending_manager'].includes(
+              request.status
+            )
+          : request.status === filter
+      );
     }
 
     return list;
@@ -461,13 +476,21 @@ export default function Leave() {
 
   const canApproveRequest = (request: LeaveReq) => {
     if (!profile) return false;
-    if (request.status !== 'pending') return false;
+    if (!['pending_supervisor', 'pending_manager'].includes(request.status)) {
+      return false;
+    }
 
     const applicant = empMap[request.employee_id];
     const applicantRole = String(applicant?.role ?? '').toLowerCase();
+    const isSupervisorOfApplicant =
+      Number(profile.id) === Number(applicant?.supervisor_id);
 
     if (isAdmin) {
       return true;
+    }
+
+    if (request.status === 'pending_supervisor') {
+      return isSupervisorOfApplicant;
     }
 
     if (isManagerOnly) {
@@ -493,7 +516,23 @@ export default function Leave() {
     setForm(emptyLeaveForm());
     setAttachmentFile(null);
     setFormError('');
+    setSubmittedForEmployeeId('');
   };
+
+  const eligibleEmployees = useMemo(() => {
+    if (!profile) return [];
+    return employees.filter((emp) => {
+      if (Number(emp.id) === Number(profile.id)) return false;
+      if (String(emp.status ?? '').toLowerCase() === 'inactive') return false;
+      if (isAdmin) return true;
+      if (isManagerOnly) {
+        return (
+          String(emp.department ?? '').trim().toLowerCase() === profileDepartment
+        );
+      }
+      return false;
+    });
+  }, [employees, profile, isAdmin, isManagerOnly, profileDepartment]);
 
   const openRequestModal = () => {
     resetForm();
@@ -664,7 +703,12 @@ export default function Leave() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          employee_id: profile.id,
+          employee_id: submittedForEmployeeId
+            ? Number(submittedForEmployeeId)
+            : profile.id,
+          submitted_by: profile.id,
+          submitted_by_name: profile.name,
+          submitted_for_employee: Boolean(submittedForEmployeeId),
           request_mode: form.request_mode,
           leave_type:
             form.request_mode === 'time_off' ? 'Time Off' : form.leave_type,
@@ -683,7 +727,6 @@ export default function Leave() {
           employee_acknowledged: form.employee_acknowledged,
           attachment_url: attachment.attachment_url,
           attachment_name: attachment.attachment_name,
-          status: 'pending',
         }),
       });
 
@@ -705,7 +748,7 @@ export default function Leave() {
   };
 
   const decide = async (id: number, status: string) => {
-    if (!isAdminOrManager || !profile) return;
+    if (!profile) return;
 
     setDeciding(id);
 
@@ -1060,6 +1103,7 @@ export default function Leave() {
         <td>${request.leave_type === 'Sick Leave' ? '<span class="selected">Sick Leave</span>' : 'Sick Leave'}</td>
         <td>${request.leave_type === 'Unpaid Leave' ? '<span class="selected">Unpaid Leave</span>' : 'Unpaid Leave'}</td>
         <td>${request.leave_type === 'Maternity/Paternity' ? '<span class="selected">Maternity/Paternity</span>' : 'Maternity/Paternity'}</td>
+        <td>${request.leave_type === 'EL' ? '<span class="selected">EL</span>' : 'EL'}</td>
       </tr>
       <tr>
         <td>${request.leave_type === 'Time Off' ? '<span class="selected">Time Off</span>' : 'Time Off'}</td>
@@ -1349,12 +1393,15 @@ export default function Leave() {
                 </a>
               )}
 
-              {request.decided_by && request.status !== 'pending' && (
-                <p className="text-xs text-muted mb-3">
-                  Decided by: {request.decided_by}
-                  {request.decided_role ? ` (${request.decided_role})` : ''}
-                </p>
-              )}
+              {request.decided_by &&
+                !['pending', 'pending_supervisor', 'pending_manager'].includes(
+                  request.status
+                ) && (
+                  <p className="text-xs text-muted mb-3">
+                    Decided by: {request.decided_by}
+                    {request.decided_role ? ` (${request.decided_role})` : ''}
+                  </p>
+                )}
 
               <div className="flex flex-wrap gap-2 mt-3">
                 <button
@@ -1379,7 +1426,9 @@ export default function Leave() {
                       ) : (
                         <Check size={13} />
                       )}
-                      Approve
+                      {request.status === 'pending_supervisor'
+                        ? 'Approve → Manager'
+                        : 'Approve'}
                     </button>
 
                     <button
@@ -1468,6 +1517,27 @@ export default function Leave() {
                       Time Off
                     </button>
                   </div>
+
+                  {isAdminOrManager && eligibleEmployees.length > 0 && (
+                    <div>
+                      <label className="text-xs text-muted mb-1 block">
+                        Submit for
+                      </label>
+
+                      <select
+                        value={submittedForEmployeeId}
+                        onChange={(e) => setSubmittedForEmployeeId(e.target.value)}
+                        className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                      >
+                        <option value="">Myself</option>
+                        {eligibleEmployees.map((emp) => (
+                          <option key={emp.id} value={String(emp.id)}>
+                            {emp.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   {form.request_mode === 'leave' ? (
                     <>
