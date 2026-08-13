@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import supabase from './db-client.js';
 import {
   getFeatureFlags,
@@ -26,6 +27,131 @@ async function safeInsertSystemAudit(payload) {
 
 function cleanString(value) {
   return String(value ?? '').trim();
+}
+
+function generateTempPassword() {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghjkmnpqrstuvwxyz';
+  const numbers = '23456789';
+  const all = upper + lower + numbers;
+  const pick = (charset) => charset[Math.floor(Math.random() * charset.length)];
+  const bytes = crypto.randomBytes(9);
+  let password = pick(upper) + pick(lower) + pick(numbers);
+
+  for (let i = 0; i < 9; i += 1) {
+    password += all[bytes[i] % all.length];
+  }
+
+  return password
+    .split('')
+    .sort(() => Math.random() - 0.5)
+    .join('');
+}
+
+const EVALUATION_CATEGORIES = ['worker', 'employee', 'manager'];
+
+function publicEmployee(row) {
+  if (!row) return null;
+
+  return {
+    id: Number(row.id),
+    name: row.name ?? '',
+    email: row.email ?? '',
+    role: row.role ?? 'employee',
+    category: row.category ?? 'employee',
+    department: row.department ?? null,
+    title: row.title ?? null,
+    status: row.status ?? 'active',
+    phone: row.phone ?? null,
+    location: row.location ?? null,
+    join_date: row.join_date ?? null,
+    employee_no: row.employee_no ?? null,
+  };
+}
+
+function sanitizeTemplateSections(sections) {
+  if (!Array.isArray(sections)) return [];
+
+  return sections
+    .map((section) => {
+      if (!section || !cleanString(section.name)) return null;
+
+      const criteria = Array.isArray(section.criteria)
+        ? section.criteria
+            .map((criterion) => {
+              if (!criterion || !cleanString(criterion.name)) return null;
+
+              const maxScore = Math.max(0, toNullableNumber(criterion.max_score) || 0);
+              if (maxScore <= 0) return null;
+
+              return {
+                id: cleanString(criterion.id) || crypto.randomUUID(),
+                name: cleanString(criterion.name),
+                max_score: maxScore,
+                description: cleanString(criterion.description) || null,
+              };
+            })
+            .filter(Boolean)
+        : [];
+
+      if (!criteria.length) return null;
+
+      return {
+        id: cleanString(section.id) || crypto.randomUUID(),
+        name: cleanString(section.name),
+        criteria,
+      };
+    })
+    .filter(Boolean);
+}
+
+function templateCriteriaSections(sections) {
+  return (sections || []).flatMap((section) => {
+    if (!section || !Array.isArray(section.criteria)) return [];
+    return section.criteria;
+  });
+}
+
+function sanitizeEvaluationScores(scores, sections) {
+  const result = {};
+  const allCriteria = templateCriteriaSections(sections);
+
+  allCriteria.forEach((criterion) => {
+    const row = scores && typeof scores === 'object' ? scores[criterion.id] : null;
+
+    if (row && typeof row === 'object') {
+      const rawScore = Number(row.score);
+      const score = Number.isFinite(rawScore)
+        ? Math.min(Math.max(rawScore, 0), Number(criterion.max_score || 0))
+        : 0;
+
+      result[criterion.id] = {
+        score,
+        comment: cleanString(row.comment) || null,
+      };
+    } else {
+      result[criterion.id] = { score: 0, comment: null };
+    }
+  });
+
+  return result;
+}
+
+function computeOverallScore(scores, sections) {
+  const allCriteria = templateCriteriaSections(sections);
+  const totalMax = allCriteria.reduce(
+    (sum, criterion) => sum + Number(criterion.max_score || 0),
+    0
+  );
+
+  if (!totalMax) return 0;
+
+  const total = allCriteria.reduce(
+    (sum, criterion) => sum + Number(scores?.[criterion.id]?.score || 0),
+    0
+  );
+
+  return Math.round((total / totalMax) * 100);
 }
 
 function getAppBaseUrl() {
@@ -279,6 +405,17 @@ function buildEmployeePayload(body, { partial = false } = {}) {
     body.location ? cleanString(body.location) : partial ? undefined : null
   );
   assign('role', body.role ? cleanString(body.role) : partial ? undefined : 'employee');
+
+  if (body.category !== undefined || !partial) {
+    const category = cleanString(body.category).toLowerCase();
+    assign('category', EVALUATION_CATEGORIES.includes(category) ? category : 'employee');
+  }
+
+  if (body.employee_no !== undefined || !partial) {
+    const employeeNo = cleanString(body.employee_no);
+    assign('employee_no', employeeNo || null);
+  }
+
   assign(
     'status',
     body.status ? cleanString(body.status) : partial ? undefined : 'active'
@@ -1076,6 +1213,52 @@ export default async function handler(req, res) {
         return res.status(200).json(data || []);
       }
 
+      if (req.query?.evaluation_templates === 'true') {
+        let query = supabase
+          .from('evaluation_templates')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (req.query?.category) {
+          query = query.eq('category', cleanString(req.query.category));
+        }
+
+        const { data, error } = await query;
+        if (error) return res.status(500).json({ error: error.message });
+
+        return res.status(200).json(data || []);
+      }
+
+      if (req.query?.evaluations === 'true') {
+        let query = supabase
+          .from('evaluations')
+          .select('*')
+          .order('review_period', { ascending: false })
+          .order('created_at', { ascending: false });
+
+        if (employee_id) query = query.eq('employee_id', Number(employee_id));
+
+        if (req.query?.evaluator_id) {
+          query = query.eq('evaluator_id', Number(req.query.evaluator_id));
+        }
+
+        const { data, error } = await query;
+        if (error) return res.status(500).json({ error: error.message });
+
+        return res.status(200).json(data || []);
+      }
+
+      if (req.query?.worker_rules === 'true') {
+        let query = supabase.from('worker_evaluation_rules').select('*');
+
+        if (employee_id) query = query.eq('employee_id', Number(employee_id));
+
+        const { data, error } = await query;
+        if (error) return res.status(500).json({ error: error.message });
+
+        return res.status(200).json(data || []);
+      }
+
       if (req.query?.monthly_hr_report === 'true') {
         const report = await buildMonthlyHrReport(req.query.period);
 
@@ -1343,6 +1526,89 @@ export default async function handler(req, res) {
           skipped: skipped.length,
           errors: errors.length,
           insertedRows: inserted,
+          skippedRows: skipped,
+          errorRows: errors,
+        });
+      }
+
+      if (body.action === 'import_create_accounts') {
+        const role = String(body.actor_role || '').toLowerCase();
+
+        if (role !== 'admin') {
+          return res.status(403).json({
+            error: 'Only admin can create employee login accounts.',
+          });
+        }
+
+        const rows = Array.isArray(body.employees) ? body.employees : [];
+
+        if (!rows.length) {
+          return res.status(400).json({
+            error: 'No employees provided for account creation.',
+          });
+        }
+
+        if (rows.length > 500) {
+          return res.status(400).json({
+            error: 'Account creation is limited to 500 rows at a time.',
+          });
+        }
+
+        const created = [];
+        const skipped = [];
+        const errors = [];
+
+        for (let index = 0; index < rows.length; index += 1) {
+          const row = rows[index];
+          const rowNumber = index + 2;
+          const email = normalizeEmail(row.email);
+
+          if (!email) {
+            errors.push({ row: rowNumber, email: '', message: 'Email is required.' });
+            continue;
+          }
+
+          const tempPassword = generateTempPassword();
+
+          const { error: createErr } = await supabase.auth.admin.createUser({
+            email,
+            password: tempPassword,
+            email_confirm: true,
+          });
+
+          if (createErr) {
+            const msg = (createErr.message || '').toLowerCase();
+            if (msg.includes('already') || msg.includes('registered') || msg.includes('exists')) {
+              skipped.push({ row: rowNumber, email, message: 'An account with this email already exists.' });
+            } else {
+              errors.push({ row: rowNumber, email, message: createErr.message });
+            }
+            continue;
+          }
+
+          created.push({ row: rowNumber, email, temp_password: tempPassword });
+        }
+
+        if (created.length) {
+          await safeInsertSystemAudit({
+            module: 'employees',
+            action: 'employee_accounts_created',
+            changed_by: body.changed_by || null,
+            changed_by_name: body.changed_by_name || null,
+            new_data: {
+              created: created.length,
+              skipped: skipped.length,
+              errors: errors.length,
+            },
+          });
+        }
+
+        return res.status(200).json({
+          total: rows.length,
+          created: created.length,
+          skipped: skipped.length,
+          errors: errors.length,
+          createdRows: created,
           skippedRows: skipped,
           errorRows: errors,
         });
@@ -1880,6 +2146,418 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true });
       }
 
+      if (body.action === 'worker_login') {
+        const rawId = cleanString(body.employee_no || body.employee_id || '');
+
+        if (!rawId) {
+          return res.status(400).json({ error: 'Please enter your employee ID.' });
+        }
+
+        let employee = null;
+
+        const { data: byNo } = await supabase
+          .from('employees')
+          .select('*')
+          .eq('employee_no', rawId)
+          .maybeSingle();
+
+        if (byNo) {
+          employee = byNo;
+        } else {
+          const numericId = Number(rawId);
+
+          if (numericId) {
+            const { data: byId } = await supabase
+              .from('employees')
+              .select('*')
+              .eq('id', numericId)
+              .maybeSingle();
+
+            employee = byId || null;
+          }
+        }
+
+        if (!employee) {
+          return res.status(404).json({ error: 'No employee found with this ID.' });
+        }
+
+        if (String(employee.status || '').toLowerCase() === 'inactive') {
+          return res.status(403).json({ error: 'This account is inactive. Please contact HR.' });
+        }
+
+        const token = crypto.randomUUID();
+
+        const { error: tokenError } = await supabase.from('worker_sessions').insert({
+          employee_id: employee.id,
+          token,
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        });
+
+        if (tokenError) return res.status(500).json({ error: tokenError.message });
+
+        return res.status(200).json({ token, employee: publicEmployee(employee) });
+      }
+
+      if (body.action === 'worker_session') {
+        const token = cleanString(body.token);
+
+        if (!token) {
+          return res.status(401).json({ error: 'Missing session token.' });
+        }
+
+        const { data: session, error: sessionError } = await supabase
+          .from('worker_sessions')
+          .select('*')
+          .eq('token', token)
+          .gt('expires_at', new Date().toISOString())
+          .maybeSingle();
+
+        if (sessionError || !session) {
+          return res.status(401).json({ error: 'Session expired or invalid. Please sign in again.' });
+        }
+
+        const { data: employee, error: employeeError } = await supabase
+          .from('employees')
+          .select('*')
+          .eq('id', session.employee_id)
+          .maybeSingle();
+
+        if (
+          employeeError ||
+          !employee ||
+          String(employee.status || '').toLowerCase() === 'inactive'
+        ) {
+          return res.status(401).json({ error: 'Account not found or inactive.' });
+        }
+
+        return res.status(200).json({ employee: publicEmployee(employee) });
+      }
+
+      if (body.action === 'template_save') {
+        const actorRole = cleanString(body.actor_role || '').toLowerCase();
+
+        if (actorRole !== 'admin') {
+          return res.status(403).json({ error: 'Only admin can manage evaluation templates.' });
+        }
+
+        const name = cleanString(body.name);
+        const category = cleanString(body.category).toLowerCase();
+
+        if (!name) {
+          return res.status(400).json({ error: 'Template name is required.' });
+        }
+
+        if (!EVALUATION_CATEGORIES.includes(category)) {
+          return res.status(400).json({
+            error: 'Template category must be Worker, Employee or Manager.',
+          });
+        }
+
+        const sections = sanitizeTemplateSections(body.sections);
+
+        if (!sections.length) {
+          return res.status(400).json({
+            error: 'Template must contain at least one section with scored criteria.',
+          });
+        }
+
+        const payload = {
+          name,
+          category,
+          department: cleanString(body.department) || null,
+          description: cleanString(body.description) || null,
+          sections,
+          status: body.status === 'inactive' ? 'inactive' : 'active',
+          updated_at: new Date().toISOString(),
+        };
+
+        let query;
+        if (body.id) {
+          query = supabase.from('evaluation_templates').update(payload).eq('id', Number(body.id));
+        } else {
+          payload.created_by = body.changed_by || null;
+          payload.created_by_name = body.changed_by_name || null;
+          query = supabase.from('evaluation_templates').insert(payload);
+        }
+
+        const { data, error } = await query.select().single();
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'performance',
+          action: body.id ? 'template_update' : 'template_create',
+          record_id: data?.id || null,
+          changed_by: body.changed_by || null,
+          changed_by_name: body.changed_by_name || null,
+          new_data: data,
+        });
+
+        return res.status(body.id ? 200 : 201).json(data);
+      }
+
+      if (body.action === 'template_delete') {
+        const actorRole = cleanString(body.actor_role || '').toLowerCase();
+
+        if (actorRole !== 'admin') {
+          return res.status(403).json({ error: 'Only admin can delete evaluation templates.' });
+        }
+
+        if (!body.id) return res.status(400).json({ error: 'id is required.' });
+
+        const { data: oldRow } = await supabase
+          .from('evaluation_templates')
+          .select('*')
+          .eq('id', Number(body.id))
+          .maybeSingle();
+
+        const { error } = await supabase
+          .from('evaluation_templates')
+          .delete()
+          .eq('id', Number(body.id));
+
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'performance',
+          action: 'template_delete',
+          record_id: Number(body.id),
+          changed_by: body.changed_by || null,
+          changed_by_name: body.changed_by_name || null,
+          old_data: oldRow,
+        });
+
+        return res.status(200).json({ ok: true });
+      }
+
+      if (body.action === 'evaluation_save') {
+        const actorRole = cleanString(body.actor_role || '').toLowerCase();
+
+        if (!['admin', 'manager'].includes(actorRole)) {
+          return res.status(403).json({
+            error: 'Only admin or manager can submit evaluations.',
+          });
+        }
+
+        const templateId = Number(body.template_id);
+        const employeeId = Number(body.employee_id);
+
+        if (!templateId || !employeeId || !cleanString(body.review_period)) {
+          return res.status(400).json({
+            error: 'template_id, employee_id and review_period are required.',
+          });
+        }
+
+        const { data: template, error: templateError } = await supabase
+          .from('evaluation_templates')
+          .select('*')
+          .eq('id', templateId)
+          .maybeSingle();
+
+        if (templateError) return res.status(500).json({ error: templateError.message });
+        if (!template) return res.status(404).json({ error: 'Evaluation template not found.' });
+        if (String(template.status || '').toLowerCase() === 'inactive') {
+          return res.status(403).json({ error: 'This evaluation template is inactive.' });
+        }
+
+        const scores = sanitizeEvaluationScores(body.scores, template.sections);
+        const overallScore = computeOverallScore(scores, template.sections);
+
+        const payload = {
+          template_id: templateId,
+          employee_id: employeeId,
+          evaluator_id: body.evaluator_id || body.changed_by || null,
+          evaluator_name: body.evaluator_name || body.changed_by_name || null,
+          evaluator_role: body.evaluator_role || actorRole,
+          review_period: cleanString(body.review_period),
+          scores,
+          overall_score: overallScore,
+          status: body.status === 'completed' ? 'completed' : 'draft',
+          updated_at: new Date().toISOString(),
+        };
+
+        let query;
+        if (body.id) {
+          query = supabase.from('evaluations').update(payload).eq('id', Number(body.id));
+        } else {
+          query = supabase.from('evaluations').insert(payload);
+        }
+
+        const { data, error } = await query.select().single();
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'performance',
+          action: body.id ? 'evaluation_update' : 'evaluation_create',
+          record_id: data?.id || null,
+          employee_id: employeeId,
+          changed_by: payload.evaluator_id,
+          changed_by_name: payload.evaluator_name,
+          new_data: data,
+        });
+
+        return res.status(body.id ? 200 : 201).json(data);
+      }
+
+      if (body.action === 'evaluation_acknowledge') {
+        const employeeId = Number(body.employee_id);
+
+        if (!employeeId || !body.id) {
+          return res.status(400).json({ error: 'id and employee_id are required.' });
+        }
+
+        const { data: existing } = await supabase
+          .from('evaluations')
+          .select('*')
+          .eq('id', Number(body.id))
+          .maybeSingle();
+
+        if (!existing) {
+          return res.status(404).json({ error: 'Evaluation not found.' });
+        }
+
+        if (Number(existing.employee_id) !== employeeId) {
+          return res.status(403).json({
+            error: 'Employees can only acknowledge their own evaluations.',
+          });
+        }
+
+        if (existing.employee_acknowledged) {
+          return res.status(409).json({ error: 'This evaluation has already been acknowledged.' });
+        }
+
+        const { data, error } = await supabase
+          .from('evaluations')
+          .update({
+            employee_acknowledged: true,
+            employee_acknowledged_at: new Date().toISOString(),
+            acknowledged_by: employeeId,
+            acknowledged_by_name: body.employee_name || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', Number(body.id))
+          .select()
+          .single();
+
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'performance',
+          action: 'evaluation_acknowledge',
+          record_id: data?.id || null,
+          employee_id: employeeId,
+          changed_by: employeeId,
+          changed_by_name: body.employee_name || null,
+          new_data: data,
+        });
+
+        return res.status(200).json(data);
+      }
+
+      if (body.action === 'evaluation_delete') {
+        const actorRole = cleanString(body.actor_role || '').toLowerCase();
+
+        if (!['admin', 'manager'].includes(actorRole)) {
+          return res.status(403).json({ error: 'Only admin or manager can delete evaluations.' });
+        }
+
+        if (!body.id) return res.status(400).json({ error: 'id is required.' });
+
+        const { data: oldRow } = await supabase
+          .from('evaluations')
+          .select('*')
+          .eq('id', Number(body.id))
+          .maybeSingle();
+
+        const { error } = await supabase
+          .from('evaluations')
+          .delete()
+          .eq('id', Number(body.id));
+
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'performance',
+          action: 'evaluation_delete',
+          record_id: Number(body.id),
+          employee_id: oldRow?.employee_id || null,
+          changed_by: body.changed_by || null,
+          changed_by_name: body.changed_by_name || null,
+          old_data: oldRow,
+        });
+
+        return res.status(200).json({ ok: true });
+      }
+
+      if (body.action === 'worker_rule_save') {
+        const actorRole = cleanString(body.actor_role || '').toLowerCase();
+
+        if (actorRole !== 'admin') {
+          return res.status(403).json({ error: 'Only admin can assign worker evaluation rules.' });
+        }
+
+        const employeeId = Number(body.employee_id);
+        const templateId = Number(body.template_id);
+
+        if (!employeeId) {
+          return res.status(400).json({ error: 'employee_id is required.' });
+        }
+
+        let criteria = [];
+
+        if (templateId) {
+          const { data: template, error: templateError } = await supabase
+            .from('evaluation_templates')
+            .select('*')
+            .eq('id', templateId)
+            .maybeSingle();
+
+          if (templateError) return res.status(500).json({ error: templateError.message });
+          if (!template) return res.status(404).json({ error: 'Template not found.' });
+
+          const allowedIds = new Set(
+            (Array.isArray(body.criteria) ? body.criteria : []).map((c) => cleanString(c))
+          );
+
+          criteria = templateCriteriaSections(template.sections)
+            .map((criterion) => ({
+              id: criterion.id,
+              name: criterion.name,
+              max_score: criterion.max_score,
+            }))
+            .filter((criterion) => allowedIds.has(criterion.id));
+        }
+
+        const payload = {
+          employee_id: employeeId,
+          template_id: templateId || null,
+          criteria,
+          active: body.active !== false,
+          updated_by: body.changed_by || null,
+          updated_by_name: body.changed_by_name || null,
+          updated_at: new Date().toISOString(),
+        };
+
+        const { data, error } = await supabase
+          .from('worker_evaluation_rules')
+          .upsert(payload, { onConflict: 'employee_id' })
+          .select()
+          .single();
+
+        if (error) return res.status(500).json({ error: error.message });
+
+        await safeInsertSystemAudit({
+          module: 'performance',
+          action: 'worker_rule_save',
+          record_id: data?.id || null,
+          employee_id: employeeId,
+          changed_by: payload.updated_by,
+          changed_by_name: payload.updated_by_name,
+          new_data: data,
+        });
+
+        return res.status(200).json(data);
+      }
+
       if (body.action === 'profile_update_request_create') {
         const employeeId = Number(body.employee_id);
         const requestedData = pickProfileUpdateData(body.requested_data || body);
@@ -2008,6 +2686,15 @@ export default async function handler(req, res) {
         });
       }
 
+      if (
+        payload.employee_no &&
+        (await recordExists('employees', [['employee_no', payload.employee_no]]))
+      ) {
+        return res.status(409).json({
+          error: 'This employee ID is already in use. Please use a different employee ID.',
+        });
+      }
+
       const { data, error } = await supabase
         .from('employees')
         .insert(payload)
@@ -2128,6 +2815,15 @@ export default async function handler(req, res) {
       if (payload.email && await recordExists('employees', [['email', payload.email, 'ilike']], id)) {
         return res.status(409).json({
           error: 'Another employee already uses this email address.',
+        });
+      }
+
+      if (
+        payload.employee_no &&
+        (await recordExists('employees', [['employee_no', payload.employee_no]], id))
+      ) {
+        return res.status(409).json({
+          error: 'Another employee already uses this employee ID.',
         });
       }
 

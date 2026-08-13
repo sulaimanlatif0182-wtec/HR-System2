@@ -1,4 +1,5 @@
 export type Role = 'admin' | 'manager' | 'employee';
+export type EmployeeCategory = 'worker' | 'employee' | 'manager';
 
 export interface Employee {
   id: number;
@@ -6,6 +7,8 @@ export interface Employee {
   email: string;
   avatar_url: string | null;
   role: Role;
+  category?: EmployeeCategory | null;
+  employee_no?: string | null;
   department: string | null;
   title: string | null;
   status: 'active' | 'on_leave' | 'inactive';

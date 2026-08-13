@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   BarChart3,
   Save,
@@ -9,6 +10,8 @@ import {
   Printer,
   Pencil,
   Check,
+  ClipboardList,
+  Star,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -18,6 +21,7 @@ import {
   ErrorState,
   EmptyState,
 } from '../components/ui';
+import Evaluation from './performance/Evaluation';
 
 interface Employee {
   id: number;
@@ -116,6 +120,10 @@ function formatDate(value?: string | null) {
 export default function Performance() {
   const { profile } = useAuth();
   const isAdminOrManager = profile?.role === 'admin' || profile?.role === 'manager';
+  const [searchParams] = useSearchParams();
+
+  const initialTab = searchParams.get('tab') === 'appraisal' ? 'appraisal' : 'evaluation';
+  const [tab, setTab] = useState<'appraisal' | 'evaluation'>(initialTab);
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -346,6 +354,35 @@ export default function Performance() {
   if (error) return <ErrorState message={error} onRetry={fetchAll} />;
 
   return (
+    <>
+      <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-surface p-1 w-fit">
+        <button
+          type="button"
+          onClick={() => setTab('evaluation')}
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+            tab === 'evaluation'
+              ? 'bg-gradient-to-r from-primary to-primary-2 text-white shadow-lg shadow-primary/30'
+              : 'text-muted hover:text-ink'
+          }`}
+        >
+          <Star size={15} /> Evaluation
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('appraisal')}
+          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+            tab === 'appraisal'
+              ? 'bg-gradient-to-r from-primary to-primary-2 text-white shadow-lg shadow-primary/30'
+              : 'text-muted hover:text-ink'
+          }`}
+        >
+          <ClipboardList size={15} /> Appraisal
+        </button>
+      </div>
+
+      {tab === 'evaluation' ? (
+        <Evaluation />
+      ) : (
     <div>
       <PageHeader
         title="Performance / Appraisal"
@@ -563,8 +600,10 @@ export default function Performance() {
               ))}
             </div>
           )}
+          </div>
         </div>
       </div>
-    </div>
+      )}
+    </>
   );
 }

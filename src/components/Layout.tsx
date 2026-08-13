@@ -10,7 +10,6 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useFeatureFlags } from '../lib/featureFlags';
 import type { FeatureFlagKey } from '../lib/featureFlags';
-import supabase from '../lib/supabase';
 import NotificationsBell from './NotificationsBell';
 
 type LayoutRole = 'admin' | 'manager' | 'employee';
@@ -60,7 +59,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { profile, user } = useAuth();
+  const { profile, user, signOut } = useAuth();
   const { isEnabled } = useFeatureFlags();
   const navigate = useNavigate();
 
@@ -72,10 +71,16 @@ export default function Layout({ children }: { children: ReactNode }) {
   const searchRef = useRef<HTMLDivElement>(null);
 
   const role = profile?.role ?? 'employee';
-  const displayName = profile?.name ?? user?.email?.split('@')[0] ?? 'User';
+  const isWorker = profile?.category === 'worker';
+  const displayRole = isWorker ? 'worker' : role;
+  const displayName = profile?.name ?? user?.email?.split('@')[0] ?? 'Worker';
+  const displayEmail = user?.email ?? profile?.email ?? '';
   const initials = displayName.slice(0, 2).toUpperCase();
   const items = NAV.filter(
-    (n) => n.roles.includes(role) && (!n.feature || isEnabled(n.feature))
+    (n) =>
+      n.roles.includes(role) &&
+      (!n.feature || isEnabled(n.feature)) &&
+      (!isWorker || n.to === '/performance')
   );
 
   // Lazy-load the employee directory the first time the user types
@@ -133,8 +138,8 @@ export default function Layout({ children }: { children: ReactNode }) {
     navigate(to);
   };
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
+  const handleSignOut = async () => {
+    await signOut();
     navigate('/login');
   };
 
@@ -221,7 +226,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             {!collapsed && (
               <div className="min-w-0">
                 <p className="text-xs font-medium truncate">{displayName}</p>
-                <p className="text-[10px] text-muted capitalize">{role}</p>
+                <p className="text-[10px] text-muted capitalize">{displayRole}</p>
               </div>
             )}
           </div>
@@ -335,7 +340,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 </div>
                 <div className="hidden sm:block text-left">
                   <div className="text-sm font-medium leading-tight">{displayName}</div>
-                  <div className="text-[11px] text-muted leading-tight capitalize">{role}</div>
+                  <div className="text-[11px] text-muted leading-tight capitalize">{displayRole}</div>
                 </div>
                 <ChevronDown size={14} className={`text-muted transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -349,8 +354,8 @@ export default function Layout({ children }: { children: ReactNode }) {
                     className="absolute right-0 mt-2 w-52 glass rounded-xl p-1.5 shadow-2xl shadow-black/50"
                   >
                     <div className="px-3 py-2 border-b border-white/5 mb-1">
-                      <p className="text-sm font-medium truncate">{user?.email}</p>
-                      <p className="text-[11px] text-muted capitalize">{role} access</p>
+                      <p className="text-sm font-medium truncate">{displayEmail}</p>
+                      <p className="text-[11px] text-muted capitalize">{displayRole} access</p>
                     </div>
                     <button
                       onClick={() => { setMenuOpen(false); navigate('/profile'); }}
@@ -365,7 +370,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                       <Settings size={15} /> Settings
                     </button>
                     <button
-                      onClick={signOut}
+                      onClick={handleSignOut}
                       className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-rose hover:bg-rose/10 transition-all"
                     >
                       <LogOut size={15} /> Sign out

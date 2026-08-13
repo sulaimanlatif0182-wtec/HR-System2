@@ -14,8 +14,9 @@ import {
   UserPlus,
 } from 'lucide-react';
 import supabase from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
-type AuthMode = 'signin' | 'signup' | 'forgot';
+type AuthMode = 'signin' | 'signup' | 'forgot' | 'worker';
 
 function getReadableError(err: unknown) {
   console.error('Auth error raw:', err);
@@ -124,10 +125,12 @@ function validatePassword(password: string) {
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { signInAsWorker } = useAuth();
 
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [employeeNo, setEmployeeNo] = useState('');
 
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -241,6 +244,28 @@ export default function Login() {
       navigate('/', { replace: true });
     } catch (err) {
       setError(getFriendlyAuthError(getReadableError(err)));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleWorkerSignIn = async (e: FormEvent) => {
+    e.preventDefault();
+
+    resetMessages();
+
+    if (!employeeNo.trim()) {
+      setError('Please enter your employee ID.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await signInAsWorker(employeeNo.trim());
+      navigate('/performance', { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to sign in with this ID.');
     } finally {
       setLoading(false);
     }
@@ -479,6 +504,15 @@ export default function Login() {
 
                   <button
                     type="button"
+                    onClick={() => switchMode('worker')}
+                    className="inline-flex items-center justify-center gap-2 text-sm text-primary hover:text-accent transition-all"
+                  >
+                    <UserPlus size={15} />
+                    Worker sign in (employee ID)
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => switchMode('signup')}
                     className="inline-flex items-center justify-center gap-2 text-sm text-primary hover:text-accent transition-all"
                   >
@@ -486,6 +520,80 @@ export default function Login() {
                     Create account
                   </button>
                 </div>
+              </>
+            )}
+
+            {mode === 'worker' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => switchMode('signin')}
+                  className="inline-flex items-center gap-2 text-sm text-muted hover:text-ink mb-6 transition-all"
+                >
+                  <ArrowLeft size={16} />
+                  Back to sign in
+                </button>
+
+                <div className="mb-7">
+                  <h2 className="font-display text-3xl font-bold">
+                    Worker sign in
+                  </h2>
+                  <p className="text-sm text-muted mt-2">
+                    Enter your employee ID to view your evaluation.
+                  </p>
+                </div>
+
+                <form onSubmit={handleWorkerSignIn} className="space-y-4">
+                  <div>
+                    <label className="text-xs text-muted mb-1.5 block">
+                      Employee ID
+                    </label>
+
+                    <div className="relative">
+                      <UserPlus
+                        size={17}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 text-muted"
+                      />
+
+                      <input
+                        required
+                        inputMode="numeric"
+                        autoFocus
+                        value={employeeNo}
+                        onChange={(e) => setEmployeeNo(e.target.value)}
+                        placeholder="e.g. 1024"
+                        className="w-full bg-surface border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="flex items-start gap-2 rounded-xl border border-rose/20 bg-rose/10 px-3 py-2.5 text-sm text-rose">
+                      <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-3 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                  >
+                    {loading ? (
+                      <Loader2 size={17} className="animate-spin" />
+                    ) : (
+                      <>
+                        Sign in with ID
+                        <ArrowRight size={17} />
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2 mt-5">
+                  Your employee ID is assigned by HR. If you do not know it,
+                  contact HR or IT support.
+                </p>
               </>
             )}
 

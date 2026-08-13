@@ -61,17 +61,31 @@ function RoleGate({
   return <AccessDenied allowedRoles={allowedRoles} />;
 }
 
+function WorkerGuard({ children }: { children: ReactNode }) {
+  const { profile } = useAuth();
+
+  if (profile?.category === 'worker') {
+    return <Navigate to="/performance" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 function ProtectedPage({
   children,
   allowedRoles,
+  workerAllowed = false,
 }: {
   children: ReactNode;
   allowedRoles?: Role[];
+  workerAllowed?: boolean;
 }) {
   return (
     <ProtectedRoute>
       <Layout>
-        <RoleGate allowedRoles={allowedRoles}>{children}</RoleGate>
+        <RoleGate allowedRoles={allowedRoles}>
+          {workerAllowed ? <>{children}</> : <WorkerGuard>{children}</WorkerGuard>}
+        </RoleGate>
       </Layout>
     </ProtectedRoute>
   );
@@ -130,7 +144,7 @@ function App() {
           <Route
             path="/profile"
             element={
-              <ProtectedPage>
+              <ProtectedPage workerAllowed>
                 <Profile />
               </ProtectedPage>
             }
@@ -139,7 +153,7 @@ function App() {
           <Route
             path="/settings"
             element={
-              <ProtectedPage>
+              <ProtectedPage workerAllowed>
                 <Settings />
               </ProtectedPage>
             }
@@ -192,7 +206,7 @@ function App() {
           <Route
             path="/performance"
             element={
-              <ProtectedPage>
+              <ProtectedPage workerAllowed>
                 <FeatureGate feature="performance">
                   <Performance />
                 </FeatureGate>

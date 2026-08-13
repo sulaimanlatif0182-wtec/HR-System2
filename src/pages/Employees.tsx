@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import type { FormEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   UserPlus,
@@ -85,6 +85,8 @@ const ROLE_OPTIONS = [
 
 const STATUS_OPTIONS = ['active', 'on_leave', 'inactive'] as const;
 
+const CATEGORY_OPTIONS = ['worker', 'employee', 'manager'] as const;
+
 function initials(name: string) {
   return name
     .split(' ')
@@ -113,6 +115,8 @@ interface Employee {
   location: string | null;
   join_date: string | null;
   role: string;
+  category?: string | null;
+  employee_no?: string | null;
   salary: number | null;
   date_of_birth?: string | null;
   identity_type?: string | null;
@@ -140,6 +144,8 @@ interface EmployeeFormState {
   name: string;
   email: string;
   role: string;
+  category: string;
+  employee_no: string;
   title: string;
   department: string;
   phone: string;
@@ -198,6 +204,8 @@ function emptyForm(): EmployeeFormState {
     name: '',
     email: '',
     role: 'employee',
+    category: 'employee',
+    employee_no: '',
     title: '',
     department: '',
     phone: '',
@@ -232,6 +240,8 @@ function formFromEmployee(employee: Employee): EmployeeFormState {
     name: employee.name ?? '',
     email: employee.email ?? '',
     role: employee.role ?? 'employee',
+    category: employee.category ?? 'employee',
+    employee_no: employee.employee_no ?? '',
     title: employee.title ?? '',
     department: employee.department ?? '',
     phone: employee.phone ?? '',
@@ -404,8 +414,23 @@ export default function Employees() {
     inserted: number;
     skipped: number;
     errors: number;
+    insertedRows: { id: number; email: string }[];
     errorRows: { row: number; email: string; message: string }[];
   }>(null);
+  const [accountResults, setAccountResults] = useState<null | {
+    total: number;
+    created: number;
+    skipped: number;
+    errors: number;
+    createdRows: {
+      row: number;
+      email: string;
+      temp_password: string;
+    }[];
+    skippedRows: { row: number; email: string; message: string }[];
+    errorRows: { row: number; email: string; message: string }[];
+  }>(null);
+  const [creatingAccounts, setCreatingAccounts] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<EmployeeFormState>(emptyForm());
@@ -795,6 +820,40 @@ export default function Employees() {
     }
   };
 
+  const handleCreateAccounts = async () => {
+    if (!profile || !importResults) return;
+
+    setCreatingAccounts(true);
+
+    try {
+      const res = await fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'import_create_accounts',
+          employees: importResults.insertedRows.map((row) => ({
+            email: row.email,
+          })),
+          actor_role: profile.role,
+          changed_by: profile.id,
+          changed_by_name: profile.name,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to create employee accounts.');
+      }
+
+      setAccountResults(data);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to create employee accounts.');
+    } finally {
+      setCreatingAccounts(false);
+    }
+  };
+
   const validateEmployeeForm = (
     values: EmployeeFormState,
     department: string,
@@ -1064,6 +1123,25 @@ export default function Employees() {
             </option>
           ))}
         </select>
+
+        <select
+          value={values.category}
+          onChange={(e) => setValues({ ...values, category: e.target.value })}
+          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+        >
+          {CATEGORY_OPTIONS.map((category) => (
+            <option key={category} value={category}>
+              {category.charAt(0).toUpperCase() + category.slice(1)}
+            </option>
+          ))}
+        </select>
+
+        <input
+          placeholder="Employee ID (numeric)"
+          value={values.employee_no}
+          onChange={(e) => setValues({ ...values, employee_no: e.target.value })}
+          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+        />
 
         {mode === 'edit' && (
           <select
@@ -1915,6 +1993,14 @@ export default function Employees() {
 
                   {tab === 'performance' && (
                     <div className="space-y-3">
+                      <Link
+                        to={`/performance?tab=evaluation&view=rules&employee=${selected.id}`}
+                        className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm hover:border-primary/50 transition-colors"
+                      >
+                        <span className="font-medium">Evaluation rules</span>
+                        <span className="text-primary">Configure →</span>
+                      </Link>
+
                       {(
                         [
                           ['Q1 Review', 92],
@@ -2153,11 +2239,93 @@ export default function Employees() {
                       </div>
                     )}
 
+                    {accountResults ? (
+                      <div className="space-y-3 mb-4">
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="rounded-xl bg-emerald/10 border border-emerald/20 p-3">
+                            <p className="text-xs text-muted">Created</p>
+                            <p className="font-bold text-lg text-emerald">
+                              {accountResults.created}
+                            </p>
+                          </div>
+                          <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                            <p className="text-xs text-muted">Skipped</p>
+                            <p className="font-bold text-lg">
+                              {accountResults.skipped}
+                            </p>
+                          </div>
+                          <div className="rounded-xl bg-rose/10 border border-rose/20 p-3">
+                            <p className="text-xs text-muted">Errors</p>
+                            <p className="font-bold text-lg text-rose">
+                              {accountResults.errors}
+                            </p>
+                          </div>
+                        </div>
+
+                        {accountResults.createdRows.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs text-muted">
+                              Temporary passwords — share these once. Employees
+                              can change them after first login.
+                            </p>
+                            <div className="rounded-xl bg-white/5 border border-white/10 p-3 max-h-56 overflow-y-auto space-y-1.5">
+                              {accountResults.createdRows.map((row) => (
+                                <div
+                                  key={row.email}
+                                  className="flex items-center justify-between gap-2 text-xs font-mono"
+                                >
+                                  <span className="text-muted truncate">
+                                    {row.email}
+                                  </span>
+                                  <span className="text-emerald shrink-0">
+                                    {row.temp_password}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {accountResults.errorRows.length > 0 && (
+                          <div className="space-y-2">
+                            {accountResults.errorRows.map((row) => (
+                              <div
+                                key={`${row.row}-${row.email}`}
+                                className="text-xs text-rose bg-rose/10 border border-rose/20 rounded-lg px-3 py-2"
+                              >
+                                Row {row.row} · {row.email || 'no email'} —{' '}
+                                {row.message}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      importResults.insertedRows.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleCreateAccounts}
+                          disabled={creatingAccounts}
+                          className="w-full flex items-center justify-center gap-2 rounded-xl border border-emerald/30 bg-emerald/10 py-2.5 text-sm font-semibold text-emerald mb-4 hover:bg-emerald/15 disabled:opacity-60"
+                        >
+                          {creatingAccounts ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Mail size={16} />
+                          )}
+                          {creatingAccounts
+                            ? 'Creating accounts…'
+                            : `Create login accounts for ${importResults.insertedRows.length} employee(s)`}
+                        </button>
+                      )
+                    )}
+
                     <button
                       type="button"
                       onClick={() => {
                         setShowImport(false);
                         setImportResults(null);
+                        setAccountResults(null);
                         setImportRows([]);
                       }}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold"
