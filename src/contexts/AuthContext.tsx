@@ -125,9 +125,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    const initAuth = async () => {
-      setLoading(true);
+  const initAuth = async () => {
+    setLoading(true);
 
+    try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -142,19 +143,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         await restoreWorkerSession();
       }
+    } catch (err) {
+      console.error('initAuth failed:', err);
+    } finally {
+      if (mounted) setLoading(false);
+    }
+  };
 
-      if (mounted) {
-        setLoading(false);
-      }
-    };
+  initAuth();
 
-    initAuth();
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    setLoading(true);
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setLoading(true);
-
+    try {
       if (session) {
         setSession(session);
         setUser(session?.user ?? null);
@@ -166,9 +169,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         await restoreWorkerSession();
       }
-
+    } catch (err) {
+      console.error('auth state change failed:', err);
+    } finally {
       setLoading(false);
-    });
+    }
+  });
 
     return () => {
       mounted = false;
