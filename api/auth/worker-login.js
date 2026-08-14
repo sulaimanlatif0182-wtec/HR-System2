@@ -118,7 +118,11 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const employee = await verifyWorkerSession(req);
-      if (!employee) return res.status(401).json({ error: 'Session invalid or expired.' });
+      // Return 200 (with no employee) instead of 401 when there is simply no
+      // active worker session. A 401 here is expected on every fresh load and
+      // only produces misleading "Failed to load resource" console noise; the
+      // client treats a missing employee as "no session" either way.
+      if (!employee) return res.status(200).json({ employee: null });
       return res.status(200).json({ employee });
     }
 
