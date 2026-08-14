@@ -2,6 +2,15 @@ import { supabase } from '../lib/db-client.js';
 import { isFeatureEnabled } from '../lib/feature-flags.js';
 import { requireAuth } from '../lib/requireAuth.js';
 import { setCors } from '../lib/cors.js';
+import {
+  parseAttendanceCheckIn,
+  parseAttendanceCheckOut,
+  parseAttendanceCorrectionRequest,
+  parseAttendanceCorrectionDecision,
+  parseAttendanceHolidayUpsert,
+  parseAttendanceManualCorrection,
+  parseId,
+} from '../lib/validators.js';
 
 async function safeInsertSystemAudit(payload) {
   try {
@@ -843,6 +852,11 @@ export default async function handler(req, res) {
         const employeeId = Number(body.employee_id);
         const requestDate = body.request_date || body.date;
 
+        const parsed = parseAttendanceCorrectionRequest(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error });
+        }
+
         if (!employeeId || !requestDate || !body.reason) {
           return res.status(400).json({
             error: 'employee_id, request_date and reason are required.',
@@ -934,6 +948,11 @@ export default async function handler(req, res) {
         check_in_accuracy,
         device_auth_token,
       } = req.body || {};
+
+      const parsed = parseAttendanceCheckIn(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error });
+      }
 
       if (!employee_id || !date || !check_in) {
         return res.status(400).json({
@@ -1049,6 +1068,11 @@ export default async function handler(req, res) {
       }
 
       if (action === 'correction_request_decision') {
+        const parsed = parseAttendanceCorrectionDecision(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error });
+        }
+
         const requestId = Number(body.id || body.request_id);
         const decision = String(body.status || '').toLowerCase();
 
@@ -1222,6 +1246,11 @@ export default async function handler(req, res) {
           changed_by_name,
         } = body;
 
+        const parsed = parseAttendanceHolidayUpsert(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error });
+        }
+
         if (!holiday_date || !name || !String(name).trim()) {
           return res.status(400).json({
             error: 'Holiday date and name are required.',
@@ -1301,6 +1330,11 @@ export default async function handler(req, res) {
       if (action === 'holiday_delete') {
         const { id } = body;
 
+        const parsed = parseId(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error });
+        }
+
         if (!id) {
           return res.status(400).json({
             error: 'id is required.',
@@ -1351,6 +1385,11 @@ export default async function handler(req, res) {
           lunch_late_minutes,
           lunch_status,
         } = body;
+
+        const parsed = parseAttendanceManualCorrection(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error });
+        }
 
         if (!id) {
           return res.status(400).json({
@@ -1457,6 +1496,11 @@ export default async function handler(req, res) {
       // =========================
       if (action === 'lunch_out') {
         const { id, latitude, longitude, accuracy, device_auth_token } = body;
+
+        const parsed = parseId(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error });
+        }
 
         if (!id) {
           return res.status(400).json({
@@ -1573,6 +1617,11 @@ export default async function handler(req, res) {
       // =========================
       if (action === 'lunch_in') {
         const { id, latitude, longitude, accuracy, device_auth_token } = body;
+
+        const parsed = parseId(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error });
+        }
 
         if (!id) {
           return res.status(400).json({
@@ -1710,6 +1759,11 @@ export default async function handler(req, res) {
         check_out_accuracy,
         device_auth_token,
       } = body;
+
+      const parsed = parseAttendanceCheckOut(body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error });
+      }
 
       if (!id || !check_out) {
         return res.status(400).json({

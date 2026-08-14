@@ -2,6 +2,7 @@ import { supabase } from '../../lib/db-client.js';
 import crypto from 'crypto';
 import { setCors } from '../../lib/cors.js';
 import { verifyWorkerSession } from '../../lib/verifyWorkerSession.js';
+import { parseWorkerLogin } from '../../lib/validators.js';
 
 const WORKER_SESSION_COOKIE = 'wtechr_worker_session';
 const SESSION_TTL_DAYS = 30;
@@ -56,12 +57,11 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'POST') {
-      const { employee_no } = req.body || {};
-      const cleanEmployeeNo = String(employee_no || '').trim();
-
-      if (!cleanEmployeeNo) {
-        return res.status(400).json({ error: 'Employee number is required.' });
+      const parsed = parseWorkerLogin(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error });
       }
+      const cleanEmployeeNo = parsed.data.employee_no;
 
       if (isRateLimited(cleanEmployeeNo)) {
         return res.status(429).json({ error: 'Too many attempts. Please try again later.' });

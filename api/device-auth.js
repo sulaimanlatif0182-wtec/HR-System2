@@ -6,6 +6,7 @@ import {
   verifyAuthenticationResponse,
 } from '@simplewebauthn/server';
 import { supabase } from '../lib/db-client.js';
+import { parseDeviceAuth } from '../lib/validators.js';
 
 function resolveAppBaseUrl() {
   if (process.env.APP_BASE_URL) {
@@ -192,6 +193,11 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const body = req.body || {};
       const action = body.action;
+
+      const parsedAction = parseDeviceAuth(body);
+      if (!parsedAction.success) {
+        return res.status(400).json({ error: parsedAction.error });
+      }
 
       // =========================
       // REGISTRATION OPTIONS
@@ -462,6 +468,11 @@ export default async function handler(req, res) {
     if (req.method === 'PUT') {
       const body = req.body || {};
       const { action, id, approved_by, approved_by_name } = body;
+
+      const parsedAction = parseDeviceAuth(body);
+      if (!parsedAction.success) {
+        return res.status(400).json({ error: parsedAction.error });
+      }
 
       if (!id) {
         return res.status(400).json({

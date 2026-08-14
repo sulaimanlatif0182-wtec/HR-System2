@@ -2,6 +2,12 @@ import { supabase } from '../lib/db-client.js';
 import { isFeatureEnabled } from '../lib/feature-flags.js';
 import { requireAuth } from '../lib/requireAuth.js';
 import { setCors } from '../lib/cors.js';
+import {
+  parsePayrollCreate,
+  parsePayrollProfile,
+  parsePeriod,
+  parseId,
+} from '../lib/validators.js';
 
 async function safeInsertSystemAudit(payload) {
   try {
@@ -1135,6 +1141,11 @@ export default async function handler(req, res) {
       }
 
       if (action === 'save_profile') {
+        const parsed = parsePayrollProfile(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error });
+        }
+
         if (!body.employee_id) {
           return res.status(400).json({
             error: 'employee_id is required.',
@@ -1235,6 +1246,11 @@ export default async function handler(req, res) {
       }
 
       if (action === 'delete_wage_table') {
+        const parsed = parseId(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error });
+        }
+
         if (!body.id) {
           return res.status(400).json({ error: 'id is required.' });
         }
@@ -1259,6 +1275,11 @@ export default async function handler(req, res) {
       }
 
       if (action === 'create_batch') {
+        const parsed = parsePeriod(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error });
+        }
+
         if (!(await isFeatureEnabled('payroll'))) {
           return res.status(403).json({
             error: 'Payroll is currently disabled.',
@@ -1272,6 +1293,11 @@ export default async function handler(req, res) {
       }
 
       if (action === 'generate_from_sources') {
+        const parsed = parsePeriod(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error });
+        }
+
         if (!body.period) {
           return res.status(400).json({
             error: 'period is required.',
@@ -1290,6 +1316,11 @@ export default async function handler(req, res) {
       }
 
       if (action === 'import_records') {
+        const parsed = parsePeriod(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error });
+        }
+
         if (!(await isFeatureEnabled('payroll'))) {
           return res.status(403).json({
             error: 'Payroll is currently disabled.',
@@ -1399,6 +1430,11 @@ export default async function handler(req, res) {
         });
       }
 
+      const parsed = parsePayrollCreate(body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error });
+      }
+
       const payload = normalizePayrollPayload(body);
 
       if (!payload.employee_id || !payload.period) {
@@ -1454,6 +1490,11 @@ export default async function handler(req, res) {
       }
 
       if (action === 'approve_batch') {
+        const parsed = parsePeriod(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error });
+        }
+
         const period = cleanString(body.period);
 
         if (!period) {
@@ -1490,6 +1531,11 @@ export default async function handler(req, res) {
       }
 
       if (action === 'release_batch') {
+        const parsed = parsePeriod(body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error });
+        }
+
         const period = cleanString(body.period);
 
         if (!period) {
@@ -1526,6 +1572,11 @@ export default async function handler(req, res) {
       }
 
       const { id, ...rest } = body;
+
+      const parsed = parseId(body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error });
+      }
 
       if (!id) {
         return res.status(400).json({ error: 'id is required' });

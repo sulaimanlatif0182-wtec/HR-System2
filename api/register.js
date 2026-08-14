@@ -1,4 +1,5 @@
 import { supabase } from '../lib/db-client.js';
+import { parseRegister } from '../lib/validators.js';
 
 // Server-side password policy — mirrors the frontend checklist.
 function validatePassword(password) {
@@ -18,12 +19,12 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { email, password } = req.body || {};
-    const cleanEmail = (email || '').trim().toLowerCase();
-
-    if (!cleanEmail) {
-      return res.status(400).json({ error: 'Email is required.' });
+    const parsed = parseRegister(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error });
     }
+    const { email, password } = parsed.data;
+    const cleanEmail = email;
 
     // 1. Enforce password policy (server-side, cannot be bypassed)
     const pwErrors = validatePassword(password);

@@ -10,7 +10,7 @@ import { requireAuth } from '../lib/requireAuth.js';
 import { assertAdmin } from '../lib/authorize.js';
 import { setCors } from '../lib/cors.js';
 import { projectEmployee } from '../lib/employeeProjection.js';
-import { parseAccountEmail } from '../lib/validators.js';
+import { parseAccountEmail, parseProfileUpdate } from '../lib/validators.js';
 import { isRateLimited } from '../lib/rateLimit.js';
 import { sendNotificationEmail } from '../server/email.js';
 import { handleImportEmployees, handleImportCreateAccounts } from '../lib/imports.js';
@@ -2404,6 +2404,13 @@ export default async function handler(req, res) {
       if (body.action === 'profile_update_request_create') {
         const employeeId = Number(body.employee_id);
         const requestedData = pickProfileUpdateData(body.requested_data || body);
+
+        if (body.requested_data) {
+          const parsedProfile = parseProfileUpdate(body.requested_data);
+          if (!parsedProfile.success) {
+            return res.status(400).json({ error: parsedProfile.error });
+          }
+        }
 
         if (!employeeId || Object.keys(requestedData).length === 0) {
           return res.status(400).json({

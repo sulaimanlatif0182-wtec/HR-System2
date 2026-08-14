@@ -6,6 +6,7 @@ import {
   notifyLeaveSubmittedToApproverSafe,
   notifyLeaveDecision,
 } from '../server/notify.js';
+import { parseLeaveRequest } from '../lib/validators.js';
 
 const BALANCE_TYPES = [
   'Annual Leave',
@@ -510,6 +511,11 @@ export default async function handler(req, res) {
         return res.status(403).json({
           error: 'Leave request submission is currently disabled.',
         });
+      }
+
+      const parsed = parseLeaveRequest(body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error });
       }
 
       const leaveType = normalizeLeaveType(body.leave_type);

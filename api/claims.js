@@ -8,6 +8,7 @@ import {
   notifyClaimPendingFinance,
   notifyClaimDecision,
 } from '../server/notify.js';
+import { parseClaim } from '../lib/validators.js';
 
 const ALLOWED_CLAIM_TYPES = [
   'Fuel',
@@ -129,6 +130,11 @@ export default async function handler(req, res) {
     // =========================
     if (req.method === 'POST') {
       const body = req.body || {};
+
+      const parsed = parseClaim(body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error });
+      }
 
       if (!(await isFeatureEnabled('claims_request'))) {
         return res.status(403).json({
