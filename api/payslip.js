@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import PDFDocument from 'pdfkit';
 import supabase from './db-client.js';
+import { requireAuth } from './auth/requireAuth.js';
 
 const BRAND_BLUE = '#1f4fa3';
 const BRAND_RED = '#dc1828';
@@ -466,6 +467,9 @@ async function buildPayslipPdf({ payroll, employee, password }) {
 }
 
 export default async function handler(req, res) {
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
+
   try {
     if (req.method !== 'GET') {
       return res.status(405).json({

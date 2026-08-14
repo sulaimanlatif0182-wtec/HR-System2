@@ -26,9 +26,12 @@ const rememberAwareStorage = {
   },
 };
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
 const supabase = createClient(
-  'https://zupgcikgkzahfdsznwae.supabase.co',
-  'sb_publishable_pR1eGP55DWPLURniEoq4og_b3W4rJBv',
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
   {
     auth: {
       storage: rememberAwareStorage,

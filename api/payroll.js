@@ -1,5 +1,7 @@
 import supabase from './db-client.js';
 import { isFeatureEnabled } from './feature-flags.js';
+import { requireAuth } from './auth/requireAuth.js';
+import { setCors } from './lib/cors.js';
 
 async function safeInsertSystemAudit(payload) {
   try {
@@ -754,8 +756,8 @@ function payrollSettingsPayloadFromBody(body = {}) {
     eis_employer_rate: toNumber(body.eis_employer_rate, 0.2),
     eis_wage_cap: toNumber(body.eis_wage_cap, 5000),
     pcb_mode: body.pcb_mode || 'manual_profile',
-    updated_by: body.updated_by || body.changed_by || null,
-    updated_by_name: body.updated_by_name || body.changed_by_name || null,
+    updated_by: body.updated_by || authUser?.id || null,
+    updated_by_name: body.updated_by_name || authUser?.name || null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -778,8 +780,8 @@ function payrollProfilePayloadFromBody(body = {}) {
     eis_enabled: body.eis_enabled !== false,
     pcb_monthly_amount: toNumber(body.pcb_monthly_amount),
     pcb_notes: body.pcb_notes || null,
-    updated_by: body.updated_by || body.changed_by || null,
-    updated_by_name: body.updated_by_name || body.changed_by_name || null,
+    updated_by: body.updated_by || authUser?.id || null,
+    updated_by_name: body.updated_by_name || authUser?.name || null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -800,8 +802,8 @@ function wageTablePayloadFromBody(body = {}) {
     effective_to: body.effective_to || null,
     active: body.active !== false,
     notes: body.notes || null,
-    updated_by: body.updated_by || body.changed_by || null,
-    updated_by_name: body.updated_by_name || body.changed_by_name || null,
+    updated_by: body.updated_by || authUser?.id || null,
+    updated_by_name: body.updated_by_name || authUser?.name || null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -1016,11 +1018,14 @@ async function generatePayrollFromSources(period) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  setCors(res, req);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(204).end();
+
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
 
   try {
     if (req.method === 'GET') {
@@ -1121,8 +1126,8 @@ export default async function handler(req, res) {
           module: 'payroll',
           action: 'settings_update',
           record_id: data?.id || 1,
-          changed_by: body.changed_by || body.updated_by || null,
-          changed_by_name: body.changed_by_name || body.updated_by_name || null,
+          changed_by: authUser?.id || body.updated_by || null,
+          changed_by_name: authUser?.name || body.updated_by_name || null,
           new_data: data,
         });
 
@@ -1151,8 +1156,8 @@ export default async function handler(req, res) {
           action: 'employee_profile_update',
           record_id: data?.id || null,
           employee_id: data?.employee_id || null,
-          changed_by: body.changed_by || body.updated_by || null,
-          changed_by_name: body.changed_by_name || body.updated_by_name || null,
+          changed_by: authUser?.id || body.updated_by || null,
+          changed_by_name: authUser?.name || body.updated_by_name || null,
           new_data: data,
         });
 
@@ -1197,8 +1202,8 @@ export default async function handler(req, res) {
             module: 'payroll',
             action: 'wage_table_update',
             record_id: data?.id || Number(body.id),
-            changed_by: body.changed_by || body.updated_by || null,
-            changed_by_name: body.changed_by_name || body.updated_by_name || null,
+            changed_by: authUser?.id || body.updated_by || null,
+            changed_by_name: authUser?.name || body.updated_by_name || null,
             new_data: data,
           });
 
@@ -1209,8 +1214,8 @@ export default async function handler(req, res) {
           .from('statutory_wage_tables')
           .insert({
             ...payload,
-            created_by: body.created_by || body.changed_by || null,
-            created_by_name: body.created_by_name || body.changed_by_name || null,
+            created_by: body.created_by || authUser?.id || null,
+            created_by_name: body.created_by_name || authUser?.name || null,
           })
           .select()
           .single();
@@ -1221,8 +1226,8 @@ export default async function handler(req, res) {
           module: 'payroll',
           action: 'wage_table_create',
           record_id: data?.id || null,
-          changed_by: body.changed_by || body.updated_by || null,
-          changed_by_name: body.changed_by_name || body.updated_by_name || null,
+          changed_by: authUser?.id || body.updated_by || null,
+          changed_by_name: authUser?.name || body.updated_by_name || null,
           new_data: data,
         });
 
@@ -1245,8 +1250,8 @@ export default async function handler(req, res) {
           module: 'payroll',
           action: 'wage_table_delete',
           record_id: Number(body.id),
-          changed_by: body.changed_by || body.updated_by || null,
-          changed_by_name: body.changed_by_name || body.updated_by_name || null,
+          changed_by: authUser?.id || body.updated_by || null,
+          changed_by_name: authUser?.name || body.updated_by_name || null,
           old_data: { id: Number(body.id) },
         });
 

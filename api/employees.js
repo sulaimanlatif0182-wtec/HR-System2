@@ -6,8 +6,16 @@ import {
   saveFeatureFlag,
   saveFeatureFlags,
 } from './feature-flags.js';
+import { requireAuth } from './auth/requireAuth.js';
+import { assertAdmin } from './auth/authorize.js';
+import { setCors } from './lib/cors.js';
+import { projectEmployee } from './lib/employeeProjection.js';
+import { parseAccountEmail } from './lib/validators.js';
+import { isRateLimited } from './lib/rateLimit.js';
+import { sendNotificationEmail } from '../server/email.js';
+import { handleImportEmployees, handleImportCreateAccounts } from './routes/employees/imports.js';
 
-async function safeInsertSystemAudit(payload) {
+export async function safeInsertSystemAudit(payload) {
   try {
     await supabase.from('system_audit_logs').insert({
       module: payload.module || 'general',
@@ -25,11 +33,11 @@ async function safeInsertSystemAudit(payload) {
   }
 }
 
-function cleanString(value) {
+export function cleanString(value) {
   return String(value ?? '').trim();
 }
 
-function generateTempPassword() {
+export function generateTempPassword() {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const lower = 'abcdefghjkmnpqrstuvwxyz';
   const numbers = '23456789';
@@ -288,11 +296,11 @@ async function sendReminderSummaryEmail(results = []) {
   });
 }
 
-function normalizeEmail(value) {
+export function normalizeEmail(value) {
   return cleanString(value).toLowerCase();
 }
 
-function friendlyDatabaseError(error, fallback = 'Unable to save. Please check the details and try again.') {
+export function friendlyDatabaseError(error, fallback = 'Unable to save. Please check the details and try again.') {
   const message = String(error?.message || error || '');
 
   if (message.toLowerCase().includes('duplicate') || message.includes('23505')) {
@@ -306,7 +314,7 @@ function friendlyDatabaseError(error, fallback = 'Unable to save. Please check t
   return message || fallback;
 }
 
-async function recordExists(table, filters = [], excludeId = null) {
+export async function recordExists(table, filters = [], excludeId = null) {
   let query = supabase.from(table).select('id').limit(1);
 
   filters.forEach(([column, value, operator = 'eq']) => {
@@ -333,7 +341,7 @@ function normalizeIdentityLast4(value, type) {
   return raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4);
 }
 
-function toNullableNumber(value) {
+export function toNullableNumber(value) {
   if (value === null || value === undefined || value === '') {
     return null;
   }
@@ -381,7 +389,7 @@ function pickProfileUpdateData(data = {}) {
   return result;
 }
 
-function buildEmployeePayload(body, { partial = false } = {}) {
+export function buildEmployeePayload(body, { partial = false } = {}) {
   const payload = {};
 
   const assign = (key, value) => {
@@ -1065,13 +1073,16 @@ async function buildMonthlyHrReport(period) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  setCors(res, req);
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(204).end();
+  }
+
+  let authUser = null;
+  if (req.query?.cron_reminders !== '1') {
+    authUser = await requireAuth(req, res);
+    if (!authUser) return;
   }
 
   try {
@@ -1382,7 +1393,7 @@ export default async function handler(req, res) {
           });
         }
 
-        return res.status(200).json(data || null);
+        return res.status(200).json(projectEmployee(data, authUser));
       }
 
       if (id) {
@@ -1406,13 +1417,22 @@ export default async function handler(req, res) {
           });
         }
 
-        return res.status(200).json(data || null);
+        return res.status(200).json(projectEmployee(data, authUser));
       }
 
-      const { data, error } = await supabase
+      const listLimit = Number(req.query.limit) || 0;
+      const listOffset = Number(req.query.offset) || 0;
+
+      let listQuery = supabase
         .from('employees')
         .select('*')
         .order('id', { ascending: true });
+
+      if (listLimit > 0) {
+        listQuery = listQuery.range(listOffset, listOffset + listLimit - 1);
+      }
+
+      const { data, error } = await listQuery;
 
       if (error) {
         return res.status(500).json({
@@ -1420,7 +1440,7 @@ export default async function handler(req, res) {
         });
       }
 
-      return res.status(200).json(data || []);
+      return res.status(200).json((data || []).map((row) => projectEmployee(row, authUser)));
     }
 
     // =========================
@@ -1430,188 +1450,11 @@ export default async function handler(req, res) {
       const body = req.body || {};
 
       if (body.action === 'import_employees') {
-        const role = String(body.actor_role || '').toLowerCase();
-
-        if (role !== 'admin') {
-          return res.status(403).json({
-            error: 'Only admin can import employees.',
-          });
-        }
-
-        const rows = Array.isArray(body.employees) ? body.employees : [];
-
-        if (!rows.length) {
-          return res.status(400).json({
-            error: 'No employee rows provided for import.',
-          });
-        }
-
-        if (rows.length > 500) {
-          return res.status(400).json({
-            error: 'Import is limited to 500 rows at a time.',
-          });
-        }
-
-        const inserted = [];
-        const skipped = [];
-        const errors = [];
-
-        for (let index = 0; index < rows.length; index += 1) {
-          const row = rows[index];
-          const rowNumber = index + 2;
-
-          if (!row || typeof row !== 'object') {
-            errors.push({ row: rowNumber, email: '', message: 'Invalid row.' });
-            continue;
-          }
-
-          const name = cleanString(row.name);
-          const email = normalizeEmail(row.email);
-
-          if (!name || !email) {
-            errors.push({
-              row: rowNumber,
-              email,
-              message: 'Name and email are required.',
-            });
-            continue;
-          }
-
-          if (await recordExists('employees', [['email', email, 'ilike']])) {
-            skipped.push({
-              row: rowNumber,
-              email,
-              message: 'Employee with this email already exists.',
-            });
-            continue;
-          }
-
-          const payload = buildEmployeePayload(row, { partial: false });
-
-          const { data, error } = await supabase
-            .from('employees')
-            .insert(payload)
-            .select()
-            .single();
-
-          if (error) {
-            errors.push({
-              row: rowNumber,
-              email,
-              message: friendlyDatabaseError(error, 'Failed to import employee.'),
-            });
-            continue;
-          }
-
-          inserted.push(data);
-        }
-
-        if (inserted.length) {
-          await safeInsertSystemAudit({
-            module: 'employees',
-            action: 'employees_import',
-            changed_by: body.changed_by || null,
-            changed_by_name: body.changed_by_name || null,
-            new_data: {
-              inserted: inserted.length,
-              skipped: skipped.length,
-              errors: errors.length,
-            },
-          });
-        }
-
-        return res.status(200).json({
-          total: rows.length,
-          inserted: inserted.length,
-          skipped: skipped.length,
-          errors: errors.length,
-          insertedRows: inserted,
-          skippedRows: skipped,
-          errorRows: errors,
-        });
+        return await handleImportEmployees(req, res, { supabase, authUser, body });
       }
 
       if (body.action === 'import_create_accounts') {
-        const role = String(body.actor_role || '').toLowerCase();
-
-        if (role !== 'admin') {
-          return res.status(403).json({
-            error: 'Only admin can create employee login accounts.',
-          });
-        }
-
-        const rows = Array.isArray(body.employees) ? body.employees : [];
-
-        if (!rows.length) {
-          return res.status(400).json({
-            error: 'No employees provided for account creation.',
-          });
-        }
-
-        if (rows.length > 500) {
-          return res.status(400).json({
-            error: 'Account creation is limited to 500 rows at a time.',
-          });
-        }
-
-        const created = [];
-        const skipped = [];
-        const errors = [];
-
-        for (let index = 0; index < rows.length; index += 1) {
-          const row = rows[index];
-          const rowNumber = index + 2;
-          const email = normalizeEmail(row.email);
-
-          if (!email) {
-            errors.push({ row: rowNumber, email: '', message: 'Email is required.' });
-            continue;
-          }
-
-          const tempPassword = generateTempPassword();
-
-          const { error: createErr } = await supabase.auth.admin.createUser({
-            email,
-            password: tempPassword,
-            email_confirm: true,
-          });
-
-          if (createErr) {
-            const msg = (createErr.message || '').toLowerCase();
-            if (msg.includes('already') || msg.includes('registered') || msg.includes('exists')) {
-              skipped.push({ row: rowNumber, email, message: 'An account with this email already exists.' });
-            } else {
-              errors.push({ row: rowNumber, email, message: createErr.message });
-            }
-            continue;
-          }
-
-          created.push({ row: rowNumber, email, temp_password: tempPassword });
-        }
-
-        if (created.length) {
-          await safeInsertSystemAudit({
-            module: 'employees',
-            action: 'employee_accounts_created',
-            changed_by: body.changed_by || null,
-            changed_by_name: body.changed_by_name || null,
-            new_data: {
-              created: created.length,
-              skipped: skipped.length,
-              errors: errors.length,
-            },
-          });
-        }
-
-        return res.status(200).json({
-          total: rows.length,
-          created: created.length,
-          skipped: skipped.length,
-          errors: errors.length,
-          createdRows: created,
-          skippedRows: skipped,
-          errorRows: errors,
-        });
+        return await handleImportCreateAccounts(req, res, { supabase, authUser, body });
       }
 
       if (body.action === 'admin_config_save') {
@@ -1620,8 +1463,8 @@ export default async function handler(req, res) {
         await safeInsertSystemAudit({
           module: 'admin_config',
           action: 'config_update',
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           new_data: savedConfig,
         });
 
@@ -1629,7 +1472,7 @@ export default async function handler(req, res) {
       }
 
       if (body.action === 'policy_readiness_update') {
-        const role = String(body.actor_role || '').toLowerCase();
+        const role = authUser?.role || 'employee';
 
         if (role !== 'admin') {
           return res.status(403).json({
@@ -1656,8 +1499,8 @@ export default async function handler(req, res) {
           status,
           owner: body.owner !== undefined ? cleanString(body.owner) || null : null,
           evidence: body.reset ? null : body.evidence !== undefined ? cleanString(body.evidence) || null : null,
-          updated_by: body.changed_by || null,
-          updated_by_name: body.changed_by_name || null,
+          updated_by: authUser?.id || null,
+          updated_by_name: authUser?.name || null,
           updated_at: new Date().toISOString(),
         };
 
@@ -1682,8 +1525,8 @@ export default async function handler(req, res) {
           module: 'policy_center',
           action: 'policy_readiness_update',
           record_id: key,
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           new_data: data,
         });
 
@@ -1691,7 +1534,7 @@ export default async function handler(req, res) {
       }
 
       if (body.action === 'feature_flag_update') {
-        const role = String(body.actor_role || '').toLowerCase();
+        const role = authUser?.role || 'employee';
 
         if (role !== 'admin') {
           return res.status(403).json({
@@ -1719,8 +1562,8 @@ export default async function handler(req, res) {
           module: 'feature_flags',
           action: 'feature_flag_update',
           record_id: key,
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           new_data: savedFlag,
         });
 
@@ -1728,7 +1571,7 @@ export default async function handler(req, res) {
       }
 
       if (body.action === 'feature_flags_bulk_update') {
-        const role = String(body.actor_role || '').toLowerCase();
+        const role = authUser?.role || 'employee';
 
         if (role !== 'admin') {
           return res.status(403).json({
@@ -1752,8 +1595,8 @@ export default async function handler(req, res) {
         await safeInsertSystemAudit({
           module: 'feature_flags',
           action: 'feature_flags_bulk_update',
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           new_data: savedFlags,
         });
 
@@ -1785,8 +1628,8 @@ export default async function handler(req, res) {
         } else {
           query = supabase.from('reminder_rules').insert({
             ...payload,
-            created_by: body.changed_by || null,
-            created_by_name: body.changed_by_name || null,
+            created_by: authUser?.id || null,
+            created_by_name: authUser?.name || null,
           });
         }
 
@@ -1797,8 +1640,8 @@ export default async function handler(req, res) {
           module: 'reminders',
           action: body.id ? 'rule_update' : 'rule_create',
           record_id: data?.id || null,
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           new_data: data,
         });
 
@@ -1825,8 +1668,8 @@ export default async function handler(req, res) {
           module: 'reminders',
           action: 'rule_delete',
           record_id: Number(body.id),
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           old_data: oldRow,
         });
 
@@ -1842,8 +1685,8 @@ export default async function handler(req, res) {
 
         const result = await runReminderWorkflow({
           sendEmail: body.send_email !== false,
-          generatedBy: body.changed_by || null,
-          generatedByName: body.changed_by_name || null,
+          generatedBy: authUser?.id || null,
+          generatedByName: authUser?.name || null,
           source: 'manual',
         });
 
@@ -1882,8 +1725,8 @@ export default async function handler(req, res) {
         } else {
           query = supabase.from('company_announcements').insert({
             ...payload,
-            created_by: body.changed_by || null,
-            created_by_name: body.changed_by_name || null,
+            created_by: authUser?.id || null,
+            created_by_name: authUser?.name || null,
           });
         }
 
@@ -1894,8 +1737,8 @@ export default async function handler(req, res) {
           module: 'announcements',
           action: body.id ? 'announcement_update' : 'announcement_create',
           record_id: data?.id || null,
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           new_data: data,
         });
 
@@ -1922,8 +1765,8 @@ export default async function handler(req, res) {
           module: 'announcements',
           action: 'announcement_delete',
           record_id: Number(body.id),
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           old_data: oldRow,
         });
 
@@ -1958,8 +1801,8 @@ export default async function handler(req, res) {
           title: cleanString(body.title),
           content: String(body.content),
           status: body.status || 'draft',
-          generated_by: body.changed_by || null,
-          generated_by_name: body.changed_by_name || null,
+          generated_by: authUser?.id || null,
+          generated_by_name: authUser?.name || null,
           updated_at: new Date().toISOString(),
         };
 
@@ -1978,8 +1821,8 @@ export default async function handler(req, res) {
           action: body.id ? 'letter_update' : 'letter_create',
           record_id: data?.id || null,
           employee_id: employeeId,
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           new_data: data,
         });
 
@@ -1998,8 +1841,8 @@ export default async function handler(req, res) {
           action: 'letter_delete',
           record_id: Number(body.id),
           employee_id: oldRow?.employee_id || null,
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           old_data: oldRow,
         });
 
@@ -2032,8 +1875,8 @@ export default async function handler(req, res) {
           employee_id: employeeId,
           review_period: cleanString(body.review_period),
           review_type: body.review_type || 'Annual Review',
-          reviewer_id: body.reviewer_id || body.changed_by || null,
-          reviewer_name: body.reviewer_name || body.changed_by_name || null,
+          reviewer_id: body.reviewer_id || authUser?.id || null,
+          reviewer_name: body.reviewer_name || authUser?.name || null,
           kpi_score: toNullableNumber(body.kpi_score) || 0,
           behavior_score: toNullableNumber(body.behavior_score) || 0,
           attendance_score: toNullableNumber(body.attendance_score) || 0,
@@ -2063,8 +1906,8 @@ export default async function handler(req, res) {
           action: body.id ? 'review_update' : 'review_create',
           record_id: data?.id || null,
           employee_id: employeeId,
-          changed_by: body.changed_by || body.reviewer_id || null,
-          changed_by_name: body.changed_by_name || body.reviewer_name || null,
+          changed_by: authUser?.id || body.reviewer_id || null,
+          changed_by_name: authUser?.name || body.reviewer_name || null,
           new_data: data,
         });
 
@@ -2138,8 +1981,8 @@ export default async function handler(req, res) {
           action: 'review_delete',
           record_id: Number(body.id),
           employee_id: oldRow?.employee_id || null,
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           old_data: oldRow,
         });
 
@@ -2234,7 +2077,7 @@ export default async function handler(req, res) {
       }
 
       if (body.action === 'template_save') {
-        const actorRole = cleanString(body.actor_role || '').toLowerCase();
+        const actorRole = authUser?.role || 'employee';
 
         if (actorRole !== 'admin') {
           return res.status(403).json({ error: 'Only admin can manage evaluation templates.' });
@@ -2275,8 +2118,8 @@ export default async function handler(req, res) {
         if (body.id) {
           query = supabase.from('evaluation_templates').update(payload).eq('id', Number(body.id));
         } else {
-          payload.created_by = body.changed_by || null;
-          payload.created_by_name = body.changed_by_name || null;
+          payload.created_by = authUser?.id || null;
+          payload.created_by_name = authUser?.name || null;
           query = supabase.from('evaluation_templates').insert(payload);
         }
 
@@ -2287,8 +2130,8 @@ export default async function handler(req, res) {
           module: 'performance',
           action: body.id ? 'template_update' : 'template_create',
           record_id: data?.id || null,
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           new_data: data,
         });
 
@@ -2296,7 +2139,7 @@ export default async function handler(req, res) {
       }
 
       if (body.action === 'template_delete') {
-        const actorRole = cleanString(body.actor_role || '').toLowerCase();
+        const actorRole = authUser?.role || 'employee';
 
         if (actorRole !== 'admin') {
           return res.status(403).json({ error: 'Only admin can delete evaluation templates.' });
@@ -2321,8 +2164,8 @@ export default async function handler(req, res) {
           module: 'performance',
           action: 'template_delete',
           record_id: Number(body.id),
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           old_data: oldRow,
         });
 
@@ -2330,7 +2173,7 @@ export default async function handler(req, res) {
       }
 
       if (body.action === 'evaluation_save') {
-        const actorRole = cleanString(body.actor_role || '').toLowerCase();
+        const actorRole = authUser?.role || 'employee';
 
         if (!['admin', 'manager'].includes(actorRole)) {
           return res.status(403).json({
@@ -2365,8 +2208,8 @@ export default async function handler(req, res) {
         const payload = {
           template_id: templateId,
           employee_id: employeeId,
-          evaluator_id: body.evaluator_id || body.changed_by || null,
-          evaluator_name: body.evaluator_name || body.changed_by_name || null,
+          evaluator_id: body.evaluator_id || authUser?.id || null,
+          evaluator_name: body.evaluator_name || authUser?.name || null,
           evaluator_role: body.evaluator_role || actorRole,
           review_period: cleanString(body.review_period),
           scores,
@@ -2454,7 +2297,7 @@ export default async function handler(req, res) {
       }
 
       if (body.action === 'evaluation_delete') {
-        const actorRole = cleanString(body.actor_role || '').toLowerCase();
+        const actorRole = authUser?.role || 'employee';
 
         if (!['admin', 'manager'].includes(actorRole)) {
           return res.status(403).json({ error: 'Only admin or manager can delete evaluations.' });
@@ -2480,8 +2323,8 @@ export default async function handler(req, res) {
           action: 'evaluation_delete',
           record_id: Number(body.id),
           employee_id: oldRow?.employee_id || null,
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           old_data: oldRow,
         });
 
@@ -2489,7 +2332,7 @@ export default async function handler(req, res) {
       }
 
       if (body.action === 'worker_rule_save') {
-        const actorRole = cleanString(body.actor_role || '').toLowerCase();
+        const actorRole = authUser?.role || 'employee';
 
         if (actorRole !== 'admin') {
           return res.status(403).json({ error: 'Only admin can assign worker evaluation rules.' });
@@ -2532,8 +2375,8 @@ export default async function handler(req, res) {
           template_id: templateId || null,
           criteria,
           active: body.active !== false,
-          updated_by: body.changed_by || null,
-          updated_by_name: body.changed_by_name || null,
+          updated_by: authUser?.id || null,
+          updated_by_name: authUser?.name || null,
           updated_at: new Date().toISOString(),
         };
 
@@ -2717,6 +2560,8 @@ export default async function handler(req, res) {
     if (req.method === 'PUT') {
       const body = req.body || {};
 
+      if (!assertAdmin(authUser, res)) return;
+
       if (body.action === 'profile_update_decision') {
         const requestId = Number(body.id || body.request_id);
         const decision = cleanString(body.status).toLowerCase();
@@ -2858,6 +2703,8 @@ export default async function handler(req, res) {
     // Only changes status to inactive.
     // =========================
     if (req.method === 'DELETE') {
+      if (!assertAdmin(authUser, res)) return;
+
       const documentId = Number(req.query.document_id);
 
       if (documentId) {

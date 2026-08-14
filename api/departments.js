@@ -1,10 +1,15 @@
 import supabase from './db-client.js';
+import { requireAuth } from './auth/requireAuth.js';
+import { setCors } from './lib/cors.js';
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  setCors(res, req);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
+
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
 
   try {
     if (req.method === 'GET') {

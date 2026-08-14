@@ -1,5 +1,7 @@
 import supabase from './db-client.js';
 import { isFeatureEnabled } from './feature-flags.js';
+import { requireAuth } from './auth/requireAuth.js';
+import { setCors } from './lib/cors.js';
 
 async function safeInsertSystemAudit(payload) {
   try {
@@ -164,8 +166,8 @@ function settingsPayloadFromBody(body = {}) {
     saturday_check_out_end: settings.saturday_check_out_end,
     geofence_radius_meters: settings.geofence_radius_meters,
     max_gps_accuracy_meters: settings.max_gps_accuracy_meters,
-    updated_by: body.changed_by || null,
-    updated_by_name: body.changed_by_name || null,
+    updated_by: authUser?.id || null,
+    updated_by_name: authUser?.name || null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -749,14 +751,14 @@ async function buildAuditLogs() {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  setCors(res, req);
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(204).end();
   }
+
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
 
   try {
     // =========================
@@ -1197,8 +1199,8 @@ export default async function handler(req, res) {
           module: 'attendance',
           action: 'settings_update',
           record_id: data?.id || 1,
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           new_data: data,
         });
 
@@ -1320,8 +1322,8 @@ export default async function handler(req, res) {
           module: 'holiday',
           action: 'holiday_delete',
           record_id: Number(id),
-          changed_by: body.changed_by || null,
-          changed_by_name: body.changed_by_name || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
           old_data: { id: Number(id) },
         });
 

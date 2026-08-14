@@ -7,33 +7,25 @@ import {
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
-import type { EmployeeCategory } from '../types';
-
-export interface EmployeeProfile {
-  id: number;
-  name: string;
-  email: string;
-  role: 'admin' | 'manager' | 'employee';
-  category: EmployeeCategory;
-  department: string | null;
-  title: string | null;
-  status: string;
-  phone: string | null;
-  location: string | null;
-  join_date: string | null;
-  salary: number | null;
-  avatar_url: string | null;
-  employee_no: string | null;
-}
+import {
+  normalizeProfile,
+  type EmployeeProfile,
+} from '../lib/profile';
 
 type AuthMode = 'supabase' | 'worker';
 
-interface WorkerSessionPayload {
-  token: string;
-  employee: EmployeeProfile;
-}
+// Worker kiosk auth uses an httpOnly, Secure, SameSite=Strict cookie set by the
+// API (api/auth/worker-login.js). The token is never exposed to JavaScript,
+// removing the XSS risk of storing it in localStorage.
+const WORKER_LOGIN_PATH = '/api/auth/worker-login';
 
-const WORKER_SESSION_KEY = 'wtechr_worker_session';
+async function clearWorkerCookie() {
+  try {
+    await fetch(WORKER_LOGIN_PATH, { method: 'DELETE' });
+  } catch {
+    // Ignore network errors when clearing the worker cookie.
+  }
+}
 
 interface AuthContextValue {
   user: User | null;
@@ -59,80 +51,7 @@ const AuthContext = createContext<AuthContextValue>({
   refreshProfile: async () => {},
 });
 
-function normalizeRole(role: unknown): 'admin' | 'manager' | 'employee' {
-  const value = String(role || '').trim().toLowerCase();
-
-  if (value === 'admin') return 'admin';
-  if (value === 'manager') return 'manager';
-
-  return 'employee';
-}
-
-function normalizeCategory(category: unknown): EmployeeCategory {
-  const value = String(category || '').trim().toLowerCase();
-
-  if (value === 'worker') return 'worker';
-  if (value === 'manager') return 'manager';
-
-  return 'employee';
-}
-
-function normalizeProfile(data: any): EmployeeProfile | null {
-  if (!data) return null;
-
-  const row = Array.isArray(data) ? data[0] : data;
-
-  if (!row) return null;
-
-  return {
-    id: Number(row.id),
-    name: row.name ?? '',
-    email: row.email ?? '',
-    role: normalizeRole(row.role),
-    category: normalizeCategory(row.category),
-    department: row.department ?? null,
-    title: row.title ?? null,
-    status: row.status ?? 'active',
-    phone: row.phone ?? null,
-    location: row.location ?? null,
-    join_date: row.join_date ?? null,
-    salary: row.salary ?? null,
-    avatar_url: row.avatar_url ?? null,
-    employee_no: row.employee_no ?? null,
-  };
-}
-
-function readStoredWorkerSession(): WorkerSessionPayload | null {
-  try {
-    const raw = localStorage.getItem(WORKER_SESSION_KEY);
-
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as WorkerSessionPayload;
-
-    if (!parsed?.token || !parsed?.employee?.id) return null;
-
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function storeWorkerSession(payload: WorkerSessionPayload) {
-  try {
-    localStorage.setItem(WORKER_SESSION_KEY, JSON.stringify(payload));
-  } catch {
-    // Ignore storage failures.
-  }
-}
-
-function clearWorkerSession() {
-  try {
-    localStorage.removeItem(WORKER_SESSION_KEY);
-  } catch {
-    // Ignore storage failures.
-  }
-}
+// Profile normalization lives in src/lib/profile.ts (typed + unit-tested).
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -172,15 +91,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const restoreWorkerSession = async () => {
-    const stored = readStoredWorkerSession();
-
-    if (!stored) return;
-
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'worker_session', token: stored.token }),
+      const res = await fetch(WORKER_LOGIN_PATH, {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
       });
 
       const data = await res.json().catch(() => null);
@@ -188,26 +103,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok && data?.employee) {
         const employeeProfile = normalizeProfile(data.employee);
 
-        if (!employeeProfile) {
-          clearWorkerSession();
-          return;
-        }
+        if (!employeeProfile) return;
 
-        storeWorkerSession({ token: stored.token, employee: employeeProfile });
         setProfile(employeeProfile);
         setAuthMode('worker');
-      } else {
-        clearWorkerSession();
       }
     } catch {
-      clearWorkerSession();
+      // No active worker session; ignore.
     }
   };
 
   const refreshProfile = async () => {
     if (authMode === 'worker') {
-      const stored = readStoredWorkerSession();
-      if (stored) setProfile(stored.employee);
+      await restoreWorkerSession();
       return;
     }
 
@@ -251,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         setAuthMode('supabase');
-        clearWorkerSession();
+        clearWorkerCookie();
         await loadProfile(session?.user?.email);
       } else {
         setSession(null);
@@ -269,10 +177,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInAsWorker = async (employeeNo: string) => {
-    const res = await fetch('/api/employees', {
+    const res = await fetch(WORKER_LOGIN_PATH, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'worker_login', employee_no: employeeNo }),
+      body: JSON.stringify({ employee_no: employeeNo }),
     });
 
     const data = await res.json().catch(() => null);
@@ -287,8 +195,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Unable to load worker profile.');
     }
 
-    storeWorkerSession({ token: data.token, employee: employeeProfile });
-
     setUser(null);
     setSession(null);
     setProfile(employeeProfile);
@@ -299,10 +205,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     if (authMode === 'worker') {
-      clearWorkerSession();
+      await clearWorkerCookie();
       setProfile(null);
       setUser(null);
       setSession(null);
+      setAuthMode('supabase');
       return;
     }
 

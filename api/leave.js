@@ -1,5 +1,7 @@
 import supabase from './db-client.js';
 import { isFeatureEnabled } from './feature-flags.js';
+import { requireAuth } from './auth/requireAuth.js';
+import { setCors } from './lib/cors.js';
 import {
   notifyLeaveSubmittedToApproverSafe,
   notifyLeaveDecision,
@@ -294,7 +296,7 @@ function calculateTimeOffHours(start, end) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  setCors(res, req);
   res.setHeader(
     'Access-Control-Allow-Methods',
     'GET, POST, PUT, DELETE, OPTIONS'
@@ -302,6 +304,9 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(204).end();
+
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
 
   try {
     // =========================
@@ -759,7 +764,7 @@ export default async function handler(req, res) {
       // EDIT LEAVE REQUEST (admin/manager) + AUDIT LOG
       // =========================
       if (req.body.action === 'edit_request') {
-        const role = String(actor_role || '').toLowerCase();
+        const role = authUser?.role || 'employee';
         const isAdmin = role === 'admin';
         const isManager = role === 'manager';
 
@@ -859,7 +864,7 @@ export default async function handler(req, res) {
           record_id: id,
           employee_id: request.employee_id,
           changed_by: actor_id || null,
-          changed_by_name: req.body.changed_by_name || null,
+          changed_by_name: authUser?.name || null,
           old_data: request,
           new_data: data,
           reason: req.body.reason || 'Leave request edited',
@@ -879,7 +884,7 @@ export default async function handler(req, res) {
           });
         }
 
-        const role = String(actor_role || '').toLowerCase();
+        const role = authUser?.role || 'employee';
 
         if (!actor_id || !role) {
           return res.status(400).json({
