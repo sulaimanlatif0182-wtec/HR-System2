@@ -139,8 +139,13 @@ export default function Layout({ children }: { children: ReactNode }) {
   };
 
   const handleSignOut = async () => {
-    await signOut();
-    navigate('/login');
+    try {
+      await signOut();
+    } catch (err) {
+      console.error('sign out failed:', err);
+    } finally {
+      navigate('/login');
+    }
   };
 
   const canSeeEmployees = role === 'admin' || role === 'manager';

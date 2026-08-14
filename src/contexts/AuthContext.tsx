@@ -91,11 +91,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const restoreWorkerSession = async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+
     try {
       const res = await fetch(WORKER_LOGIN_PATH, {
         method: 'GET',
         credentials: 'same-origin',
         cache: 'no-store',
+        signal: controller.signal,
       });
 
       const data = await res.json().catch(() => null);
@@ -110,6 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch {
       // No active worker session; ignore.
+    } finally {
+      clearTimeout(timer);
     }
   };
 
@@ -210,19 +216,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    if (authMode === 'worker') {
-      await clearWorkerCookie();
+    try {
+      if (authMode === 'worker') {
+        await clearWorkerCookie();
+        return;
+      }
+
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error('signOut failed:', err);
+    } finally {
       setProfile(null);
       setUser(null);
       setSession(null);
       setAuthMode('supabase');
-      return;
+      setLoading(false);
     }
-
-    await supabase.auth.signOut();
-    setProfile(null);
-    setUser(null);
-    setSession(null);
   };
 
   return (
