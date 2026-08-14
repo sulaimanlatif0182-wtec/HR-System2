@@ -152,18 +152,31 @@ export default function Login() {
     let mounted = true;
 
     const checkSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        // getSession can hang when the gotrue auth-token lock is orphaned
+        // (React Strict Mode / in-flight refresh). Bound it so the login form
+        // always appears instead of an endless "Checking session…".
+        const result = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: null } }>((resolve) =>
+            setTimeout(() => resolve({ data: { session: null } }), 6000)
+          ),
+        ]);
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      if (session) {
-        navigate('/', { replace: true });
-        return;
+        const session = result?.data?.session;
+
+        if (session) {
+          navigate('/', { replace: true });
+          return;
+        }
+
+        setCheckingSession(false);
+      } catch {
+        if (!mounted) return;
+        setCheckingSession(false);
       }
-
-      setCheckingSession(false);
     };
 
     checkSession();

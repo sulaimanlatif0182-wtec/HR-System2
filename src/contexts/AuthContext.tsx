@@ -135,11 +135,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      // getSession can hang when the gotrue auth-token lock is orphaned;
+      // bound it and assume signed-out on timeout so we never stick on "loading".
+      const result = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<{ data: { session: null } }>((resolve) =>
+          setTimeout(() => resolve({ data: { session: null } }), 6000)
+        ),
+      ]);
 
       if (!mounted) return;
+
+      const session = result?.data?.session;
 
       if (session) {
         setSession(session);
