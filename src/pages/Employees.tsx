@@ -69,24 +69,14 @@ const LOCATION_OPTIONS = [
   'Factory 4',
 ];
 
-const ROLE_OPTIONS = [
-  {
-    label: 'Employee',
-    value: 'employee',
-  },
-  {
-    label: 'Manager',
-    value: 'manager',
-  },
-  {
-    label: 'Admin',
-    value: 'admin',
-  },
-] as const;
-
 const STATUS_OPTIONS = ['active', 'on_leave', 'inactive'] as const;
 
-const CATEGORY_OPTIONS = ['worker', 'employee', 'manager'] as const;
+const COMBINED_ROLE_OPTIONS = [
+  { label: 'Worker', role: 'employee', category: 'worker' },
+  { label: 'Employee', role: 'employee', category: 'employee' },
+  { label: 'Manager', role: 'manager', category: 'manager' },
+  { label: 'Admin', role: 'admin', category: 'employee' },
+] as const;
 
 function initials(name: string) {
   return name
@@ -390,10 +380,6 @@ export default function Employees() {
   const profileDepartment = String(profile?.department ?? '')
     .trim()
     .toLowerCase();
-
-  const availableRoleOptions = isAdmin
-    ? ROLE_OPTIONS
-    : ROLE_OPTIONS.filter((role) => role.value === 'employee');
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -824,15 +810,16 @@ export default function Employees() {
       !values.name ||
       !values.email ||
       !values.role ||
+      !values.employee_no ||
+      !values.phone ||
+      !values.title ||
       !department ||
-      !values.location ||
-      !values.date_of_birth ||
-      !values.identity_last4
+      !values.location
     ) {
-      return 'Name, email, role, department, location, birthday and identity last 4 digits are required.';
+      return 'Name, email, employee ID, phone, role, department, job title and location are required.';
     }
 
-    if (values.identity_last4.length !== 4) {
+    if (values.identity_last4 && values.identity_last4.length !== 4) {
       return 'Identity last 4 must be exactly 4 characters.';
     }
 
@@ -1021,6 +1008,14 @@ export default function Employees() {
     setValues: (next: EmployeeFormState) => void,
     mode: 'add' | 'edit'
   ) => {
+    const combinedValue = `${values.role}|${values.category}`;
+    const combinedOptions = isAdmin
+      ? COMBINED_ROLE_OPTIONS
+      : COMBINED_ROLE_OPTIONS.filter((o) => o.role === 'employee');
+    const valueInOptions = combinedOptions.some(
+      (o) => `${o.role}|${o.category}` === combinedValue
+    );
+
     const departmentValue = mode === 'add' ? effectiveDepartment : values.department;
     const departmentOptions =
       mode === 'add' ? addDepartmentOptions : DEPARTMENT_OPTIONS;
@@ -1046,31 +1041,27 @@ export default function Employees() {
 
         <select
           required
-          value={values.role}
-          onChange={(e) => setValues({ ...values, role: e.target.value })}
-          disabled={!isAdmin}
+          value={valueInOptions ? combinedValue : ''}
+          onChange={(e) => {
+            const [r, c] = e.target.value.split('|');
+            setValues({ ...values, role: r, category: c });
+          }}
+          disabled={!isAdminOrManager}
           className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {availableRoleOptions.map((role) => (
-            <option key={role.value} value={role.value}>
-              {role.label}
-            </option>
-          ))}
-        </select>
+          <option value="" disabled>
+            Select Role
+          </option>
 
-        <select
-          value={values.category}
-          onChange={(e) => setValues({ ...values, category: e.target.value })}
-          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
-        >
-          {CATEGORY_OPTIONS.map((category) => (
-            <option key={category} value={category}>
-              {category.charAt(0).toUpperCase() + category.slice(1)}
+          {combinedOptions.map((o) => (
+            <option key={`${o.role}|${o.category}`} value={`${o.role}|${o.category}`}>
+              {o.label}
             </option>
           ))}
         </select>
 
         <input
+          required
           placeholder="Employee ID (numeric)"
           value={values.employee_no}
           onChange={(e) => setValues({ ...values, employee_no: e.target.value })}
@@ -1093,6 +1084,7 @@ export default function Employees() {
         )}
 
         <input
+          required
           placeholder="Job title"
           value={values.title}
           onChange={(e) => setValues({ ...values, title: e.target.value })}
@@ -1143,7 +1135,6 @@ export default function Employees() {
             </label>
 
             <input
-              required
               type="date"
               value={values.date_of_birth}
               onChange={(e) =>
@@ -1158,10 +1149,9 @@ export default function Employees() {
               Identity Type
             </label>
 
-            <select
-              required
-              value={values.identity_type}
-              onChange={(e) =>
+              <select
+                value={values.identity_type}
+                onChange={(e) =>
                 mode === 'add'
                   ? updateFormIdentityType(e.target.value)
                   : updateEditIdentityType(e.target.value)
@@ -1174,10 +1164,9 @@ export default function Employees() {
           </div>
         </div>
 
-        <input
-          required
-          maxLength={4}
-          placeholder="Last 4 digits/chars of IC or passport"
+          <input
+            maxLength={4}
+            placeholder="Last 4 digits/chars of IC or passport"
           value={values.identity_last4}
           onChange={(e) =>
             setValues({
@@ -1207,6 +1196,7 @@ export default function Employees() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <input
+            required
             placeholder="Phone"
             value={values.phone}
             onChange={(e) => setValues({ ...values, phone: e.target.value })}
