@@ -5,7 +5,7 @@ import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
 } from '@simplewebauthn/server';
-import { supabase } from './_shared/db-client.js';
+import { supabase } from '../lib/db-client.js';
 
 function resolveAppBaseUrl() {
   if (process.env.APP_BASE_URL) {

@@ -1,6 +1,6 @@
-import { supabase } from './_shared/db-client.js';
-import { requireAuth } from './_shared/requireAuth.js';
-import { setCors } from './_shared/cors.js';
+import { supabase } from '../lib/db-client.js';
+import { requireAuth } from '../lib/requireAuth.js';
+import { setCors } from '../lib/cors.js';
 
 export default async function handler(req, res) {
   setCors(res, req);

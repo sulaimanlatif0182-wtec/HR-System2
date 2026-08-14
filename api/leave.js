@@ -1,7 +1,7 @@
-import { supabase } from './_shared/db-client.js';
-import { isFeatureEnabled } from './_shared/feature-flags.js';
-import { requireAuth } from './_shared/requireAuth.js';
-import { setCors } from './_shared/cors.js';
+import { supabase } from '../lib/db-client.js';
+import { isFeatureEnabled } from '../lib/feature-flags.js';
+import { requireAuth } from '../lib/requireAuth.js';
+import { setCors } from '../lib/cors.js';
 import {
   notifyLeaveSubmittedToApproverSafe,
   notifyLeaveDecision,

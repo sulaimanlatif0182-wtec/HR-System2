@@ -1,4 +1,4 @@
-import { supabase } from './_shared/db-client.js';
+import { supabase } from '../lib/db-client.js';
 
 // Server-side password policy — mirrors the frontend checklist.
 function validatePassword(password) {
