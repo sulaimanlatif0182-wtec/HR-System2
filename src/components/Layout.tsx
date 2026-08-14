@@ -139,12 +139,11 @@ export default function Layout({ children }: { children: ReactNode }) {
   };
 
   const handleSignOut = async () => {
+    navigate('/login');
     try {
       await signOut();
     } catch (err) {
       console.error('sign out failed:', err);
-    } finally {
-      navigate('/login');
     }
   };
 

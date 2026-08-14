@@ -222,7 +222,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      await supabase.auth.signOut();
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('signOut timed out')), 5000)
+        ),
+      ]);
     } catch (err) {
       console.error('signOut failed:', err);
     } finally {
