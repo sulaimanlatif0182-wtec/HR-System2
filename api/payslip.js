@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import PDFDocument from 'pdfkit';
-import { supabase } from './db-client.js';
-import { requireAuth } from './auth/requireAuth.js';
+import { supabase } from './_shared/db-client.js';
+import { requireAuth } from './_shared/requireAuth.js';
 
 const BRAND_BLUE = '#1f4fa3';
 const BRAND_RED = '#dc1828';

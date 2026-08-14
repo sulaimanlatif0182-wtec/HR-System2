@@ -1,7 +1,7 @@
-import { supabase } from '../db-client.js';
+import { supabase } from '../_shared/db-client.js';
 import crypto from 'crypto';
-import { setCors } from '../lib/cors.js';
-import { verifyWorkerSession } from './verifyWorkerSession.js';
+import { setCors } from '../_shared/cors.js';
+import { verifyWorkerSession } from '../_shared/verifyWorkerSession.js';
 
 const WORKER_SESSION_COOKIE = 'wtechr_worker_session';
 const SESSION_TTL_DAYS = 30;

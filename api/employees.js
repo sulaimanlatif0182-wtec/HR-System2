@@ -1,19 +1,19 @@
 import crypto from 'crypto';
-import { supabase } from './db-client.js';
+import { supabase } from './_shared/db-client.js';
 import {
   getFeatureFlags,
   isFeatureEnabled,
   saveFeatureFlag,
   saveFeatureFlags,
-} from './feature-flags.js';
-import { requireAuth } from './auth/requireAuth.js';
-import { assertAdmin } from './auth/authorize.js';
-import { setCors } from './lib/cors.js';
-import { projectEmployee } from './lib/employeeProjection.js';
-import { parseAccountEmail } from './lib/validators.js';
-import { isRateLimited } from './lib/rateLimit.js';
+} from './_shared/feature-flags.js';
+import { requireAuth } from './_shared/requireAuth.js';
+import { assertAdmin } from './_shared/authorize.js';
+import { setCors } from './_shared/cors.js';
+import { projectEmployee } from './_shared/employeeProjection.js';
+import { parseAccountEmail } from './_shared/validators.js';
+import { isRateLimited } from './_shared/rateLimit.js';
 import { sendNotificationEmail } from '../server/email.js';
-import { handleImportEmployees, handleImportCreateAccounts } from './routes/employees/imports.js';
+import { handleImportEmployees, handleImportCreateAccounts } from './_shared/imports.js';
 
 export async function safeInsertSystemAudit(payload) {
   try {

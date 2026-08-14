@@ -3,9 +3,9 @@
 // runtime-safe circular import (the helpers are only referenced inside the
 // exported functions, never at module-init time). Once the helpers are moved
 // into api/lib/employeeHelpers.js this cycle can be removed.
-import { isRateLimited } from '../../lib/rateLimit.js';
-import { assertAdmin } from '../../auth/authorize.js';
-import { parseAccountEmail } from '../../lib/validators.js';
+import { isRateLimited } from './rateLimit.js';
+import { assertAdmin } from './authorize.js';
+import { parseAccountEmail } from './validators.js';
 import { sendNotificationEmail } from '../../server/email.js';
 import {
   cleanString,
@@ -15,7 +15,7 @@ import {
   friendlyDatabaseError,
   safeInsertSystemAudit,
   generateTempPassword,
-} from '../../employees.js';
+} from '../employees.js';
 
 export async function handleImportEmployees(req, res, { supabase, authUser, body }) {
   if (isRateLimited(`import_employees:${authUser?.id || req.ip || 'anon'}`, { windowMs: 60 * 1000, max: 5 })) {
