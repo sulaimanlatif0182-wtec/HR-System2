@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ShieldCheck,
@@ -77,9 +78,7 @@ export default function PolicyCenter() {
     setError('');
 
     try {
-      const res = await fetch(`/api/employees?policy_readiness=true&t=${Date.now()}`);
-      if (!res.ok) throw new Error('Failed to load policy readiness.');
-      const data = await res.json();
+      const data = await apiClient.get(`/api/employees?policy_readiness=true&t=${Date.now()}`);
       setItems(Array.isArray(data) ? data : []);
     } catch {
       setError('Failed to load policy readiness.');
@@ -104,23 +103,16 @@ export default function PolicyCenter() {
     setMessage('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'policy_readiness_update',
-          key,
-          actor_role: 'admin',
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-          ...patch,
-        }),
+      const data = await apiClient.post('/api/employees', {
+        action: 'policy_readiness_update',
+        key,
+        actor_role: 'admin',
+        changed_by: profile.id,
+        changed_by_name: profile.name,
+        ...patch,
       });
 
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Failed to update policy readiness.');
-
-      setItems((prev) => prev.map((item) => (item.key === key ? { ...item, ...data } : item)));
+      setItems((prev) => prev.map((item) => (item.key === key ? { ...item, ...(data as Partial<PolicyItem>) } : item)));
       setMessage(patch.reset ? 'Policy item reset to Needs Review.' : 'Policy readiness updated.');
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Failed to update policy readiness.');

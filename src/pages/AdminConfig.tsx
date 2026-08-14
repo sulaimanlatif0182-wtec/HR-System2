@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
@@ -230,10 +231,10 @@ export default function AdminConfig() {
 
     try {
       const [configData, checklistData, ruleData, logData] = await Promise.all([
-        fetch('/api/employees?admin_config=true').then((r) => r.json()),
-        fetch('/api/employees?document_checklist=true').then((r) => r.json()),
-        fetch('/api/employees?reminder_rules=true').then((r) => r.json()),
-        fetch('/api/employees?reminder_logs=true').then((r) => r.json()),
+        apiClient.get('/api/employees?admin_config=true'),
+        apiClient.get('/api/employees?document_checklist=true'),
+        apiClient.get('/api/employees?reminder_rules=true'),
+        apiClient.get('/api/employees?reminder_logs=true'),
       ]);
 
       const mergedConfig = { ...DEFAULT_CONFIG, ...(configData || {}) };
@@ -284,20 +285,13 @@ export default function AdminConfig() {
     setFlagMessage('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'feature_flags_bulk_update',
-          flags: effectiveFlags.map((flag) => ({ key: flag.key, enabled: flag.enabled })),
-          actor_role: 'admin',
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'feature_flags_bulk_update',
+        flags: effectiveFlags.map((flag) => ({ key: flag.key, enabled: flag.enabled })),
+        actor_role: 'admin',
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Failed to save feature settings.');
 
       setFlagMessage('Feature settings saved successfully.');
       await refreshFlags();
@@ -337,19 +331,12 @@ export default function AdminConfig() {
         performance_review_types: commaToList(performanceTypesText),
       };
 
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'admin_config_save',
-          config: nextConfig,
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'admin_config_save',
+        config: nextConfig,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Failed to save configuration.');
 
       setMessage('Admin configuration saved successfully.');
       await fetchAll();
@@ -372,20 +359,13 @@ export default function AdminConfig() {
     setMessage('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'reminder_rule_save',
-          ...ruleForm,
-          days_before: Number(ruleForm.days_before || 0),
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'reminder_rule_save',
+        ...ruleForm,
+        days_before: Number(ruleForm.days_before || 0),
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Failed to save reminder rule.');
 
       setRuleForm({ id: null, name: '', reminder_type: 'expiry', days_before: '30', enabled: true });
       setMessage('Reminder rule saved successfully.');
@@ -405,19 +385,12 @@ export default function AdminConfig() {
     setMessage('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'reminder_rule_delete',
-          id: rule.id,
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'reminder_rule_delete',
+        id: rule.id,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Failed to delete reminder rule.');
 
       setMessage('Reminder rule deleted successfully.');
       await fetchAll();
@@ -440,18 +413,14 @@ export default function AdminConfig() {
     setMessage('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'run_reminders',
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      const data = await apiClient.post<{
+        results?: ReminderResult[];
+        email?: { sent?: number; skipped?: boolean; reason?: string; error?: string };
+      }>('/api/employees', {
+        action: 'run_reminders',
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Failed to run reminders.');
 
       setReminderResults(Array.isArray(data?.results) ? data.results : []);
       const emailInfo = data?.email?.sent

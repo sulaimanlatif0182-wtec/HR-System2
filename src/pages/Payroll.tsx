@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useState, useEffect, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -576,15 +577,15 @@ export default function Payroll() {
     try {
       const [pay, emp, batchData, settingsData, profileData, wageTableData] =
         await Promise.all([
-          fetch('/api/payroll').then((r) => r.json()),
-          fetch('/api/employees').then((r) => r.json()),
-          fetch('/api/payroll?batches=true').then((r) => r.json()),
-          fetch('/api/payroll?settings=true').then((r) => r.json()),
-          fetch('/api/payroll?profiles=true').then((r) => r.json()),
-          fetch('/api/payroll?wage_tables=true').then((r) => r.json()),
+          apiClient.get('/api/payroll'),
+          apiClient.get('/api/employees'),
+          apiClient.get('/api/payroll?batches=true'),
+          apiClient.get('/api/payroll?settings=true'),
+          apiClient.get('/api/payroll?profiles=true'),
+          apiClient.get('/api/payroll?wage_tables=true'),
         ]);
 
-      const normalizedSettings = normalizePayrollSettings(settingsData);
+      const normalizedSettings = normalizePayrollSettings(settingsData as Partial<PayrollSettings> | null | undefined);
 
       setRecords(Array.isArray(pay) ? pay : []);
       setEmployees(Array.isArray(emp) ? emp : []);
@@ -864,24 +865,14 @@ export default function Payroll() {
     setSettingsMessage('');
 
     try {
-      const res = await fetch('/api/payroll', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'save_settings',
-          ...settingsForm,
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      const data = await apiClient.post('/api/payroll', {
+        action: 'save_settings',
+        ...settingsForm,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
 
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to save payroll settings.');
-      }
-
-      const normalized = normalizePayrollSettings(data);
+      const normalized = normalizePayrollSettings(data as Partial<PayrollSettings>);
       setPayrollSettings(normalized);
       setSettingsForm(normalized);
       setSettingsMessage('Payroll statutory settings saved successfully.');
@@ -908,34 +899,24 @@ export default function Payroll() {
     setProfileMessage('');
 
     try {
-      const res = await fetch('/api/payroll', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'save_profile',
-          employee_id: Number(profileForm.employee_id),
-          citizenship_type: profileForm.citizenship_type,
-          date_of_birth: profileForm.date_of_birth || null,
-          epf_employee_rate_override: profileForm.epf_employee_rate_override,
-          epf_employer_rate_override: profileForm.epf_employer_rate_override,
-          socso_category: profileForm.socso_category,
-          socso_enabled: profileForm.socso_enabled,
-          eis_enabled: profileForm.eis_enabled,
-          pcb_monthly_amount: numberValue(profileForm.pcb_monthly_amount),
-          pcb_notes: profileForm.pcb_notes,
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      const data = await apiClient.post('/api/payroll', {
+        action: 'save_profile',
+        employee_id: Number(profileForm.employee_id),
+        citizenship_type: profileForm.citizenship_type,
+        date_of_birth: profileForm.date_of_birth || null,
+        epf_employee_rate_override: profileForm.epf_employee_rate_override,
+        epf_employer_rate_override: profileForm.epf_employer_rate_override,
+        socso_category: profileForm.socso_category,
+        socso_enabled: profileForm.socso_enabled,
+        eis_enabled: profileForm.eis_enabled,
+        pcb_monthly_amount: numberValue(profileForm.pcb_monthly_amount),
+        pcb_notes: profileForm.pcb_notes,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
 
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to save payroll profile.');
-      }
-
       await fetchAll();
-      setProfileForm(profileFormFromProfile(data));
+      setProfileForm(profileFormFromProfile(data as PayrollProfile));
       setProfileMessage('Employee payroll profile saved successfully.');
     } catch (err) {
       setProfileMessage(
@@ -970,22 +951,12 @@ export default function Payroll() {
     setWageTableMessage('');
 
     try {
-      const res = await fetch('/api/payroll', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'save_wage_table',
-          ...wageTableForm,
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      await apiClient.post('/api/payroll', {
+        action: 'save_wage_table',
+        ...wageTableForm,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to save wage table row.');
-      }
 
       await fetchAll();
       setWageTableForm(emptyWageTableForm());
@@ -1012,22 +983,12 @@ export default function Payroll() {
     setWageTableMessage('');
 
     try {
-      const res = await fetch('/api/payroll', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'delete_wage_table',
-          id: row.id,
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      await apiClient.post('/api/payroll', {
+        action: 'delete_wage_table',
+        id: row.id,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to delete wage table row.');
-      }
 
       await fetchAll();
       setWageTableMessage('Wage table row deleted successfully.');
@@ -1121,17 +1082,9 @@ export default function Payroll() {
         remarks: payrollForm.remarks,
       };
 
-      const res = await fetch('/api/payroll', {
-        method: payrollForm.id ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to save payroll record.');
-      }
+      await (payrollForm.id
+        ? apiClient.put('/api/payroll', payload)
+        : apiClient.post('/api/payroll', payload));
 
       setShowForm(false);
       await fetchAll();
@@ -1148,20 +1101,10 @@ export default function Payroll() {
     setActionLoading(true);
 
     try {
-      const res = await fetch('/api/payroll', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'create_batch',
-          period: selectedPeriod,
-        }),
+      await apiClient.post('/api/payroll', {
+        action: 'create_batch',
+        period: selectedPeriod,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to create batch.');
-      }
 
       await fetchAll();
       alert(`Payroll batch ${selectedPeriod} is ready.`);
@@ -1184,21 +1127,16 @@ export default function Payroll() {
     setActionLoading(true);
 
     try {
-      const res = await fetch('/api/payroll', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'generate_from_sources',
-          period: selectedPeriod,
-          generated_by: profile.name ?? profile.email ?? 'Admin',
-        }),
+      const data = await apiClient.post<{
+        created?: number;
+        updated?: number;
+        skipped?: number;
+        errors?: string[];
+      }>('/api/payroll', {
+        action: 'generate_from_sources',
+        period: selectedPeriod,
+        generated_by: profile.name ?? profile.email ?? 'Admin',
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to generate payroll.');
-      }
 
       await fetchAll();
 
@@ -1226,21 +1164,11 @@ export default function Payroll() {
     setActionLoading(true);
 
     try {
-      const res = await fetch('/api/payroll', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'approve_batch',
-          period: selectedPeriod,
-          approved_by: profile.name ?? profile.email ?? 'Admin',
-        }),
+      await apiClient.put('/api/payroll', {
+        action: 'approve_batch',
+        period: selectedPeriod,
+        approved_by: profile.name ?? profile.email ?? 'Admin',
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to approve batch.');
-      }
 
       await fetchAll();
       alert(`Payroll batch ${selectedPeriod} approved.`);
@@ -1263,21 +1191,11 @@ export default function Payroll() {
     setActionLoading(true);
 
     try {
-      const res = await fetch('/api/payroll', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'release_batch',
-          period: selectedPeriod,
-          released_by: profile.name ?? profile.email ?? 'Admin',
-        }),
+      await apiClient.put('/api/payroll', {
+        action: 'release_batch',
+        period: selectedPeriod,
+        released_by: profile.name ?? profile.email ?? 'Admin',
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to release payslips.');
-      }
 
       await fetchAll();
       alert(`Payslips for ${selectedPeriod} released.`);
@@ -1301,21 +1219,16 @@ export default function Payroll() {
         throw new Error('CSV file has no rows.');
       }
 
-      const res = await fetch('/api/payroll', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'import_records',
-          period: selectedPeriod,
-          rows,
-        }),
+      const data = await apiClient.post<{
+        inserted?: number;
+        updated?: number;
+        skipped?: number;
+        errors?: string[];
+      }>('/api/payroll', {
+        action: 'import_records',
+        period: selectedPeriod,
+        rows,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to import payroll CSV.');
-      }
 
       await fetchAll();
 

@@ -1,3 +1,4 @@
+import apiClient from '../../lib/api';
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -191,14 +192,14 @@ export default function Evaluation() {
 
     try {
       const [emp, templateData, evaluationData, ruleData] = await Promise.all([
-        fetch('/api/employees').then((response) => response.json()),
-        fetch('/api/employees?evaluation_templates=true').then((response) => response.json()),
-        fetch(
+        apiClient.get('/api/employees'),
+        apiClient.get('/api/employees?evaluation_templates=true'),
+        apiClient.get(
           canEvaluate
             ? '/api/employees?evaluations=true'
             : `/api/employees?evaluations=true&employee_id=${profile?.id}`
-        ).then((response) => response.json()),
-        isAdmin ? fetch('/api/employees?worker_rules=true').then((response) => response.json()) : Promise.resolve([]),
+        ),
+        isAdmin ? apiClient.get('/api/employees?worker_rules=true') : Promise.resolve([]),
       ]);
 
       setEmployees(Array.isArray(emp) ? emp : []);
@@ -373,31 +374,21 @@ export default function Evaluation() {
     setMessage('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'evaluation_save',
-          actor_role: profile?.role,
-          id: editingId ?? undefined,
-          template_id: selectedTemplate.id,
-          employee_id: subjectId,
-          review_period: reviewPeriod.trim(),
-          scores,
-          status,
-          evaluator_id: profile?.id,
-          evaluator_name: profile?.name,
-          evaluator_role: profile?.role,
-          changed_by: profile?.id,
-          changed_by_name: profile?.name,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'evaluation_save',
+        actor_role: profile?.role,
+        id: editingId ?? undefined,
+        template_id: selectedTemplate.id,
+        employee_id: subjectId,
+        review_period: reviewPeriod.trim(),
+        scores,
+        status,
+        evaluator_id: profile?.id,
+        evaluator_name: profile?.name,
+        evaluator_role: profile?.role,
+        changed_by: profile?.id,
+        changed_by_name: profile?.name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Unable to save evaluation.');
-      }
 
       setMessage(status === 'completed' ? 'Evaluation submitted.' : 'Draft saved.');
       setEditingId(null);
@@ -436,23 +427,13 @@ export default function Evaluation() {
     setError('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'evaluation_delete',
-          actor_role: profile?.role,
-          id: evaluation.id,
-          changed_by: profile?.id,
-          changed_by_name: profile?.name,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'evaluation_delete',
+        actor_role: profile?.role,
+        id: evaluation.id,
+        changed_by: profile?.id,
+        changed_by_name: profile?.name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Unable to delete evaluation.');
-      }
 
       if (editingId === evaluation.id) resetForm();
       await fetchAll();
@@ -468,22 +449,12 @@ export default function Evaluation() {
     setError('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'evaluation_acknowledge',
-          id: evaluation.id,
-          employee_id: profile?.id,
-          employee_name: profile?.name,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'evaluation_acknowledge',
+        id: evaluation.id,
+        employee_id: profile?.id,
+        employee_name: profile?.name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Unable to acknowledge evaluation.');
-      }
 
       setMessage('Evaluation acknowledged.');
       await fetchAll();
@@ -583,29 +554,19 @@ export default function Evaluation() {
     setMessage('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'template_save',
-          actor_role: profile?.role,
-          id: templateForm.id,
-          name: templateForm.name,
-          category: templateForm.category,
-          department: templateForm.department.trim() || null,
-          description: templateForm.description.trim() || null,
-          sections,
-          status: templateForm.status,
-          changed_by: profile?.id,
-          changed_by_name: profile?.name,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'template_save',
+        actor_role: profile?.role,
+        id: templateForm.id,
+        name: templateForm.name,
+        category: templateForm.category,
+        department: templateForm.department.trim() || null,
+        description: templateForm.description.trim() || null,
+        sections,
+        status: templateForm.status,
+        changed_by: profile?.id,
+        changed_by_name: profile?.name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Unable to save template.');
-      }
 
       setMessage(templateForm.id ? 'Template updated.' : 'Template created.');
       setShowTemplateForm(false);
@@ -625,23 +586,13 @@ export default function Evaluation() {
     setError('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'template_delete',
-          actor_role: profile?.role,
-          id: template.id,
-          changed_by: profile?.id,
-          changed_by_name: profile?.name,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'template_delete',
+        actor_role: profile?.role,
+        id: template.id,
+        changed_by: profile?.id,
+        changed_by_name: profile?.name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Unable to delete template.');
-      }
 
       setMessage('Template deleted.');
       await fetchAll();
@@ -665,26 +616,16 @@ export default function Evaluation() {
     setMessage('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'worker_rule_save',
-          actor_role: profile?.role,
-          employee_id: ruleEmployeeId,
-          template_id: ruleTemplateId || null,
-          criteria: Array.from(ruleCriteria),
-          active: ruleActive,
-          changed_by: profile?.id,
-          changed_by_name: profile?.name,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'worker_rule_save',
+        actor_role: profile?.role,
+        employee_id: ruleEmployeeId,
+        template_id: ruleTemplateId || null,
+        criteria: Array.from(ruleCriteria),
+        active: ruleActive,
+        changed_by: profile?.id,
+        changed_by_name: profile?.name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Unable to save rule.');
-      }
 
       setMessage('Evaluation rule saved.');
       await fetchAll();

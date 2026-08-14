@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useState, useEffect, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -352,9 +353,9 @@ export default function Leave() {
 
     try {
       const [lv, emp, holidayRows] = await Promise.all([
-        fetch('/api/leave').then((r) => r.json()),
-        fetch('/api/employees').then((r) => r.json()),
-        fetch('/api/attendance?holidays=1').then((r) => r.json()),
+        apiClient.get('/api/leave'),
+        apiClient.get('/api/employees'),
+        apiClient.get('/api/attendance?holidays=1'),
       ]);
 
       setRequests(Array.isArray(lv) ? lv : []);
@@ -374,12 +375,8 @@ export default function Leave() {
 
     try {
       const [balanceData, adjustmentData] = await Promise.all([
-        fetch(`/api/leave?balances=true&employee_id=${employeeId}`).then((r) =>
-          r.json()
-        ),
-        fetch(`/api/leave?adjustments=true&employee_id=${employeeId}`).then((r) =>
-          r.json()
-        ),
+        apiClient.get(`/api/leave?balances=true&employee_id=${employeeId}`),
+        apiClient.get(`/api/leave?adjustments=true&employee_id=${employeeId}`),
       ]);
 
       setBalances(Array.isArray(balanceData) ? balanceData : []);
@@ -699,41 +696,32 @@ export default function Leave() {
     try {
       const attachment = await uploadAttachment();
 
-      const res = await fetch('/api/leave', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          employee_id: submittedForEmployeeId
-            ? Number(submittedForEmployeeId)
-            : profile.id,
-          submitted_by: profile.id,
-          submitted_by_name: profile.name,
-          submitted_for_employee: Boolean(submittedForEmployeeId),
-          request_mode: form.request_mode,
-          leave_type:
-            form.request_mode === 'time_off' ? 'Time Off' : form.leave_type,
-          start_date:
-            form.request_mode === 'time_off' ? form.time_off_date : form.start_date,
-          end_date:
-            form.request_mode === 'time_off' ? form.time_off_date : form.end_date,
-          days,
-          half_day_period: form.half_day_period,
-          time_off_date: form.time_off_date,
-          time_off_period: form.time_off_period,
-          time_off_start: form.time_off_start,
-          time_off_end: form.time_off_end,
-          reason: form.reason,
-          duties_covered_by: form.duties_covered_by,
-          employee_acknowledged: form.employee_acknowledged,
-          attachment_url: attachment.attachment_url,
-          attachment_name: attachment.attachment_name,
-        }),
+      await apiClient.post('/api/leave', {
+        employee_id: submittedForEmployeeId
+          ? Number(submittedForEmployeeId)
+          : profile.id,
+        submitted_by: profile.id,
+        submitted_by_name: profile.name,
+        submitted_for_employee: Boolean(submittedForEmployeeId),
+        request_mode: form.request_mode,
+        leave_type:
+          form.request_mode === 'time_off' ? 'Time Off' : form.leave_type,
+        start_date:
+          form.request_mode === 'time_off' ? form.time_off_date : form.start_date,
+        end_date:
+          form.request_mode === 'time_off' ? form.time_off_date : form.end_date,
+        days,
+        half_day_period: form.half_day_period,
+        time_off_date: form.time_off_date,
+        time_off_period: form.time_off_period,
+        time_off_start: form.time_off_start,
+        time_off_end: form.time_off_end,
+        reason: form.reason,
+        duties_covered_by: form.duties_covered_by,
+        employee_acknowledged: form.employee_acknowledged,
+        attachment_url: attachment.attachment_url,
+        attachment_name: attachment.attachment_name,
       });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || 'Failed to submit request');
-      }
 
       setShowModal(false);
       resetForm();
@@ -753,24 +741,14 @@ export default function Leave() {
     setDeciding(id);
 
     try {
-      const res = await fetch('/api/leave', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id,
-          status,
-          decided_by: profile.name ?? 'Approver',
-          actor_id: profile.id,
-          actor_role: profile.role,
-          actor_department: profile.department,
-        }),
+      await apiClient.put('/api/leave', {
+        id,
+        status,
+        decided_by: profile.name ?? 'Approver',
+        actor_id: profile.id,
+        actor_role: profile.role,
+        actor_department: profile.department,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to update leave request.');
-      }
 
       await fetchAll();
 
@@ -813,12 +791,8 @@ export default function Leave() {
 
     try {
       const [balanceData, adjustmentData] = await Promise.all([
-        fetch(`/api/leave?balances=true&employee_id=${employeeId}`).then((r) =>
-          r.json()
-        ),
-        fetch(`/api/leave?adjustments=true&employee_id=${employeeId}`).then((r) =>
-          r.json()
-        ),
+        apiClient.get(`/api/leave?balances=true&employee_id=${employeeId}`),
+        apiClient.get(`/api/leave?adjustments=true&employee_id=${employeeId}`),
       ]);
 
       const next: Record<string, string> = {};
@@ -855,25 +829,15 @@ export default function Leave() {
       for (const leaveType of BALANCE_TYPES) {
         const entitlement = Number(editableBalances[leaveType] || 0);
 
-        const res = await fetch('/api/leave', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'update_entitlement',
-            employee_id: Number(balanceEmployeeId),
-            leave_type: leaveType,
-            entitlement_days: entitlement,
-            changed_by: profile.id,
-            changed_by_name: profile.name,
-            reason: balanceReason,
-          }),
+        await apiClient.post('/api/leave', {
+          action: 'update_entitlement',
+          employee_id: Number(balanceEmployeeId),
+          leave_type: leaveType,
+          entitlement_days: entitlement,
+          changed_by: profile.id,
+          changed_by_name: profile.name,
+          reason: balanceReason,
         });
-
-        const data = await res.json().catch(() => null);
-
-        if (!res.ok) {
-          throw new Error(data?.error || `Failed to update ${leaveType}.`);
-        }
       }
 
       if (profile?.id) {
@@ -912,25 +876,15 @@ export default function Leave() {
     setBalanceError('');
 
     try {
-      const res = await fetch('/api/leave', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'add_adjustment',
-          employee_id: Number(balanceEmployeeId),
-          leave_type: adjustmentForm.leave_type,
-          adjustment_days: Number(adjustmentForm.adjustment_days),
-          reason: adjustmentForm.reason,
-          created_by: profile.id,
-          created_by_name: profile.name,
-        }),
+      await apiClient.post('/api/leave', {
+        action: 'add_adjustment',
+        employee_id: Number(balanceEmployeeId),
+        leave_type: adjustmentForm.leave_type,
+        adjustment_days: Number(adjustmentForm.adjustment_days),
+        reason: adjustmentForm.reason,
+        created_by: profile.id,
+        created_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to add adjustment.');
-      }
 
       setAdjustmentForm({
         leave_type: 'Annual Leave',

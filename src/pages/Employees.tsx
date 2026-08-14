@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
@@ -465,7 +466,7 @@ export default function Employees() {
     setError('');
 
     try {
-      const data = await (await fetch('/api/employees')).json();
+      const data = await apiClient.get('/api/employees');
 
       setEmployees(Array.isArray(data) ? data : []);
     } catch {
@@ -480,9 +481,9 @@ export default function Employees() {
     setDocumentError('');
 
     try {
-      const data = await fetch(
+      const data = await apiClient.get(
         `/api/employees?documents=true&employee_id=${employeeId}`
-      ).then((r) => r.json());
+      );
 
       setEmployeeDocuments(Array.isArray(data) ? data : []);
     } catch {
@@ -508,17 +509,15 @@ export default function Employees() {
         return;
       }
 
-      const res = await fetch(
+      const data = await apiClient.get<{ signedUrl?: string; error?: string }>(
         `/api/employees?document_signed_url=true&document_id=${document.id}`
       );
 
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok || !data?.signedUrl) {
+      if (!data?.signedUrl) {
         throw new Error(data?.error || 'Failed to open private document.');
       }
 
-      window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+      window.open(data.signedUrl as string, '_blank', 'noopener,noreferrer');
     } catch (err) {
       setDocumentError(
         err instanceof Error ? err.message : 'Failed to open private document.'
@@ -552,26 +551,16 @@ export default function Employees() {
         throw new Error(uploadError.message || 'Failed to upload document.');
       }
 
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'document_create',
-          employee_id: selected.id,
-          document_type: documentType,
-          title: documentTitle.trim(),
-          file_path: filePath,
-          visibility: documentVisibility,
-          uploaded_by: profile.id,
-          uploaded_by_name: profile.name,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'document_create',
+        employee_id: selected.id,
+        document_type: documentType,
+        title: documentTitle.trim(),
+        file_path: filePath,
+        visibility: documentVisibility,
+        uploaded_by: profile.id,
+        uploaded_by_name: profile.name,
       });
-
-      const result = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(result?.error || 'Failed to save document.');
-      }
 
       resetDocumentForm();
       await fetchEmployeeDocuments(selected.id);
@@ -601,15 +590,7 @@ export default function Employees() {
         changed_by_name: String(profile?.name ?? ''),
       });
 
-      const res = await fetch(`/api/employees?${params.toString()}`, {
-        method: 'DELETE',
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to delete document.');
-      }
+      await apiClient.del(`/api/employees?${params.toString()}`);
 
       await fetchEmployeeDocuments(selected.id);
     } catch (err) {
@@ -793,25 +774,15 @@ export default function Employees() {
     setImporting(true);
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'import_employees',
-          employees: importRows,
-          actor_role: profile.role,
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      const data = await apiClient.post('/api/employees', {
+        action: 'import_employees',
+        employees: importRows,
+        actor_role: profile.role,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
 
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to import employees.');
-      }
-
-      setImportResults(data);
+      setImportResults(data as typeof importResults);
       await fetchEmployees();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to import employees.');
@@ -826,27 +797,17 @@ export default function Employees() {
     setCreatingAccounts(true);
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'import_create_accounts',
-          employees: importResults.insertedRows.map((row) => ({
-            email: row.email,
-          })),
-          actor_role: profile.role,
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      const data = await apiClient.post('/api/employees', {
+        action: 'import_create_accounts',
+        employees: importResults.insertedRows.map((row) => ({
+          email: row.email,
+        })),
+        actor_role: profile.role,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
 
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to create employee accounts.');
-      }
-
-      setAccountResults(data);
+      setAccountResults(data as typeof accountResults);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to create employee accounts.');
     } finally {
@@ -900,26 +861,17 @@ export default function Employees() {
     setFormError('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          role: isAdmin ? form.role : 'employee',
-          department: effectiveDepartment,
-          salary: form.salary ? Number(form.salary) : null,
-          date_of_birth: form.date_of_birth,
-          identity_type: form.identity_type,
-          identity_last4: form.identity_last4,
-          status: 'active',
-          join_date: new Date().toISOString().slice(0, 10),
-        }),
+      await apiClient.post('/api/employees', {
+        ...form,
+        role: isAdmin ? form.role : 'employee',
+        department: effectiveDepartment,
+        salary: form.salary ? Number(form.salary) : null,
+        date_of_birth: form.date_of_birth,
+        identity_type: form.identity_type,
+        identity_last4: form.identity_last4,
+        status: 'active',
+        join_date: new Date().toISOString().slice(0, 10),
       });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || 'Failed to add employee');
-      }
 
       setShowAdd(false);
       setForm(emptyForm());
@@ -956,24 +908,14 @@ export default function Employees() {
     setEditError('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: selected.id,
-          ...editForm,
-          salary: editForm.salary ? Number(editForm.salary) : null,
-          date_of_birth: editForm.date_of_birth,
-          identity_type: editForm.identity_type,
-          identity_last4: editForm.identity_last4,
-        }),
+      const data = await apiClient.put<{ employee?: Employee }>('/api/employees', {
+        id: selected.id,
+        ...editForm,
+        salary: editForm.salary ? Number(editForm.salary) : null,
+        date_of_birth: editForm.date_of_birth,
+        identity_type: editForm.identity_type,
+        identity_last4: editForm.identity_last4,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to update employee.');
-      }
 
       const updatedEmployee = data?.employee;
 
@@ -1019,15 +961,7 @@ export default function Employees() {
     setDeactivating(true);
 
     try {
-      const res = await fetch(`/api/employees?id=${employee.id}`, {
-        method: 'DELETE',
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to deactivate employee.');
-      }
+      const data = await apiClient.del<{ employee?: Employee }>(`/api/employees?id=${employee.id}`);
 
       const updatedEmployee = data?.employee;
 

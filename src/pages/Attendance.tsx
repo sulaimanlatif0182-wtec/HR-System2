@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useState, useEffect, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -964,9 +965,7 @@ export default function Attendance() {
     setDeviceLoading(true);
 
     try {
-      const data = await fetch(`/api/device-auth?employee_id=${profile.id}`).then(
-        (r) => r.json()
-      );
+      const data = await apiClient.get(`/api/device-auth?employee_id=${profile.id}`);
 
       setDevices(Array.isArray(data) ? data : []);
     } catch {
@@ -982,18 +981,18 @@ export default function Attendance() {
 
     try {
       const [att, emp, settings, holidayRows, correctionRows] = await Promise.all([
-        fetch('/api/attendance').then((r) => r.json()),
-        fetch('/api/employees').then((r) => r.json()),
-        fetch('/api/attendance?settings=1').then((r) => r.json()),
-        fetch('/api/attendance?holidays=1').then((r) => r.json()),
-        fetch(
+        apiClient.get('/api/attendance'),
+        apiClient.get('/api/employees'),
+        apiClient.get('/api/attendance?settings=1'),
+        apiClient.get('/api/attendance?holidays=1'),
+        apiClient.get(
           isAdmin
             ? '/api/attendance?correction_requests=1'
             : `/api/attendance?correction_requests=1&employee_id=${profile?.id ?? ''}`
-        ).then((r) => r.json()),
+        ),
       ]);
 
-      const normalizedSettings = normalizeAttendanceSettings(settings);
+      const normalizedSettings = normalizeAttendanceSettings(settings as Partial<AttendanceSettings> | null | undefined);
 
       setRecords(Array.isArray(att) ? att : []);
       setEmployees(Array.isArray(emp) ? emp : []);
@@ -1260,40 +1259,20 @@ export default function Attendance() {
           }`
         ) || 'Attendance Device';
 
-      const optionsRes = await fetch('/api/device-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'registration_options',
-          employee_id: profile.id,
-        }),
+      const options = await apiClient.post('/api/device-auth', {
+        action: 'registration_options',
+        employee_id: profile.id,
       });
-
-      const options = await optionsRes.json();
-
-      if (!optionsRes.ok) {
-        throw new Error(options?.error || 'Failed to start device registration.');
-      }
 
       const registrationResponse = await startRegistration(options as any);
 
-      const verifyRes = await fetch('/api/device-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'registration_verify',
-          employee_id: profile.id,
-          response: registrationResponse,
-          device_name: deviceName,
-          user_agent: navigator.userAgent,
-        }),
+      const verifyData = await apiClient.post('/api/device-auth', {
+        action: 'registration_verify',
+        employee_id: profile.id,
+        response: registrationResponse,
+        device_name: deviceName,
+        user_agent: navigator.userAgent,
       });
-
-      const verifyData = await verifyRes.json();
-
-      if (!verifyRes.ok) {
-        throw new Error(verifyData?.error || 'Device registration failed.');
-      }
 
       setDeviceMessage(
         'Device registered. Please wait for admin approval before using attendance.'
@@ -1318,42 +1297,19 @@ export default function Attendance() {
 
     setGpsMessage('GPS verified. Please complete device/passkey verification…');
 
-    const optionsRes = await fetch('/api/device-auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'authentication_options',
-        employee_id: profile.id,
-      }),
+    const authOptions = await apiClient.post('/api/device-auth', {
+      action: 'authentication_options',
+      employee_id: profile.id,
     });
-
-    const authOptions = await optionsRes.json();
-
-    if (!optionsRes.ok) {
-      throw new Error(
-        authOptions?.error ||
-          'No approved attendance device found. Please register this device.'
-      );
-    }
 
     const authenticationResponse = await startAuthentication(authOptions as any);
 
-    const verifyRes = await fetch('/api/device-auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'authentication_verify',
-        employee_id: profile.id,
-        response: authenticationResponse,
-        purpose,
-      }),
+    const verifyData = await apiClient.post<{ token?: string; device_id?: number }>('/api/device-auth', {
+      action: 'authentication_verify',
+      employee_id: profile.id,
+      response: authenticationResponse,
+      purpose,
     });
-
-    const verifyData = await verifyRes.json();
-
-    if (!verifyRes.ok) {
-      throw new Error(verifyData?.error || 'Device verification failed.');
-    }
 
     return {
       token: verifyData.token as string,
@@ -1437,24 +1393,14 @@ export default function Attendance() {
     setCorrectionRequestMessage('');
 
     try {
-      const res = await fetch('/api/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'correction_request_create',
-          employee_id: profile.id,
-          requested_by: profile.id,
-          requested_by_name: profile.name,
-          ...correctionRequestForm,
-          date: correctionRequestForm.request_date,
-        }),
+      await apiClient.post('/api/attendance', {
+        action: 'correction_request_create',
+        employee_id: profile.id,
+        requested_by: profile.id,
+        requested_by_name: profile.name,
+        ...correctionRequestForm,
+        date: correctionRequestForm.request_date,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to submit correction request.');
-      }
 
       setCorrectionRequestForm(DEFAULT_CORRECTION_REQUEST_FORM);
       setCorrectionRequestMessage('Correction request submitted successfully.');
@@ -1484,24 +1430,14 @@ export default function Attendance() {
     setCorrectionRequestMessage('');
 
     try {
-      const res = await fetch('/api/attendance', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'correction_request_decision',
-          id: request.id,
-          status,
-          admin_remarks: adminRemarks || null,
-          decided_by: profile.id,
-          decided_by_name: profile.name,
-        }),
+      await apiClient.put('/api/attendance', {
+        action: 'correction_request_decision',
+        id: request.id,
+        status,
+        admin_remarks: adminRemarks || null,
+        decided_by: profile.id,
+        decided_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to update correction request.');
-      }
 
       await fetchAll();
       setCorrectionRequestMessage(`Correction request ${status}.`);
@@ -1545,27 +1481,17 @@ export default function Attendance() {
     setHolidayMessage('');
 
     try {
-      const res = await fetch('/api/attendance', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'holiday_upsert',
-          id: holidayForm.id || undefined,
-          holiday_date: holidayForm.holiday_date,
-          name: holidayForm.name.trim(),
-          type: holidayForm.type,
-          is_working_day: holidayForm.is_working_day,
-          notes: holidayForm.notes.trim(),
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      await apiClient.put('/api/attendance', {
+        action: 'holiday_upsert',
+        id: holidayForm.id || undefined,
+        holiday_date: holidayForm.holiday_date,
+        name: holidayForm.name.trim(),
+        type: holidayForm.type,
+        is_working_day: holidayForm.is_working_day,
+        notes: holidayForm.notes.trim(),
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to save holiday.');
-      }
 
       await fetchAll();
       setHolidayForm(DEFAULT_HOLIDAY_FORM);
@@ -1592,22 +1518,12 @@ export default function Attendance() {
     setHolidayMessage('');
 
     try {
-      const res = await fetch('/api/attendance', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'holiday_delete',
-          id: holiday.id,
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      await apiClient.put('/api/attendance', {
+        action: 'holiday_delete',
+        id: holiday.id,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to delete holiday.');
-      }
 
       await fetchAll();
       setHolidayMessage('Holiday deleted successfully.');
@@ -1646,24 +1562,14 @@ export default function Attendance() {
     try {
       const cleanSettings = normalizeAttendanceSettings(settingsForm);
 
-      const res = await fetch('/api/attendance', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'settings_update',
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-          ...cleanSettings,
-        }),
+      const data = await apiClient.put('/api/attendance', {
+        action: 'settings_update',
+        changed_by: profile.id,
+        changed_by_name: profile.name,
+        ...cleanSettings,
       });
 
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to save attendance settings.');
-      }
-
-      const updatedSettings = normalizeAttendanceSettings(data);
+      const updatedSettings = normalizeAttendanceSettings(data as Partial<AttendanceSettings>);
 
       setAttendanceSettings(updatedSettings);
       setSettingsForm(updatedSettings);
@@ -1719,25 +1625,15 @@ export default function Attendance() {
 
       const deviceAuth = await verifyDeviceForAttendance('attendance_check_in');
 
-      const res = await fetch('/api/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          employee_id: profile.id,
-          date: formatLocalDate(),
-          check_in: new Date().toISOString(),
-          check_in_latitude: location.latitude,
-          check_in_longitude: location.longitude,
-          check_in_accuracy: location.accuracy,
-          device_auth_token: deviceAuth.token,
-        }),
+      await apiClient.post('/api/attendance', {
+        employee_id: profile.id,
+        date: formatLocalDate(),
+        check_in: new Date().toISOString(),
+        check_in_latitude: location.latitude,
+        check_in_longitude: location.longitude,
+        check_in_accuracy: location.accuracy,
+        device_auth_token: deviceAuth.token,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to check in.');
-      }
 
       await fetchAll();
 
@@ -1779,24 +1675,14 @@ export default function Attendance() {
 
       const deviceAuth = await verifyDeviceForAttendance('attendance_lunch_out');
 
-      const res = await fetch('/api/attendance', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: myToday.id,
-          action: 'lunch_out',
-          latitude: location.latitude,
-          longitude: location.longitude,
-          accuracy: location.accuracy,
-          device_auth_token: deviceAuth.token,
-        }),
+      await apiClient.put('/api/attendance', {
+        id: myToday.id,
+        action: 'lunch_out',
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracy: location.accuracy,
+        device_auth_token: deviceAuth.token,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to record Lunch Out.');
-      }
 
       await fetchAll();
 
@@ -1838,24 +1724,14 @@ export default function Attendance() {
 
       const deviceAuth = await verifyDeviceForAttendance('attendance_lunch_in');
 
-      const res = await fetch('/api/attendance', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: myToday.id,
-          action: 'lunch_in',
-          latitude: location.latitude,
-          longitude: location.longitude,
-          accuracy: location.accuracy,
-          device_auth_token: deviceAuth.token,
-        }),
+      const data = await apiClient.put<{ lunch_late_minutes?: number }>('/api/attendance', {
+        id: myToday.id,
+        action: 'lunch_in',
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracy: location.accuracy,
+        device_auth_token: deviceAuth.token,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to record Lunch In.');
-      }
 
       await fetchAll();
 
@@ -1897,24 +1773,14 @@ export default function Attendance() {
 
       const deviceAuth = await verifyDeviceForAttendance('attendance_check_out');
 
-      const res = await fetch('/api/attendance', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: myToday.id,
-          check_out: new Date().toISOString(),
-          check_out_latitude: location.latitude,
-          check_out_longitude: location.longitude,
-          check_out_accuracy: location.accuracy,
-          device_auth_token: deviceAuth.token,
-        }),
+      await apiClient.put('/api/attendance', {
+        id: myToday.id,
+        check_out: new Date().toISOString(),
+        check_out_latitude: location.latitude,
+        check_out_longitude: location.longitude,
+        check_out_accuracy: location.accuracy,
+        device_auth_token: deviceAuth.token,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to check out.');
-      }
 
       await fetchAll();
 
@@ -1961,34 +1827,24 @@ export default function Attendance() {
     setCorrectionError('');
 
     try {
-      const res = await fetch('/api/attendance', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editingRecord.id,
-          action: 'manual_correction',
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-          reason: correctionForm.reason,
-          date: correctionForm.date,
-          status: correctionForm.status,
-          check_in: correctionForm.check_in,
-          lunch_out: correctionForm.lunch_out,
-          lunch_in: correctionForm.lunch_in,
-          lunch_expected_return: correctionForm.lunch_expected_return,
-          check_out: correctionForm.check_out,
-          overtime_hours: correctionForm.overtime_hours,
-          lunch_break_minutes: correctionForm.lunch_break_minutes,
-          lunch_late_minutes: correctionForm.lunch_late_minutes,
-          lunch_status: correctionForm.lunch_status,
-        }),
+      await apiClient.put('/api/attendance', {
+        id: editingRecord.id,
+        action: 'manual_correction',
+        changed_by: profile.id,
+        changed_by_name: profile.name,
+        reason: correctionForm.reason,
+        date: correctionForm.date,
+        status: correctionForm.status,
+        check_in: correctionForm.check_in,
+        lunch_out: correctionForm.lunch_out,
+        lunch_in: correctionForm.lunch_in,
+        lunch_expected_return: correctionForm.lunch_expected_return,
+        check_out: correctionForm.check_out,
+        overtime_hours: correctionForm.overtime_hours,
+        lunch_break_minutes: correctionForm.lunch_break_minutes,
+        lunch_late_minutes: correctionForm.lunch_late_minutes,
+        lunch_status: correctionForm.lunch_status,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to save correction.');
-      }
 
       await fetchAll();
       setEditingRecord(null);

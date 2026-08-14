@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -192,13 +193,13 @@ export default function Dashboard() {
     try {
       const [empData, attData, leaveData, claimData, payrollData, holidayData, announcementData] =
         await Promise.all([
-          fetch('/api/employees').then((r) => r.json()),
-          fetch('/api/attendance').then((r) => r.json()),
-          fetch('/api/leave').then((r) => r.json()),
-          fetch('/api/claims').then((r) => r.json()).catch(() => []),
-          fetch('/api/payroll').then((r) => r.json()).catch(() => []),
-          fetch('/api/attendance?holidays=1').then((r) => r.json()).catch(() => []),
-          fetch('/api/employees?announcements=true').then((r) => r.json()).catch(() => []),
+          apiClient.get('/api/employees'),
+          apiClient.get('/api/attendance'),
+          apiClient.get('/api/leave'),
+          apiClient.get('/api/claims').catch(() => []),
+          apiClient.get('/api/payroll').catch(() => []),
+          apiClient.get('/api/attendance?holidays=1').catch(() => []),
+          apiClient.get('/api/employees?announcements=true').catch(() => []),
         ]);
 
       setEmployees(Array.isArray(empData) ? empData : []);

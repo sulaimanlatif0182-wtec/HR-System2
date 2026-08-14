@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { FileText, Save, Printer, Trash2, Loader2, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { PageHeader, Badge, LoadingState, ErrorState, EmptyState } from '../components/ui';
+import apiClient from '../lib/api';
 
 interface Employee { id: number; name: string; email?: string | null; title?: string | null; department?: string | null; join_date?: string | null; }
 interface HrLetter { id: number; employee_id: number; template_type: string; title: string; content: string; status: string; generated_by_name?: string | null; created_at: string; }
@@ -62,8 +63,8 @@ export default function HrLetters() {
     setLoading(true); setError('');
     try {
       const [emp, letterData] = await Promise.all([
-        fetch('/api/employees').then((r) => r.json()),
-        fetch('/api/employees?hr_letters=true').then((r) => r.json()),
+        apiClient.get('/api/employees'),
+        apiClient.get('/api/employees?hr_letters=true'),
       ]);
       setEmployees(Array.isArray(emp) ? emp : []);
       setLetters(Array.isArray(letterData) ? letterData : []);
@@ -85,9 +86,7 @@ export default function HrLetters() {
     if (!profile || !employeeId || !title || !content) { setMessage('Employee, title and content are required.'); return; }
     setSaving(true); setMessage('');
     try {
-      const res = await fetch('/api/employees', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'hr_letter_save', employee_id: Number(employeeId), template_type: templateType, title, content, status: 'final', changed_by: profile.id, changed_by_name: profile.name }) });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Failed to save letter.');
+      await apiClient.post('/api/employees', { action: 'hr_letter_save', employee_id: Number(employeeId), template_type: templateType, title, content, status: 'final', changed_by: profile.id, changed_by_name: profile.name });
       setMessage('Letter saved successfully.'); await fetchAll();
     } catch (err) { setMessage(err instanceof Error ? err.message : 'Failed to save letter.'); }
     finally { setSaving(false); }
@@ -104,8 +103,11 @@ export default function HrLetters() {
 
   const deleteLetter = async (letter: HrLetter) => {
     if (!profile || !window.confirm(`Delete letter "${letter.title}"?`)) return;
-    const res = await fetch('/api/employees', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'hr_letter_delete', id: letter.id, changed_by: profile.id, changed_by_name: profile.name }) });
-    if (!res.ok) alert('Failed to delete letter.');
+    try {
+      await apiClient.post('/api/employees', { action: 'hr_letter_delete', id: letter.id, changed_by: profile.id, changed_by_name: profile.name });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete letter.');
+    }
     await fetchAll();
   };
 

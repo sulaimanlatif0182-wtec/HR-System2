@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -86,8 +87,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   // Lazy-load the employee directory the first time the user types
   useEffect(() => {
     if (query.trim() && !empLoaded) {
-      fetch('/api/employees')
-        .then((r) => r.json())
+      apiClient.get('/api/employees')
         .then((d) => { if (Array.isArray(d)) setAllEmployees(d); })
         .catch(() => {})
         .finally(() => setEmpLoaded(true));

@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -270,11 +271,11 @@ export default function NotificationsBell() {
     const build = async () => {
       try {
         const [leaves, employees, claims, payroll, batches] = await Promise.all([
-          fetch('/api/leave').then((r) => r.json()).catch(() => []),
-          fetch('/api/employees').then((r) => r.json()).catch(() => []),
-          fetch('/api/claims').then((r) => r.json()).catch(() => []),
-          fetch('/api/payroll').then((r) => r.json()).catch(() => []),
-          fetch('/api/payroll?batches=true').then((r) => r.json()).catch(() => []),
+          apiClient.get('/api/leave').catch(() => []),
+          apiClient.get('/api/employees').catch(() => []),
+          apiClient.get('/api/claims').catch(() => []),
+          apiClient.get('/api/payroll').catch(() => []),
+          apiClient.get('/api/payroll?batches=true').catch(() => []),
         ]);
 
         if (cancelled) return;

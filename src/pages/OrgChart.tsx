@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Users } from 'lucide-react';
 import { PageHeader, LoadingState, ErrorState } from '../components/Shared';
 import type { Employee, Department } from '../types';
+import apiClient from '../lib/api';
 
 const COLORS: Record<string, string> = {};
 const PALETTE = ['#8b5cf6', '#22d3ee', '#fbbf24', '#fb7185', '#34d399', '#6366f1', '#f472b6'];
@@ -29,8 +30,8 @@ export default function OrgChart() {
     setError('');
     try {
       const [e, d] = await Promise.all([
-        fetch('/api/employees').then((r) => r.json()),
-        fetch('/api/departments').then((r) => r.json()),
+        apiClient.get('/api/employees'),
+        apiClient.get('/api/departments'),
       ]);
       setEmployees(Array.isArray(e) ? e : []);
       setDepartments(Array.isArray(d) ? d : []);

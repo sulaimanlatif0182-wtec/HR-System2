@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useEffect, useState } from 'react';
 import { FileBarChart, Printer, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,9 +28,7 @@ export default function MonthlyReports() {
     setLoading(true);
     setError('');
     try {
-      const data = await fetch(`/api/employees?monthly_hr_report=true&period=${period}`).then((r) =>
-        r.json()
-      );
+      const data = await apiClient.get(`/api/employees?monthly_hr_report=true&period=${period}`);
       setReport(data);
     } catch {
       setError('Failed to load monthly HR report.');

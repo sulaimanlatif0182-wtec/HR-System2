@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
@@ -112,16 +113,16 @@ export default function ProfileUpdates() {
 
     try {
       const [me, req, emp] = await Promise.all([
-        fetch(`/api/employees?id=${profile.id}`).then((r) => r.json()),
-        fetch(
+        apiClient.get<Employee>(`/api/employees?id=${profile.id}`),
+        apiClient.get(
           isAdmin
             ? '/api/employees?profile_update_requests=true'
             : `/api/employees?profile_update_requests=true&employee_id=${profile.id}`
-        ).then((r) => r.json()),
-        fetch('/api/employees').then((r) => r.json()),
+        ),
+        apiClient.get('/api/employees'),
       ]);
 
-      setMyEmployee(me || null);
+      setMyEmployee((me as Employee) || null);
       setEmployees(Array.isArray(emp) ? emp : []);
       setRequests(Array.isArray(req) ? req : []);
 
@@ -176,21 +177,14 @@ export default function ProfileUpdates() {
         requestedData[key] = form[key as keyof typeof form];
       });
 
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'profile_update_request_create',
-          employee_id: profile.id,
-          requested_by: profile.id,
-          requested_by_name: profile.name,
-          requested_data: requestedData,
-          reason: form.reason,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'profile_update_request_create',
+        employee_id: profile.id,
+        requested_by: profile.id,
+        requested_by_name: profile.name,
+        requested_data: requestedData,
+        reason: form.reason,
       });
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Failed to submit request.');
 
       setMessage('Profile update request submitted successfully.');
       await fetchAll();
@@ -216,21 +210,14 @@ export default function ProfileUpdates() {
     setDeciding(request.id);
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'profile_update_decision',
-          id: request.id,
-          status,
-          admin_remarks: adminRemarks || null,
-          decided_by: profile.id,
-          decided_by_name: profile.name,
-        }),
+      await apiClient.put('/api/employees', {
+        action: 'profile_update_decision',
+        id: request.id,
+        status,
+        admin_remarks: adminRemarks || null,
+        decided_by: profile.id,
+        decided_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Failed to update request.');
 
       await fetchAll();
     } catch (err) {

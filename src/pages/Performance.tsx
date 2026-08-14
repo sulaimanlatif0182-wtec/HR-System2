@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -139,12 +140,12 @@ export default function Performance() {
 
     try {
       const [emp, reviewData] = await Promise.all([
-        fetch('/api/employees').then((response) => response.json()),
-        fetch(
+        apiClient.get('/api/employees'),
+        apiClient.get(
           profile?.role === 'employee'
             ? `/api/employees?performance_reviews=true&employee_id=${profile?.id}`
             : '/api/employees?performance_reviews=true'
-        ).then((response) => response.json()),
+        ),
       ]);
 
       setEmployees(Array.isArray(emp) ? emp : []);
@@ -180,23 +181,16 @@ export default function Performance() {
     setMessage('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'performance_save',
-          ...form,
-          employee_id: Number(form.employee_id),
-          overall_score: overall,
-          reviewer_id: profile.id,
-          reviewer_name: profile.name,
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'performance_save',
+        ...form,
+        employee_id: Number(form.employee_id),
+        overall_score: overall,
+        reviewer_id: profile.id,
+        reviewer_name: profile.name,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || 'Failed to save review.');
 
       setForm(EMPTY);
       setMessage('Performance review saved successfully.');
@@ -231,18 +225,16 @@ export default function Performance() {
   const deleteReview = async (review: Review) => {
     if (!profile || !window.confirm('Delete performance review?')) return;
 
-    const res = await fetch('/api/employees', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    try {
+      await apiClient.post('/api/employees', {
         action: 'performance_delete',
         id: review.id,
         changed_by: profile.id,
         changed_by_name: profile.name,
-      }),
-    });
-
-    if (!res.ok) alert('Failed to delete.');
+      });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete.');
+    }
     await fetchAll();
   };
 
@@ -251,27 +243,21 @@ export default function Performance() {
 
     if (!window.confirm('Acknowledge this performance review as accurate?')) return;
 
-    const res = await fetch('/api/employees', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    try {
+      await apiClient.post('/api/employees', {
         action: 'performance_acknowledge',
         id: review.id,
         employee_id: profile.id,
         employee_name: profile.name,
         changed_by: profile.id,
         changed_by_name: profile.name,
-      }),
-    });
+      });
 
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      alert(data?.error || 'Failed to acknowledge review.');
-      return;
+      setMessage('Performance review acknowledged successfully.');
+      await fetchAll();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to acknowledge review.');
     }
-
-    setMessage('Performance review acknowledged successfully.');
-    await fetchAll();
   };
 
   const printReview = (review: Review) => {

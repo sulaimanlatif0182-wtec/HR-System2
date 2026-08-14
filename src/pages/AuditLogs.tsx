@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useEffect, useMemo, useState } from 'react';
 import {
   FileSearch,
@@ -134,8 +135,8 @@ export default function AuditLogs() {
 
     try {
       const [auditData, employeeData] = await Promise.all([
-        fetch('/api/attendance?audit_logs=1').then((r) => r.json()),
-        fetch('/api/employees').then((r) => r.json()),
+        apiClient.get('/api/attendance?audit_logs=1'),
+        apiClient.get('/api/employees'),
       ]);
 
       setLogs(Array.isArray(auditData) ? auditData : []);

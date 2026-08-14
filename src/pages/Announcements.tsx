@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
@@ -78,9 +79,7 @@ export default function Announcements() {
     setError('');
 
     try {
-      const data = await fetch(`/api/employees?announcements=true&t=${Date.now()}`).then(
-        (r) => r.json()
-      );
+      const data = await apiClient.get(`/api/employees?announcements=true&t=${Date.now()}`);
 
       setItems(Array.isArray(data) ? data : []);
     } catch {
@@ -120,23 +119,13 @@ export default function Announcements() {
     setMessage('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'announcement_save',
-          ...form,
-          expires_at: form.expires_at || null,
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'announcement_save',
+        ...form,
+        expires_at: form.expires_at || null,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to save announcement.');
-      }
 
       setForm(EMPTY_FORM);
       setMessage('Announcement saved successfully.');
@@ -159,22 +148,12 @@ export default function Announcements() {
     setMessage('');
 
     try {
-      const res = await fetch('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'announcement_delete',
-          id: item.id,
-          changed_by: profile.id,
-          changed_by_name: profile.name,
-        }),
+      await apiClient.post('/api/employees', {
+        action: 'announcement_delete',
+        id: item.id,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to delete announcement.');
-      }
 
       setMessage('Announcement deleted successfully.');
       await fetchAll();

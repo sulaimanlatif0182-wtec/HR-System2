@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -62,22 +63,14 @@ export default function Profile() {
     }
     setSavingInfo(true);
     try {
-      const res = await fetch('/api/employees', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: profile.id,
-          name: form.name.trim(),
-          title: form.title.trim() || null,
-          phone: form.phone.trim() || null,
-          location: form.location.trim() || null,
-          department: form.department.trim() || null,
-        }),
+      await apiClient.put('/api/employees', {
+        id: profile.id,
+        name: form.name.trim(),
+        title: form.title.trim() || null,
+        phone: form.phone.trim() || null,
+        location: form.location.trim() || null,
+        department: form.department.trim() || null,
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to save profile.');
-      }
       await refreshProfile();
       setInfoSuccess('Profile updated successfully.');
       setTimeout(() => setInfoSuccess(''), 4000);

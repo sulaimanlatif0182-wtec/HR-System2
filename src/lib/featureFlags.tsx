@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import apiClient from './api';
 
 export const FEATURE_FLAG_KEYS = [
   'leave_request',
@@ -76,9 +77,7 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch('/api/employees?feature_flags=true');
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await apiClient.get('/api/employees?feature_flags=true');
       if (!Array.isArray(data)) return;
 
       const byKey = new Map<string, { key: string; label?: string; category?: string; enabled?: boolean }>(

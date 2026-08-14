@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -197,8 +198,8 @@ export default function Claims() {
 
     try {
       const [claimData, empData] = await Promise.all([
-        fetch('/api/claims').then((r) => r.json()),
-        fetch('/api/employees').then((r) => r.json()),
+        apiClient.get('/api/claims'),
+        apiClient.get('/api/employees'),
       ]);
 
       setClaims(Array.isArray(claimData) ? claimData : []);
@@ -378,34 +379,24 @@ export default function Claims() {
     try {
       const attachment = await uploadAttachment();
 
-      const res = await fetch('/api/claims', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          employee_id: profile.id,
-          claim_type: form.claim_type,
-          claim_date: form.claim_date,
-          amount: Number(form.amount),
-          description: form.description,
-          vehicle_no: form.vehicle_no || null,
-          from_location: form.from_location || null,
-          to_location: form.to_location || null,
-          odometer_start: form.odometer_start || null,
-          odometer_end: form.odometer_end || null,
-          distance_km: form.distance_km || null,
-          fuel_liters: form.fuel_liters || null,
-          petrol_station: form.petrol_station || null,
-          receipt_no: form.receipt_no || null,
-          attachment_url: attachment.attachment_url,
-          attachment_name: attachment.attachment_name,
-        }),
+      await apiClient.post('/api/claims', {
+        employee_id: profile.id,
+        claim_type: form.claim_type,
+        claim_date: form.claim_date,
+        amount: Number(form.amount),
+        description: form.description,
+        vehicle_no: form.vehicle_no || null,
+        from_location: form.from_location || null,
+        to_location: form.to_location || null,
+        odometer_start: form.odometer_start || null,
+        odometer_end: form.odometer_end || null,
+        distance_km: form.distance_km || null,
+        fuel_liters: form.fuel_liters || null,
+        petrol_station: form.petrol_station || null,
+        receipt_no: form.receipt_no || null,
+        attachment_url: attachment.attachment_url,
+        attachment_name: attachment.attachment_name,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to submit claim.');
-      }
 
       setShowModal(false);
       resetForm();
@@ -448,25 +439,15 @@ export default function Claims() {
     setActingId(claim.id);
 
     try {
-      const res = await fetch('/api/claims', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: claim.id,
-          action,
-          actor_id: profile.id,
-          actor_name: profile.name,
-          actor_role: profile.role,
-          actor_department: profile.department,
-          rejection_reason: rejectionReason,
-        }),
+      await apiClient.put('/api/claims', {
+        id: claim.id,
+        action,
+        actor_id: profile.id,
+        actor_name: profile.name,
+        actor_role: profile.role,
+        actor_department: profile.department,
+        rejection_reason: rejectionReason,
       });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to update claim.');
-      }
 
       await fetchAll();
     } catch (err) {

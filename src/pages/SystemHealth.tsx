@@ -1,3 +1,4 @@
+import apiClient from '../lib/api';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
@@ -61,11 +62,9 @@ export default function SystemHealth() {
     setError('');
 
     try {
-      const data = await fetch(`/api/employees?system_health=true&t=${Date.now()}`).then((r) =>
-        r.json()
-      );
+      const data = await apiClient.get(`/api/employees?system_health=true&t=${Date.now()}`);
 
-      setHealth(data);
+      setHealth(data as HealthResponse);
     } catch {
       setError('Failed to load system health.');
     } finally {
