@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import supabase from '../db-client.js';
+import { supabase } from '../db-client.js';
 
 const anonUrl =
   process.env.VITE_SUPABASE_URL ||

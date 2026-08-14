@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import supabase from './db-client.js';
+import { supabase } from './db-client.js';
 import {
   getFeatureFlags,
   isFeatureEnabled,

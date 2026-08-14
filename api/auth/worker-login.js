@@ -1,4 +1,4 @@
-import supabase from '../db-client.js';
+import { supabase } from '../db-client.js';
 import crypto from 'crypto';
 import { setCors } from '../lib/cors.js';
 import { verifyWorkerSession } from './verifyWorkerSession.js';

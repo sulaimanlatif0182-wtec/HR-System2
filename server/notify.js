@@ -1,4 +1,4 @@
-import supabase from '../api/db-client.js';
+import { supabase } from '../api/db-client.js';
 import { sendNotificationEmail } from './email.js';
 
 function sameDepartment(a, b) {

@@ -1,4 +1,4 @@
-import supabase from './db-client.js';
+import { supabase } from './db-client.js';
 import { isFeatureEnabled } from './feature-flags.js';
 import { requireAuth } from './auth/requireAuth.js';
 import { setCors } from './lib/cors.js';

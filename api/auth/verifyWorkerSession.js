@@ -1,4 +1,4 @@
-import supabase from '../db-client.js';
+import { supabase } from '../db-client.js';
 
 export function readWorkerCookie(req) {
   const header = req.headers?.cookie || '';

@@ -1,4 +1,4 @@
-import supabase from './db-client.js';
+import { supabase } from './db-client.js';
 
 export const DEFAULT_FEATURE_FLAGS = [
   { key: 'leave_request', label: 'Leave Requests', category: 'Leave', enabled: true },
