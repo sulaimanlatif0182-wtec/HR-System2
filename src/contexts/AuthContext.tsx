@@ -222,12 +222,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      await Promise.race([
-        supabase.auth.signOut(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('signOut timed out')), 5000)
-        ),
-      ]);
+      try {
+        // The gotrue auth-token lock can be orphaned (React Strict Mode /
+        // in-flight token refresh), so signOut may hang until gotrue force
+        // recovers the lock (~5s). Allow a longer window so it completes and
+        // properly clears the session instead of timing out early.
+        await Promise.race([
+          supabase.auth.signOut(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('signOut timed out')), 10000)
+          ),
+        ]);
+      } catch (err) {
+        console.error('signOut (global) failed, clearing local session:', err);
+        try {
+          await Promise.race([
+            supabase.auth.signOut({ scope: 'local' }),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('local signOut timed out')), 5000)
+            ),
+          ]);
+        } catch {
+          // Ignore — local state is cleared in finally regardless.
+        }
+      }
     } catch (err) {
       console.error('signOut failed:', err);
     } finally {
