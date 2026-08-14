@@ -1080,7 +1080,11 @@ export default async function handler(req, res) {
   }
 
   let authUser = null;
-  if (req.query?.cron_reminders !== '1' && req.query?.feature_flags !== 'true') {
+  if (
+    req.query?.cron_reminders !== '1' &&
+    req.query?.feature_flags !== 'true' &&
+    !req.query?.email
+  ) {
     authUser = await requireAuth(req, res);
     if (!authUser) return;
   }
