@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -59,12 +60,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [authMode, setAuthMode] = useState<AuthMode>('supabase');
+  const authInitialized = useRef(false);
 
   const loadProfile = async (email: string | undefined) => {
     if (!email) {
       setProfile(null);
       return;
     }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
 
     try {
       const cleanEmail = email.trim().toLowerCase();
@@ -74,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         {
           method: 'GET',
           cache: 'no-store',
+          signal: controller.signal,
         }
       );
 
@@ -87,6 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(employeeProfile);
     } catch {
       setProfile(null);
+    } finally {
+      clearTimeout(timer);
     }
   };
 
@@ -160,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('initAuth failed:', err);
     } finally {
       if (mounted) setLoading(false);
+      authInitialized.current = true;
     }
   };
 
@@ -168,6 +177,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    // During initial auth, initAuth() manages the loading state.
+    // Only reset loading for subsequent auth events (sign-in, sign-out, token refresh).
+    if (!authInitialized.current) return;
+
     setLoading(true);
 
     try {
