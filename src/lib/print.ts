@@ -36,7 +36,8 @@ const PRINT_STYLES = `
   .signature-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 60px; }
   .line { border-top: 1px solid #111827; padding-top: 8px; font-size: 12px; }
   .muted { color: #6b7280; font-size: 12px; }
-  @media print { body { margin: 0; padding: 0; } }
+  .print-hint { background: #f0f6ff; border: 1px solid #cfe0ff; color: #1f4fa3; font-size: 12px; text-align: center; padding: 8px; border-radius: 8px; margin-bottom: 16px; }
+  @media print { body { margin: 0; padding: 0; } .print-hint { display: none; } }
 `;
 
 export function printDocument(options: PrintDocumentOptions): void {
@@ -72,6 +73,7 @@ export function printDocument(options: PrintDocumentOptions): void {
         <style>${PRINT_STYLES}</style>
       </head>
       <body>
+        <div class="print-hint">Press Ctrl+P (or Cmd+P on Mac) to print this document.</div>
         ${headerHtml}
         ${bodyHtml}
       </body>
