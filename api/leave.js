@@ -317,25 +317,33 @@ export default async function handler(req, res) {
       const { employee_id, status, balances, adjustments } = req.query;
 
       if (balances === 'true') {
-        if (!employee_id) {
+        // Workers may only view their own balances.
+        const targetId =
+          authUser.category === 'worker' ? authUser.id : Number(employee_id);
+
+        if (!targetId) {
           return res.status(400).json({
             error: 'employee_id is required for balances.',
           });
         }
 
-        const data = await getBalances(Number(employee_id));
+        const data = await getBalances(targetId);
 
         return res.status(200).json(data);
       }
 
       if (adjustments === 'true') {
-        if (!employee_id) {
+        // Workers may only view their own adjustments.
+        const targetId =
+          authUser.category === 'worker' ? authUser.id : Number(employee_id);
+
+        if (!targetId) {
           return res.status(400).json({
             error: 'employee_id is required for adjustments.',
           });
         }
 
-        const data = await getAdjustments(Number(employee_id));
+        const data = await getAdjustments(targetId);
 
         return res.status(200).json(data);
       }
@@ -345,7 +353,9 @@ export default async function handler(req, res) {
         .select('*')
         .order('requested_at', { ascending: false });
 
-      if (employee_id) query = query.eq('employee_id', employee_id);
+      // Workers only ever see their own leave records.
+      if (authUser.category === 'worker') query = query.eq('employee_id', authUser.id);
+      if (employee_id && authUser.category !== 'worker') query = query.eq('employee_id', employee_id);
       if (status) query = query.eq('status', status);
 
       const { data, error } = await query;

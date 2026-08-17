@@ -825,6 +825,7 @@ export default async function handler(req, res) {
       const { data, error } = await supabase
         .from('attendance')
         .select('*')
+        .eq('employee_id', authUser.category === 'worker' ? authUser.id : undefined)
         .order('date', { ascending: false })
         .order('id', { ascending: false });
 

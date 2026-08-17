@@ -1103,7 +1103,9 @@ export default async function handler(req, res) {
         .select('*')
         .order('id', { ascending: false });
 
-      if (employee_id) query = query.eq('employee_id', employee_id);
+      // Workers only ever see their own payslips.
+      if (authUser.category === 'worker') query = query.eq('employee_id', authUser.id);
+      if (employee_id && authUser.category !== 'worker') query = query.eq('employee_id', employee_id);
       if (period) query = query.eq('period', period);
 
       const { data, error } = await query;

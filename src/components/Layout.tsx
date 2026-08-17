@@ -77,7 +77,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const displayName = profile?.name ?? user?.email?.split('@')[0] ?? 'Worker';
   const displayEmail = user?.email ?? profile?.email ?? '';
   const initials = displayName.slice(0, 2).toUpperCase();
-  const workerAllowedPaths = ['/', '/performance', '/leave', '/claims'];
+  const workerAllowedPaths = ['/performance', '/profile'];
   const items = NAV.filter(
     (n) =>
       n.roles.includes(role) &&
@@ -334,7 +334,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
           <div className="flex-1 md:hidden" />
           <div className="flex items-center gap-3 ml-auto">
-            <NotificationsBell />
+            {!isWorker && <NotificationsBell />}
             <div className="relative">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
@@ -368,12 +368,14 @@ export default function Layout({ children }: { children: ReactNode }) {
                     >
                       <UserCircle size={15} /> My Profile
                     </button>
-                    <button
-                      onClick={() => { setMenuOpen(false); navigate('/settings'); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted hover:text-ink hover:bg-white/5 transition-all"
-                    >
-                      <Settings size={15} /> Settings
-                    </button>
+                    {!isWorker && (
+                      <button
+                        onClick={() => { setMenuOpen(false); navigate('/settings'); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted hover:text-ink hover:bg-white/5 transition-all"
+                      >
+                        <Settings size={15} /> Settings
+                      </button>
+                    )}
                     <button
                       onClick={handleSignOut}
                       className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-rose hover:bg-rose/10 transition-all"

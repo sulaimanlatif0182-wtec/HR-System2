@@ -114,7 +114,9 @@ export default async function handler(req, res) {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (employee_id) query = query.eq('employee_id', employee_id);
+      // Workers only ever see their own claims.
+      if (authUser.category === 'worker') query = query.eq('employee_id', authUser.id);
+      if (employee_id && authUser.category !== 'worker') query = query.eq('employee_id', employee_id);
       if (status) query = query.eq('status', status);
       if (payroll_period) query = query.eq('payroll_period', payroll_period);
 

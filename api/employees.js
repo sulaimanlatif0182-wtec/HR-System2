@@ -1220,7 +1220,12 @@ export default async function handler(req, res) {
           .order('review_period', { ascending: false })
           .order('created_at', { ascending: false });
 
-        if (employee_id) query = query.eq('employee_id', Number(employee_id));
+        // Workers may only view their own reviews.
+        if (authUser?.category === 'worker') {
+          query = query.eq('employee_id', authUser.id);
+        } else if (employee_id) {
+          query = query.eq('employee_id', Number(employee_id));
+        }
 
         const { data, error } = await query;
         if (error) return res.status(500).json({ error: error.message });
@@ -1251,7 +1256,12 @@ export default async function handler(req, res) {
           .order('review_period', { ascending: false })
           .order('created_at', { ascending: false });
 
-        if (employee_id) query = query.eq('employee_id', Number(employee_id));
+        // Workers may only view their own evaluations.
+        if (authUser?.category === 'worker') {
+          query = query.eq('employee_id', authUser.id);
+        } else if (employee_id) {
+          query = query.eq('employee_id', Number(employee_id));
+        }
 
         if (req.query?.evaluator_id) {
           query = query.eq('evaluator_id', Number(req.query.evaluator_id));
@@ -1431,6 +1441,11 @@ export default async function handler(req, res) {
         .from('employees')
         .select('*')
         .order('id', { ascending: true });
+
+      // Workers (cookie session) must only ever see their own record.
+      if (authUser?.category === 'worker') {
+        listQuery = listQuery.eq('id', authUser.id);
+      }
 
       if (listLimit > 0) {
         listQuery = listQuery.range(listOffset, listOffset + listLimit - 1);

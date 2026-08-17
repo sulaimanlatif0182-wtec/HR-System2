@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -61,10 +61,18 @@ function RoleGate({
   return <AccessDenied allowedRoles={allowedRoles} />;
 }
 
+// Workers (kiosk login with employee ID) are intentionally limited to a small
+// set of pages. Everything else redirects them back to their evaluation view.
+const WORKER_ALLOWED_PATHS = ['/performance', '/profile'];
+
 function WorkerGuard({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
+  const location = useLocation();
 
-  if (profile?.category === 'worker') {
+  if (
+    profile?.category === 'worker' &&
+    !WORKER_ALLOWED_PATHS.includes(location.pathname)
+  ) {
     return <Navigate to="/performance" replace />;
   }
 
@@ -126,7 +134,7 @@ function App() {
           <Route
             path="/"
             element={
-              <ProtectedPage workerAllowed>
+              <ProtectedPage>
                 <Dashboard />
               </ProtectedPage>
             }
@@ -153,7 +161,7 @@ function App() {
           <Route
             path="/settings"
             element={
-              <ProtectedPage workerAllowed>
+              <ProtectedPage>
                 <Settings />
               </ProtectedPage>
             }
@@ -281,7 +289,7 @@ function App() {
           <Route
             path="/leave"
             element={
-              <ProtectedPage workerAllowed>
+              <ProtectedPage>
                 <FeatureGate feature={['leave_request', 'leave_approval']}>
                   <Leave />
                 </FeatureGate>
@@ -303,7 +311,7 @@ function App() {
           <Route
             path="/claims"
             element={
-              <ProtectedPage workerAllowed>
+              <ProtectedPage>
                 <FeatureGate feature={['claims_request', 'claims_approval']}>
                   <Claims />
                 </FeatureGate>
