@@ -4,6 +4,7 @@ import { FileText, Save, Printer, Trash2, Loader2, RefreshCw } from 'lucide-reac
 import { useAuth } from '../contexts/AuthContext';
 import { PageHeader, Badge, LoadingState, ErrorState, EmptyState } from '../components/ui';
 import apiClient from '../lib/api';
+import { escapeHtml, printDocument } from '../lib/print';
 
 interface Employee { id: number; name: string; email?: string | null; title?: string | null; department?: string | null; join_date?: string | null; }
 interface HrLetter { id: number; employee_id: number; template_type: string; title: string; content: string; status: string; generated_by_name?: string | null; created_at: string; }
@@ -95,10 +96,12 @@ export default function HrLetters() {
   const printContent = (letter?: HrLetter) => {
     const printTitle = letter?.title || title;
     const printBody = letter?.content || content;
-    const w = window.open('', '_blank', 'width=900,height=700');
-    if (!w) return alert('Popup blocked. Please allow popups.');
-    w.document.write(`<html><head><title>${printTitle}</title><style>body{font-family:Arial;padding:40px;line-height:1.6;color:#111}.letterhead{display:flex;align-items:center;gap:18px;border-bottom:3px solid #1d4ed8;padding-bottom:18px;margin-bottom:28px}.letterhead img{max-height:72px;max-width:260px}.company h1{margin:0;font-size:22px;color:#1d4ed8}.company p{margin:3px 0;font-size:12px;color:#555}.content{white-space:pre-wrap;font-size:14px}.title{font-size:18px;font-weight:700;margin-bottom:18px;text-transform:uppercase}@media print{body{padding:24px}.no-print{display:none}}</style></head><body><div class="letterhead"><img src="/profile_logo.png"/><div class="company"><h1>WTEC</h1><p>Human Resource Department</p><p>Official HR Letter</p></div></div><div class="title">${printTitle}</div><div class="content">${printBody.replace(/</g, '&lt;')}</div><script>window.print()</script></body></html>`);
-    w.document.close();
+    printDocument({
+      title: printTitle,
+      docTitle: printTitle,
+      subtitle: 'Human Resource Department · Official HR Letter',
+      bodyHtml: `<div class="letter-body">${escapeHtml(printBody)}</div>`,
+    });
   };
 
   const deleteLetter = async (letter: HrLetter) => {

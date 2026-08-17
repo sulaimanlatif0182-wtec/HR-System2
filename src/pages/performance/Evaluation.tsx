@@ -16,6 +16,7 @@ import {
   Star,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { printDocument } from '../../lib/print';
 import {
   PageHeader,
   Badge,
@@ -493,32 +494,18 @@ export default function Evaluation() {
         </table>`;
     }).join('');
 
-    const html = `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Evaluation - ${employee?.name || ''}</title>
-  </head>
-  <body style="font-family:Arial,sans-serif;color:#111;padding:32px">
-    <h1 style="margin:0 0 4px">${template?.name || 'Evaluation'}</h1>
-    <p style="margin:0 0 20px;color:#555">${employee?.name || ''} · ${evaluation.review_period}</p>
-    <div style="display:flex;gap:24px;margin-bottom:20px">
-      <div><strong>Overall score</strong><br/>${evaluation.overall_score}%</div>
-      <div><strong>Status</strong><br/>${evaluation.status}</div>
-      <div><strong>Evaluator</strong><br/>${evaluation.evaluator_name || '—'}</div>
-    </div>
-    ${sections}
-    <p style="margin-top:32px;color:#666;font-size:12px">
-      Printed ${new Date().toLocaleString()}
-    </p>
-  </body>
-</html>`;
-
-    const printWindow = window.open('', '_blank', 'width=900,height=700');
-    if (!printWindow) return;
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
+    printDocument({
+      title: `Evaluation - ${employee?.name || ''}`,
+      docTitle: template?.name || 'Evaluation',
+      subtitle: `${employee?.name || ''} · ${evaluation.review_period}`,
+      bodyHtml: `
+      <div style="display:flex;gap:24px;margin-bottom:20px">
+        <div><strong>Overall score</strong><br/>${evaluation.overall_score}%</div>
+        <div><strong>Status</strong><br/>${evaluation.status}</div>
+        <div><strong>Evaluator</strong><br/>${evaluation.evaluator_name || '—'}</div>
+      </div>
+      ${sections}`,
+    });
   };
 
   const saveTemplate = async (e: FormEvent) => {

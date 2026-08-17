@@ -15,6 +15,7 @@ import {
   Star,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { printDocument } from '../lib/print';
 import {
   PageHeader,
   Badge,
@@ -262,78 +263,41 @@ export default function Performance() {
 
   const printReview = (review: Review) => {
     const employee = employeeMap[review.employee_id];
-    const printWindow = window.open('', '_blank', 'width=1000,height=800');
 
-    if (!printWindow) {
-      alert('Popup blocked. Please allow popups to print performance review.');
-      return;
-    }
+    const bodyHtml = `
+      <div class="grid">
+        <div class="box"><div class="label">Employee</div><div class="value">${escapeHtml(employee?.name || `#${review.employee_id}`)}</div></div>
+        <div class="box"><div class="label">Department / Title</div><div class="value">${escapeHtml([employee?.department, employee?.title].filter(Boolean).join(' · ') || '—')}</div></div>
+        <div class="box"><div class="label">Review Period</div><div class="value">${escapeHtml(review.review_period)}</div></div>
+        <div class="box"><div class="label">Review Type</div><div class="value">${escapeHtml(review.review_type)}</div></div>
+        <div class="box"><div class="label">Reviewer</div><div class="value">${escapeHtml(review.reviewer_name || '—')}</div></div>
+        <div class="box"><div class="label">Status</div><div class="value">${escapeHtml(review.status)}</div></div>
+      </div>
 
-    const html = `
-      <html>
-        <head>
-          <title>Performance Review - ${escapeHtml(employee?.name || review.employee_id)}</title>
-          <style>
-            body { font-family: Arial, sans-serif; color: #111827; padding: 36px; line-height: 1.5; }
-            .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 4px solid #1f4fa3; padding-bottom: 16px; margin-bottom: 24px; }
-            .logo { max-height: 70px; max-width: 260px; object-fit: contain; }
-            h1 { color: #1f4fa3; margin: 0; font-size: 24px; }
-            h2 { margin-top: 28px; font-size: 16px; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
-            .muted { color: #6b7280; font-size: 12px; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
-            .box { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; background: #f8fafc; }
-            .label { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
-            .value { font-weight: bold; font-size: 14px; }
-            .score { font-size: 28px; color: #1f4fa3; font-weight: bold; }
-            .section { white-space: pre-wrap; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; min-height: 62px; }
-            .signature { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 60px; }
-            .line { border-top: 1px solid #111827; padding-top: 8px; font-size: 12px; }
-            @media print { body { padding: 24px; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div><img class="logo" src="/profile_logo.png" /></div>
-            <div style="text-align:right">
-              <h1>Performance / Appraisal Review</h1>
-              <div class="muted">Human Resource Department</div>
-              <div class="muted">Printed: ${escapeHtml(new Date().toLocaleString())}</div>
-            </div>
-          </div>
+      <h2>Scores</h2>
+      <div class="grid">
+        <div class="box"><div class="label">KPI</div><div class="value">${escapeHtml(review.kpi_score)}</div></div>
+        <div class="box"><div class="label">Behavior</div><div class="value">${escapeHtml(review.behavior_score)}</div></div>
+        <div class="box"><div class="label">Attendance</div><div class="value">${escapeHtml(review.attendance_score)}</div></div>
+        <div class="box"><div class="label">Overall</div><div class="score">${escapeHtml(review.overall_score)}</div></div>
+      </div>
 
-          <div class="grid">
-            <div class="box"><div class="label">Employee</div><div class="value">${escapeHtml(employee?.name || `#${review.employee_id}`)}</div></div>
-            <div class="box"><div class="label">Department / Title</div><div class="value">${escapeHtml([employee?.department, employee?.title].filter(Boolean).join(' · ') || '—')}</div></div>
-            <div class="box"><div class="label">Review Period</div><div class="value">${escapeHtml(review.review_period)}</div></div>
-            <div class="box"><div class="label">Review Type</div><div class="value">${escapeHtml(review.review_type)}</div></div>
-            <div class="box"><div class="label">Reviewer</div><div class="value">${escapeHtml(review.reviewer_name || '—')}</div></div>
-            <div class="box"><div class="label">Status</div><div class="value">${escapeHtml(review.status)}</div></div>
-          </div>
+      <h2>Strengths</h2><div class="section">${escapeHtml(review.strengths || '—')}</div>
+      <h2>Improvements</h2><div class="section">${escapeHtml(review.improvements || '—')}</div>
+      <h2>Goals</h2><div class="section">${escapeHtml(review.goals || '—')}</div>
+      <h2>Recommendation</h2><div class="section">${escapeHtml(review.recommendation || '—')}</div>
 
-          <h2>Scores</h2>
-          <div class="grid">
-            <div class="box"><div class="label">KPI</div><div class="value">${escapeHtml(review.kpi_score)}</div></div>
-            <div class="box"><div class="label">Behavior</div><div class="value">${escapeHtml(review.behavior_score)}</div></div>
-            <div class="box"><div class="label">Attendance</div><div class="value">${escapeHtml(review.attendance_score)}</div></div>
-            <div class="box"><div class="label">Overall</div><div class="score">${escapeHtml(review.overall_score)}</div></div>
-          </div>
+      <div class="signature-2">
+        <div class="line">Employee Signature / Date</div>
+        <div class="line">Reviewer / HR Signature / Date</div>
+      </div>`;
 
-          <h2>Strengths</h2><div class="section">${escapeHtml(review.strengths || '—')}</div>
-          <h2>Improvements</h2><div class="section">${escapeHtml(review.improvements || '—')}</div>
-          <h2>Goals</h2><div class="section">${escapeHtml(review.goals || '—')}</div>
-          <h2>Recommendation</h2><div class="section">${escapeHtml(review.recommendation || '—')}</div>
-
-          <div class="signature">
-            <div class="line">Employee Signature / Date</div>
-            <div class="line">Reviewer / HR Signature / Date</div>
-          </div>
-          <script>window.print()</script>
-        </body>
-      </html>`;
-
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
+    printDocument({
+      title: `Performance Review - ${employee?.name || review.employee_id}`,
+      docTitle: 'Performance / Appraisal Review',
+      subtitle: 'Human Resource Department',
+      bodyHtml,
+    });
   };
 
   if (loading) return <LoadingState label="Loading performance reviews…" />;

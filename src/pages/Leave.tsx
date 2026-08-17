@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import supabase from '../lib/supabase';
+import { printDocument } from '../lib/print';
 import {
   PageHeader,
   Badge,
@@ -912,12 +913,7 @@ export default function Leave() {
     const employee = empMap[request.employee_id];
     const isTimeOff = request.request_mode === 'time_off';
 
-    const html = `
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Leave Application Form</title>
+    const bodyHtml = `
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -1006,8 +1002,6 @@ export default function Leave() {
       }
     }
   </style>
-</head>
-<body>
   <div class="no-print" style="margin-bottom: 16px;">
     <button onclick="window.print()">Print</button>
   </div>
@@ -1143,20 +1137,13 @@ export default function Leave() {
       </tr>
     </table>
   </div>
-</body>
-</html>
 `;
 
-    const printWindow = window.open('', '_blank', 'width=1000,height=800');
-
-    if (!printWindow) {
-      alert('Popup blocked. Please allow popups to print leave form.');
-      return;
-    }
-
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
+    printDocument({
+      title: 'Leave Application Form',
+      header: false,
+      bodyHtml,
+    });
   };
 
   if (loading) return <LoadingState label="Loading leave requests…" />;
