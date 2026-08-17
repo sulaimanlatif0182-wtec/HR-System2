@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, LayoutDashboard, Users, CalendarCheck, CalendarDays, Wallet, Network, ReceiptText,
   FileSearch, UserCog, Megaphone, FileText, BarChart3, FileBarChart, Archive, Activity, Search, ChevronDown, Settings, UserCircle, LogOut, PanelLeftClose, PanelLeftOpen, Menu, X,
-  CornerDownLeft, ShieldCheck,
+  CornerDownLeft,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useFeatureFlags } from '../lib/featureFlags';
@@ -34,7 +34,6 @@ const NAV: NavItem[] = [
   { to: '/monthly-reports', label: 'Monthly Reports', icon: FileBarChart, roles: ['admin', 'manager'], feature: 'monthly_reports' },
   { to: '/backup', label: 'Backup Center', icon: Archive, roles: ['admin'], feature: 'backup' },
   { to: '/system-health', label: 'System Health', icon: Activity, roles: ['admin'], feature: 'system_health' },
-  { to: '/policy-center', label: 'Policy Center', icon: ShieldCheck, roles: ['admin'], feature: 'policy_center' },
   { to: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['admin', 'manager', 'employee'], feature: 'attendance' },
   { to: '/leave', label: 'Leave', icon: CalendarDays, roles: ['admin', 'manager', 'employee'], feature: ['leave_request', 'leave_approval'] },
   { to: '/payroll', label: 'Payroll', icon: Wallet, roles: ['admin', 'manager', 'employee'], feature: 'payroll' },

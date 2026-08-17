@@ -891,39 +891,6 @@ async function checkTableHealth(table, buildQuery) {
   }
 }
 
-async function buildPolicyReadiness() {
-  try {
-    const { data, error } = await supabase
-      .from('policy_readiness_items')
-      .select('key, status');
-
-    if (error) {
-      return {
-        ok: false,
-        error: error?.message || 'Table unavailable.',
-        item_count: 0,
-        incomplete_count: 0,
-      };
-    }
-
-    const items = data || [];
-
-    return {
-      ok: true,
-      error: null,
-      item_count: items.length,
-      incomplete_count: items.filter((item) => item.status !== 'complete').length,
-    };
-  } catch (err) {
-    return {
-      ok: false,
-      error: err?.message || String(err),
-      item_count: 0,
-      incomplete_count: 0,
-    };
-  }
-}
-
 async function buildSystemHealth() {
   const checks = await Promise.all([
     checkTableHealth('employees'),
@@ -1007,7 +974,6 @@ async function buildSystemHealth() {
     reminders: {
       last_logs: lastReminderLogs || [],
     },
-    policy: await buildPolicyReadiness(),
   };
 }
 
@@ -1192,17 +1158,6 @@ export default async function handler(req, res) {
           roleDefaults: roleDefaults || [],
           overrides: overrides || [],
         });
-      }
-
-      if (req.query?.policy_readiness === 'true') {
-        const { data, error } = await supabase
-          .from('policy_readiness_items')
-          .select('*')
-          .order('key', { ascending: true });
-
-        if (error) return res.status(500).json({ error: error.message });
-
-        return res.status(200).json(data || []);
       }
 
       if (req.query?.document_checklist === 'true') {
@@ -1535,68 +1490,6 @@ export default async function handler(req, res) {
         });
 
         return res.status(200).json(savedConfig);
-      }
-
-      if (body.action === 'policy_readiness_update') {
-        const role = authUser?.role || 'employee';
-
-        if (role !== 'admin') {
-          return res.status(403).json({
-            error: 'Only admin can update policy readiness.',
-          });
-        }
-
-        const key = String(body.key || '').trim();
-
-        if (!key) {
-          return res.status(400).json({ error: 'Policy readiness key is required.' });
-        }
-
-        const allowedStatuses = ['complete', 'needs_review', 'not_started'];
-        const status = body.reset ? 'needs_review' : String(body.status || '').toLowerCase();
-
-        if (!allowedStatuses.includes(status)) {
-          return res.status(400).json({
-            error: 'Invalid policy readiness status.',
-          });
-        }
-
-        const payload = {
-          status,
-          owner: body.owner !== undefined ? cleanString(body.owner) || null : null,
-          evidence: body.reset ? null : body.evidence !== undefined ? cleanString(body.evidence) || null : null,
-          updated_by: authUser?.id || null,
-          updated_by_name: authUser?.name || null,
-          updated_at: new Date().toISOString(),
-        };
-
-        if (status === 'complete') {
-          payload.last_reviewed_at = new Date().toISOString();
-        }
-
-        if (body.reset) {
-          payload.last_reviewed_at = null;
-        }
-
-        const { data, error } = await supabase
-          .from('policy_readiness_items')
-          .update(payload)
-          .eq('key', key)
-          .select()
-          .single();
-
-        if (error) return res.status(500).json({ error: error.message });
-
-        await safeInsertSystemAudit({
-          module: 'policy_center',
-          action: 'policy_readiness_update',
-          record_id: key,
-          changed_by: authUser?.id || null,
-          changed_by_name: authUser?.name || null,
-          new_data: data,
-        });
-
-        return res.status(200).json(data);
       }
 
       if (body.action === 'feature_flag_update') {

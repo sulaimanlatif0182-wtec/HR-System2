@@ -20,7 +20,6 @@ export const FEATURE_FLAG_KEYS = [
   'profile_updates',
   'employees',
   'reminder_scheduler',
-  'policy_center',
 ] as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[number];
@@ -50,7 +49,6 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlag[] = [
   { key: 'audit_logs', label: 'Audit Logs', category: 'Administration', enabled: true },
   { key: 'profile_updates', label: 'Profile Updates', category: 'Profile', enabled: true },
   { key: 'employees', label: 'Employee Directory', category: 'Employees', enabled: true },
-  { key: 'policy_center', label: 'Policy Center', category: 'Admin Pages', enabled: true },
 ];
 
 export function flagLabel(key: FeatureFlagKey): string {
