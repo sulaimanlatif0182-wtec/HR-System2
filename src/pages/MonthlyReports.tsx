@@ -68,8 +68,6 @@ export default function MonthlyReports() {
     <div>
       <style>{`
         @media print {
-          @page { size: A4; margin: 12mm; }
-          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           body { background: white !important; color: #111 !important; }
           .no-print { display: none !important; }
           .print-card { break-inside: avoid; border: 1px solid #ddd !important; background: white !important; color: #111 !important; }
