@@ -18,7 +18,15 @@ const originalFetch = window.fetch.bind(window);
       : input.url;
 
   if (url.includes('/api/')) {
-    const { data } = await supabase.auth.getSession();
+    // getSession can hang when the gotrue auth-token lock is orphaned
+    // (in-flight token refresh / sign-out). Bound it so /api/* requests fail
+    // fast (server returns 401) instead of hanging the page on a loader.
+    const { data } = await Promise.race([
+      supabase.auth.getSession(),
+      new Promise<{ data: { session: null } }>((resolve) =>
+        setTimeout(() => resolve({ data: { session: null } }), 6000)
+      ),
+    ]);
     const token = data.session?.access_token;
     if (token) {
       const headers = new Headers(init.headers);

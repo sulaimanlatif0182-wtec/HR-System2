@@ -11,6 +11,8 @@ import {
   Clock,
   HardDrive,
   ShieldCheck,
+  Wrench,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { PageHeader, Badge, LoadingState, ErrorState, EmptyState } from '../components/ui';
@@ -56,6 +58,11 @@ export default function SystemHealth() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [maintenanceRunning, setMaintenanceRunning] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
 
   const fetchHealth = async () => {
     setLoading(true);
@@ -75,6 +82,44 @@ export default function SystemHealth() {
   useEffect(() => {
     fetchHealth();
   }, []);
+
+  const runMaintenance = async () => {
+    setMaintenanceRunning(true);
+    setMaintenanceMessage(null);
+
+    try {
+      const data = await apiClient.post<{
+        success?: boolean;
+        summary?: {
+          analyzed_tables?: string[];
+          pruned_reminders?: number;
+          buckets_created?: string[];
+          bucket_errors?: string[];
+          ran_at?: string;
+        };
+      }>('/api/employees', { action: 'system_maintenance' });
+
+      const summary = data?.summary;
+      const parts = [
+        `${(summary?.analyzed_tables || []).length} tables analyzed`,
+        `${summary?.pruned_reminders || 0} stale reminder logs pruned`,
+        ...(summary?.buckets_created || []).map((name) => `bucket "${name}" created`),
+      ];
+
+      setMaintenanceMessage({
+        ok: true,
+        text: `Maintenance complete — ${parts.join(', ')}.`,
+      });
+      await fetchHealth();
+    } catch (err) {
+      setMaintenanceMessage({
+        ok: false,
+        text: err instanceof Error ? err.message : 'Maintenance failed. Please try again.',
+      });
+    } finally {
+      setMaintenanceRunning(false);
+    }
+  };
 
   const envRows = useMemo(
     () => Object.entries(health?.environment || {}),
@@ -100,15 +145,42 @@ export default function SystemHealth() {
         title="System Health"
         subtitle="Check Supabase tables, storage buckets, SMTP, cron and recent reminders without exposing secrets."
         action={
-          <button
-            type="button"
-            onClick={fetchHealth}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-white/[0.05]"
-          >
-            <RefreshCw size={16} /> Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={runMaintenance}
+              disabled={maintenanceRunning}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {maintenanceRunning ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Wrench size={16} />
+              )}
+              {maintenanceRunning ? 'Running maintenance…' : 'Run Maintenance'}
+            </button>
+            <button
+              type="button"
+              onClick={fetchHealth}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-white/[0.05]"
+            >
+              <RefreshCw size={16} /> Refresh
+            </button>
+          </div>
         }
       />
+
+      {maintenanceMessage && (
+        <div
+          className={`mb-6 rounded-xl border px-4 py-3 text-sm ${
+            maintenanceMessage.ok
+              ? 'border-emerald/30 bg-emerald/10 text-emerald'
+              : 'border-rose/30 bg-rose/10 text-rose'
+          }`}
+        >
+          {maintenanceMessage.text}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <div className="glass rounded-2xl p-4 flex items-center gap-3">

@@ -1798,6 +1798,68 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true });
       }
 
+      if (body.action === 'system_maintenance') {
+        const role = authUser?.role || 'employee';
+
+        if (role !== 'admin') {
+          return res.status(403).json({
+            error: 'Only admin can run system maintenance.',
+          });
+        }
+
+        const { data: summary, error: rpcError } = await supabase.rpc('run_system_maintenance');
+
+        if (rpcError) {
+          return res.status(400).json({
+            error: `Maintenance failed: ${rpcError.message}`,
+          });
+        }
+
+        const requiredBuckets = ['employee-documents', 'leave-attachments', 'claim-attachments'];
+        const bucketsCreated = [];
+        const bucketErrors = [];
+
+        try {
+          const { data: buckets } = await supabase.storage.listBuckets();
+          const existing = new Set((buckets || []).map((bucket) => bucket.name));
+
+          for (const name of requiredBuckets) {
+            if (existing.has(name)) continue;
+
+            const { error: createError } = await supabase.storage.createBucket(name, {
+              public: false,
+            });
+
+            if (createError) {
+              bucketErrors.push(`${name}: ${createError.message}`);
+            } else {
+              bucketsCreated.push(name);
+            }
+          }
+        } catch (err) {
+          bucketErrors.push(err?.message || String(err));
+        }
+
+        const result = {
+          analyzed_tables: Array.isArray(summary?.analyzed_tables) ? summary.analyzed_tables : [],
+          pruned_reminders: Number(summary?.pruned_reminders || 0),
+          buckets_created: bucketsCreated,
+          bucket_errors: bucketErrors,
+          ran_at: summary?.ran_at || new Date().toISOString(),
+        };
+
+        await safeInsertSystemAudit({
+          module: 'system',
+          action: 'system_maintenance',
+          record_id: 'system',
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
+          new_data: result,
+        });
+
+        return res.status(200).json({ success: true, summary: result });
+      }
+
       if (body.action === 'reminder_rule_save') {
         const payload = {
           name: cleanString(body.name),

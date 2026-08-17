@@ -1,7 +1,15 @@
 import supabase from './supabase';
 
 async function getAccessToken(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession();
+  // getSession can hang when the gotrue auth-token lock is orphaned
+  // (in-flight token refresh / sign-out). Bound it so API calls fail fast
+  // (server returns 401) instead of leaving pages on an endless loader.
+  const { data } = await Promise.race([
+    supabase.auth.getSession(),
+    new Promise<{ data: { session: null } }>((resolve) =>
+      setTimeout(() => resolve({ data: { session: null } }), 6000)
+    ),
+  ]);
   return data.session?.access_token ?? null;
 }
 
