@@ -15,6 +15,8 @@ interface PrintDocumentOptions {
   bodyHtml: string;
 }
 
+let activePrintWindow: Window | null = null;
+
 const PRINT_STYLES = `
   @page { size: A4; margin: 12mm; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -39,6 +41,10 @@ const PRINT_STYLES = `
 
 export function printDocument(options: PrintDocumentOptions): void {
   const { title, docTitle, subtitle, header = true, bodyHtml } = options;
+
+  if (activePrintWindow && !activePrintWindow.closed) {
+    activePrintWindow.close();
+  }
 
   const printWindow = window.open('', '_blank', 'width=1000,height=800');
 
@@ -68,11 +74,13 @@ export function printDocument(options: PrintDocumentOptions): void {
       <body>
         ${headerHtml}
         ${bodyHtml}
-        <script>window.print()</script>
+        <script>window.onafterprint = function () { window.close(); }; window.print();</script>
       </body>
     </html>`;
 
   printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
+  printWindow.focus();
+  activePrintWindow = printWindow;
 }
