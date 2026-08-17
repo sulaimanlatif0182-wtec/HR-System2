@@ -822,10 +822,16 @@ export default async function handler(req, res) {
         return res.status(200).json(data || []);
       }
 
-      const { data, error } = await supabase
+      let attendanceQuery = supabase
         .from('attendance')
-        .select('*')
-        .eq('employee_id', authUser.category === 'worker' ? authUser.id : undefined)
+        .select('*');
+
+      // Workers only ever see their own attendance records.
+      if (authUser.category === 'worker') {
+        attendanceQuery = attendanceQuery.eq('employee_id', authUser.id);
+      }
+
+      const { data, error } = await attendanceQuery
         .order('date', { ascending: false })
         .order('id', { ascending: false });
 

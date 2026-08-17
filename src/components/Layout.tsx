@@ -77,7 +77,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const displayName = profile?.name ?? user?.email?.split('@')[0] ?? 'Worker';
   const displayEmail = user?.email ?? profile?.email ?? '';
   const initials = displayName.slice(0, 2).toUpperCase();
-  const workerAllowedPaths = ['/performance', '/profile'];
+  const workerAllowedPaths = ['/', '/performance', '/leave', '/claims', '/profile'];
   const items = NAV.filter(
     (n) =>
       n.roles.includes(role) &&

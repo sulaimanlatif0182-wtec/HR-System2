@@ -63,7 +63,7 @@ function RoleGate({
 
 // Workers (kiosk login with employee ID) are intentionally limited to a small
 // set of pages. Everything else redirects them back to their evaluation view.
-const WORKER_ALLOWED_PATHS = ['/performance', '/profile'];
+const WORKER_ALLOWED_PATHS = ['/', '/dashboard', '/performance', '/leave', '/claims', '/profile'];
 
 function WorkerGuard({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
@@ -134,7 +134,7 @@ function App() {
           <Route
             path="/"
             element={
-              <ProtectedPage>
+              <ProtectedPage workerAllowed>
                 <Dashboard />
               </ProtectedPage>
             }
@@ -143,7 +143,7 @@ function App() {
           <Route
             path="/dashboard"
             element={
-              <ProtectedPage>
+              <ProtectedPage workerAllowed>
                 <Dashboard />
               </ProtectedPage>
             }
@@ -289,7 +289,7 @@ function App() {
           <Route
             path="/leave"
             element={
-              <ProtectedPage>
+              <ProtectedPage workerAllowed>
                 <FeatureGate feature={['leave_request', 'leave_approval']}>
                   <Leave />
                 </FeatureGate>
@@ -311,7 +311,7 @@ function App() {
           <Route
             path="/claims"
             element={
-              <ProtectedPage>
+              <ProtectedPage workerAllowed>
                 <FeatureGate feature={['claims_request', 'claims_approval']}>
                   <Claims />
                 </FeatureGate>
