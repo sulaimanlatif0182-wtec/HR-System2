@@ -1840,11 +1840,56 @@ export default async function handler(req, res) {
           bucketErrors.push(err?.message || String(err));
         }
 
+        let requiredBucketStatus = [];
+
+        try {
+          const { data: bucketsAfter } = await supabase.storage.listBuckets();
+          const current = new Set((bucketsAfter || []).map((bucket) => bucket.name));
+          requiredBucketStatus = requiredBuckets.map((name) => ({
+            name,
+            exists: current.has(name),
+          }));
+        } catch (err) {
+          requiredBucketStatus = requiredBuckets.map((name) => ({ name, exists: false }));
+        }
+
+        const envChecks = {
+          SUPABASE_URL: Boolean(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL),
+          SUPABASE_SERVICE_ROLE_KEY: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY),
+          SMTP_HOST: Boolean(process.env.SMTP_HOST),
+          SMTP_USER: Boolean(process.env.SMTP_USER),
+          SMTP_PASSWORD: Boolean(process.env.SMTP_PASSWORD),
+          SMTP_FROM: Boolean(process.env.SMTP_FROM),
+          APP_BASE_URL: Boolean(process.env.APP_BASE_URL),
+          CRON_SECRET: Boolean(process.env.CRON_SECRET),
+        };
+
+        const missingEnv = Object.keys(envChecks).filter((key) => !envChecks[key]);
+
+        const manualActions = missingEnv.map((key) => {
+          if (key === 'CRON_SECRET') {
+            return 'Add CRON_SECRET to Vercel environment variables (Dashboard -> Settings -> Environment Variables), then redeploy.';
+          }
+
+          if (key.startsWith('SMTP')) {
+            return 'Add SMTP_* environment variables in Vercel for email sending.';
+          }
+
+          return `Add ${key} to Vercel environment variables.`;
+        });
+
         const result = {
           analyzed_tables: Array.isArray(summary?.analyzed_tables) ? summary.analyzed_tables : [],
           pruned_reminders: Number(summary?.pruned_reminders || 0),
           buckets_created: bucketsCreated,
           bucket_errors: bucketErrors,
+          storage: {
+            required_buckets: requiredBucketStatus,
+          },
+          environment: {
+            missing_env_vars: missingEnv,
+            manual_actions: manualActions,
+          },
           ran_at: summary?.ran_at || new Date().toISOString(),
         };
 

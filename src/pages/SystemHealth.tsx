@@ -62,6 +62,7 @@ export default function SystemHealth() {
   const [maintenanceMessage, setMaintenanceMessage] = useState<{
     ok: boolean;
     text: string;
+    actions?: string[];
   } | null>(null);
 
   const fetchHealth = async () => {
@@ -95,20 +96,38 @@ export default function SystemHealth() {
           pruned_reminders?: number;
           buckets_created?: string[];
           bucket_errors?: string[];
+          storage?: {
+            required_buckets?: Array<{ name: string; exists: boolean }>;
+          };
+          environment?: {
+            missing_env_vars?: string[];
+            manual_actions?: string[];
+          };
           ran_at?: string;
         };
       }>('/api/employees', { action: 'system_maintenance' });
 
       const summary = data?.summary;
+      const bucketStatus = summary?.storage?.required_buckets || [];
+      const bucketOk = bucketStatus.filter((bucket) => bucket.exists).length;
       const parts = [
         `${(summary?.analyzed_tables || []).length} tables analyzed`,
         `${summary?.pruned_reminders || 0} stale reminder logs pruned`,
         ...(summary?.buckets_created || []).map((name) => `bucket "${name}" created`),
       ];
+      if (bucketStatus.length > 0) {
+        parts.push(`storage buckets ${bucketOk}/${bucketStatus.length} OK`);
+      }
+
+      const manualActions = summary?.environment?.manual_actions || [];
 
       setMaintenanceMessage({
         ok: true,
-        text: `Maintenance complete — ${parts.join(', ')}.`,
+        text:
+          manualActions.length > 0
+            ? `Maintenance complete — ${parts.join(', ')}. ${manualActions.length} environment ${manualActions.length === 1 ? 'check needs' : 'checks need'} manual action.`
+            : `Maintenance complete — ${parts.join(', ')}. All environment checks passed.`,
+        actions: manualActions,
       });
       await fetchHealth();
     } catch (err) {
@@ -178,7 +197,14 @@ export default function SystemHealth() {
               : 'border-rose/30 bg-rose/10 text-rose'
           }`}
         >
-          {maintenanceMessage.text}
+          <p>{maintenanceMessage.text}</p>
+          {maintenanceMessage.actions && maintenanceMessage.actions.length > 0 && (
+            <ul className="mt-2 list-disc pl-5 space-y-1 text-amber">
+              {maintenanceMessage.actions.map((action) => (
+                <li key={action}>{action}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
