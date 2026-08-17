@@ -541,7 +541,7 @@ export default function Claims() {
   const canAdminApprove = (claim: Claim) => {
     if (!isAdmin || claim.status !== 'pending_admin') return false;
 
-    return Number(profile?.id) !== Number(claim.employee_id);
+    return true;
   };
 
   const handleExportCsv = () => {
