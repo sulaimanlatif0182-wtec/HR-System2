@@ -489,6 +489,10 @@ export function buildEmployeePayload(body, { partial = false } = {}) {
     assign('number_of_children', toNullableInteger(body.number_of_children) ?? 0);
   }
 
+  if (body.supervisor_id !== undefined || !partial) {
+    assign('supervisor_id', toNullableNumber(body.supervisor_id));
+  }
+
   const dateFields = [
     'probation_end_date',
     'contract_end_date',

@@ -107,6 +107,7 @@ interface Employee {
   location: string | null;
   join_date: string | null;
   role: string;
+  supervisor_id?: number | null;
   category?: string | null;
   employee_no?: string | null;
   salary: number | null;
@@ -147,6 +148,7 @@ interface EmployeeFormState {
   identity_last4: string;
   salary: string;
   status: string;
+  supervisor_id: string;
   bank_name: string;
   bank_account_no: string;
   epf_no: string;
@@ -208,6 +210,7 @@ function emptyForm(): EmployeeFormState {
     identity_last4: '',
     salary: '',
     status: 'active',
+    supervisor_id: '',
     bank_name: '',
     bank_account_no: '',
     epf_no: '',
@@ -245,6 +248,7 @@ function formFromEmployee(employee: Employee): EmployeeFormState {
     identity_last4: employee.identity_last4 ?? '',
     salary: employee.salary !== null && employee.salary !== undefined ? String(employee.salary) : '',
     status: employee.status ?? 'active',
+    supervisor_id: employee.supervisor_id ? String(employee.supervisor_id) : '',
     bank_name: employee.bank_name ?? '',
     bank_account_no: employee.bank_account_no ?? '',
     epf_no: employee.epf_no ?? '',
@@ -1124,6 +1128,25 @@ export default function Employees() {
             </option>
           ))}
         </select>
+
+        {isAdmin && (
+          <select
+            value={values.supervisor_id}
+            onChange={(e) => setValues({ ...values, supervisor_id: e.target.value })}
+            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+          >
+            <option value="">— None —</option>
+
+            {employees
+              .filter((emp) => emp.id !== profile?.id)
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.name}
+                </option>
+              ))}
+          </select>
+        )}
 
         <input
           required
