@@ -30,3 +30,7 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Supabase backup SQL (DB contents — never commit)
+supabase/ADD_ADMIN_EMPLOYEE.sql
+supabase/SQL Editor Backup.txt

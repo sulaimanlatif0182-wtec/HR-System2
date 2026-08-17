@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,5 +16,5 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - run: npx tsc -b --pretty false
       - run: npm run lint
-      - run: npm run build
