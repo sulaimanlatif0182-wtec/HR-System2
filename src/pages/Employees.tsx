@@ -1135,7 +1135,7 @@ export default function Employees() {
             onChange={(e) => setValues({ ...values, supervisor_id: e.target.value })}
             className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
           >
-            <option value="">— None —</option>
+            <option value="">Working with</option>
 
             {employees
               .filter((emp) => emp.id !== profile?.id)
