@@ -57,9 +57,13 @@ export function flagLabel(key: FeatureFlagKey): string {
   return DEFAULT_FEATURE_FLAGS.find((flag) => flag.key === key)?.label ?? key;
 }
 
+type FeatureMap = Record<string, boolean>;
+
 interface FeatureFlagsContextValue {
   flags: FeatureFlag[];
   loaded: boolean;
+  roleDefaults: FeatureMap;
+  employeeOverrides: FeatureMap;
   isEnabled: (key: FeatureFlagKey | FeatureFlagKey[]) => boolean;
   refresh: () => Promise<void>;
 }
@@ -67,6 +71,8 @@ interface FeatureFlagsContextValue {
 const FeatureFlagsContext = createContext<FeatureFlagsContextValue>({
   flags: DEFAULT_FEATURE_FLAGS,
   loaded: false,
+  roleDefaults: {},
+  employeeOverrides: {},
   isEnabled: () => true,
   refresh: async () => {},
 });
@@ -74,6 +80,8 @@ const FeatureFlagsContext = createContext<FeatureFlagsContextValue>({
 export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
   const [flags, setFlags] = useState<FeatureFlag[]>(DEFAULT_FEATURE_FLAGS);
   const [loaded, setLoaded] = useState(false);
+  const [roleDefaults, setRoleDefaults] = useState<FeatureMap>({});
+  const [employeeOverrides, setEmployeeOverrides] = useState<FeatureMap>({});
 
   const refresh = useCallback(async () => {
     try {
@@ -103,24 +111,55 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const refreshAccess = useCallback(async () => {
+    try {
+      const data = await apiClient.get<{
+        roleDefaults?: { feature_key: string; enabled: boolean }[];
+        overrides?: { feature_key: string; enabled: boolean }[];
+      }>('/api/employees?my_feature_access=true');
+      if (!data) return;
+
+      setRoleDefaults(
+        Array.isArray(data.roleDefaults)
+          ? Object.fromEntries(data.roleDefaults.map((row) => [row.feature_key, row.enabled === true]))
+          : {}
+      );
+      setEmployeeOverrides(
+        Array.isArray(data.overrides)
+          ? Object.fromEntries(data.overrides.map((row) => [row.feature_key, row.enabled === true]))
+          : {}
+      );
+    } catch {
+      // no role/employee access rows — fall back to global flags only
+    }
+  }, []);
+
   useEffect(() => {
     refresh();
-  }, [refresh]);
+    refreshAccess();
+  }, [refresh, refreshAccess]);
 
   const isEnabled = useCallback(
     (key: FeatureFlagKey | FeatureFlagKey[]) => {
       const keys = Array.isArray(key) ? key : [key];
       return keys.some((flagKey) => {
         const flag = flags.find((item) => item.key === flagKey);
-        return !flag || flag.enabled !== false;
+
+        if (flag && flag.enabled === false) return false;
+
+        const roleAllowed = roleDefaults[flagKey] !== false;
+        const override = employeeOverrides[flagKey];
+        const overrideAllowed = override === undefined ? true : override;
+
+        return roleAllowed && overrideAllowed;
       });
     },
-    [flags]
+    [flags, roleDefaults, employeeOverrides]
   );
 
   const value = useMemo(
-    () => ({ flags, loaded, isEnabled, refresh }),
-    [flags, loaded, isEnabled, refresh]
+    () => ({ flags, loaded, roleDefaults, employeeOverrides, isEnabled, refresh }),
+    [flags, loaded, roleDefaults, employeeOverrides, isEnabled, refresh]
   );
 
   return (

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import supabase from '../lib/supabase';
+import { DEFAULT_FEATURE_FLAGS, flagLabel } from '../lib/featureFlags';
 import {
   PageHeader,
   Badge,
@@ -163,6 +164,7 @@ interface EmployeeFormState {
   passport_expiry: string;
   driving_license_expiry: string;
   medical_checkup_expiry: string;
+  featureAccess: Record<string, boolean | null>;
 }
 
 interface EmployeeDocument {
@@ -223,6 +225,7 @@ function emptyForm(): EmployeeFormState {
     passport_expiry: '',
     driving_license_expiry: '',
     medical_checkup_expiry: '',
+    featureAccess: {},
   };
 }
 
@@ -259,6 +262,7 @@ function formFromEmployee(employee: Employee): EmployeeFormState {
     passport_expiry: employee.passport_expiry ?? '',
     driving_license_expiry: employee.driving_license_expiry ?? '',
     medical_checkup_expiry: employee.medical_checkup_expiry ?? '',
+    featureAccess: {},
   };
 }
 
@@ -670,6 +674,24 @@ export default function Employees() {
     setEditForm(formFromEmployee(employee));
     setEditError('');
     setShowEdit(true);
+
+    apiClient
+      .get<{ overrides?: { feature_key: string; enabled: boolean }[] }>(
+        `/api/employees?feature_access=true&employee_id=${employee.id}`
+      )
+      .then((data) => {
+        const overrides = data?.overrides;
+
+        if (!Array.isArray(overrides)) return;
+
+        setEditForm((prev) => ({
+          ...prev,
+          featureAccess: Object.fromEntries(
+            overrides.map((override) => [override.feature_key, override.enabled])
+          ),
+        }));
+      })
+      .catch(() => {});
   };
 
   const handleExportCsv = () => {
@@ -868,6 +890,22 @@ export default function Employees() {
         join_date: new Date().toISOString().slice(0, 10),
       });
 
+      const featureEntries = Object.entries(form.featureAccess).filter(
+        ([, value]) => value !== null
+      );
+
+      if (featureEntries.length && profile) {
+        apiClient
+          .post('/api/employees', {
+            action: 'feature_access_bulk_update',
+            employee_no: form.employee_no,
+            features: featureEntries.map(([key, enabled]) => ({ key, enabled })),
+            changed_by: profile.id,
+            changed_by_name: profile.name,
+          })
+          .catch(() => {});
+      }
+
       setShowAdd(false);
       setForm(emptyForm());
       fetchEmployees();
@@ -924,6 +962,22 @@ export default function Employees() {
         setSelected(updatedEmployee);
       } else {
         await fetchEmployees();
+      }
+
+      const featureEntries = Object.entries(editForm.featureAccess).filter(
+        ([, value]) => value !== null
+      );
+
+      if (featureEntries.length && profile) {
+        apiClient
+          .post('/api/employees', {
+            action: 'feature_access_bulk_update',
+            employee_id: selected.id,
+            features: featureEntries.map(([key, enabled]) => ({ key, enabled })),
+            changed_by: profile.id,
+            changed_by_name: profile.name,
+          })
+          .catch(() => {});
       }
 
       setShowEdit(false);
@@ -1350,7 +1404,7 @@ export default function Employees() {
               {label}
               <input
                 type="date"
-                value={values[key as keyof EmployeeFormState]}
+                value={values[key as keyof EmployeeFormState] as string}
                 onChange={(e) =>
                   setValues({ ...values, [key]: e.target.value })
                 }
@@ -1363,6 +1417,91 @@ export default function Employees() {
         )}
 
       </>
+    );
+  };
+
+  const renderFeatureAccessFields = (
+    values: EmployeeFormState,
+    setValues: (next: EmployeeFormState) => void
+  ) => {
+    const setAccess = (key: string, value: boolean | null) =>
+      setValues({
+        ...values,
+        featureAccess: { ...values.featureAccess, [key]: value },
+      });
+
+    const segmentClass = (active: boolean, activeClass: string) =>
+      `px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+        active ? activeClass : 'text-muted hover:text-ink'
+      }`;
+
+    return (
+      <div className="rounded-xl border border-white/10 bg-surface p-4">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-muted uppercase tracking-wide">
+            Feature Access
+          </p>
+          <button
+            type="button"
+            onClick={() => setValues({ ...values, featureAccess: {} })}
+            className="text-xs text-muted hover:text-ink transition-colors"
+          >
+            Reset all
+          </button>
+        </div>
+
+        <p className="text-xs text-muted mt-1">
+          Empty = follow the role default. Manage defaults in Admin Config.
+        </p>
+
+        <div className="mt-3 space-y-1">
+          {DEFAULT_FEATURE_FLAGS.map((flag) => {
+            const current = values.featureAccess[flag.key];
+
+            return (
+              <div
+                key={flag.key}
+                className="flex items-center justify-between py-2 border-b border-white/5 last:border-0"
+              >
+                <span className="text-sm text-ink">{flagLabel(flag.key)}</span>
+
+                <div className="flex gap-1 rounded-lg bg-white/5 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setAccess(flag.key, null)}
+                    className={segmentClass(
+                      current === null,
+                      'bg-white/10 text-ink'
+                    )}
+                  >
+                    Default
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccess(flag.key, true)}
+                    className={segmentClass(
+                      current === true,
+                      'bg-emerald-500/20 text-emerald-300'
+                    )}
+                  >
+                    Allow
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccess(flag.key, false)}
+                    className={segmentClass(
+                      current === false,
+                      'bg-rose-500/20 text-rose-300'
+                    )}
+                  >
+                    Block
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     );
   };
 
@@ -2023,8 +2162,9 @@ export default function Employees() {
                   </button>
                 </div>
 
-                <form onSubmit={handleAdd} className="space-y-3">
-                  {renderEmployeeFormFields(form, setForm, 'add')}
+<form onSubmit={handleAdd} className="space-y-3">
+            {renderEmployeeFormFields(form, setForm, 'add')}
+            {renderFeatureAccessFields(form, setForm)}
 
                   {formError && (
                     <p className="text-rose text-xs bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">
@@ -2085,8 +2225,9 @@ export default function Employees() {
                   </button>
                 </div>
 
-                <form onSubmit={handleEdit} className="space-y-3">
-                  {renderEmployeeFormFields(editForm, setEditForm, 'edit')}
+<form onSubmit={handleEdit} className="space-y-3">
+            {renderEmployeeFormFields(editForm, setEditForm, 'edit')}
+            {renderFeatureAccessFields(editForm, setEditForm)}
 
                   {editError && (
                     <p className="text-rose text-xs bg-rose/10 border border-rose/20 rounded-lg px-3 py-2">

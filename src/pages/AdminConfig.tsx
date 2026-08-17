@@ -154,6 +154,8 @@ function commaToList(value: string) {
     .filter(Boolean);
 }
 
+const ROLE_OPTIONS = ['admin', 'manager', 'employee', 'worker'];
+
 function ToggleSwitch({
   checked,
   onChange,
@@ -224,17 +226,24 @@ export default function AdminConfig() {
   const [dirtyFlags, setDirtyFlags] = useState<Partial<Record<FeatureFlagKey, boolean>>>({});
   const [flagsSaving, setFlagsSaving] = useState(false);
   const [flagMessage, setFlagMessage] = useState('');
+  const [roleDefaults, setRoleDefaults] = useState<Record<string, Partial<Record<FeatureFlagKey, boolean>>>>({});
+  const [roleDefaultsDirty, setRoleDefaultsDirty] = useState<Record<string, boolean>>({});
+  const [roleDefaultsSaving, setRoleDefaultsSaving] = useState<string | null>(null);
+  const [roleDefaultsMessage, setRoleDefaultsMessage] = useState('');
 
   const fetchAll = async () => {
     setLoading(true);
     setError('');
 
     try {
-      const [configData, checklistData, ruleData, logData] = await Promise.all([
+      const [configData, checklistData, ruleData, logData, accessData] = await Promise.all([
         apiClient.get('/api/employees?admin_config=true'),
         apiClient.get('/api/employees?document_checklist=true'),
         apiClient.get('/api/employees?reminder_rules=true'),
         apiClient.get('/api/employees?reminder_logs=true'),
+        apiClient.get<{
+          roleDefaults?: { role: string; feature_key: string; enabled: boolean }[];
+        }>('/api/employees?feature_access=true'),
       ]);
 
       const mergedConfig = { ...DEFAULT_CONFIG, ...(configData || {}) };
@@ -247,6 +256,17 @@ export default function AdminConfig() {
       setChecklist(Array.isArray(checklistData) ? checklistData : []);
       setReminderRules(Array.isArray(ruleData) ? ruleData : []);
       setReminderLogs(Array.isArray(logData) ? logData : []);
+
+      if (accessData && Array.isArray(accessData.roleDefaults)) {
+        const grouped: Record<string, Record<string, boolean>> = {};
+
+        for (const row of accessData.roleDefaults) {
+          if (!grouped[row.role]) grouped[row.role] = {};
+          grouped[row.role][row.feature_key] = row.enabled === true;
+        }
+
+        setRoleDefaults(grouped);
+      }
     } catch {
       setError('Failed to load admin configuration center.');
     } finally {
@@ -307,6 +327,36 @@ export default function AdminConfig() {
 
   const resetFeatureToggles = () => {
     setDirtyFlags({});
+  };
+
+  const saveRoleDefaults = async (role: string) => {
+    if (!isAdmin || !profile) return;
+
+    setRoleDefaultsSaving(role);
+    setRoleDefaultsMessage('');
+
+    try {
+      await apiClient.post('/api/employees', {
+        action: 'role_defaults_bulk_update',
+        role,
+        defaults: Object.entries(roleDefaults[role] || {}).map(([key, enabled]) => ({
+          key,
+          enabled,
+        })),
+        actor_role: 'admin',
+        changed_by: profile.id,
+        changed_by_name: profile.name,
+      });
+
+      setRoleDefaultsMessage('Role defaults saved for ' + role + '.');
+      setRoleDefaultsDirty((prev) => ({ ...prev, [role]: false }));
+    } catch (err) {
+      setRoleDefaultsMessage(
+        err instanceof Error ? err.message : 'Failed to save role defaults.'
+      );
+    } finally {
+      setRoleDefaultsSaving(null);
+    }
   };
 
   const missingRows = useMemo(
@@ -962,6 +1012,75 @@ export default function AdminConfig() {
         {flagMessage && (
           <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
             {flagMessage}
+          </div>
+        )}
+      </div>
+
+      <div className="glass rounded-2xl p-5 mt-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-11 h-11 rounded-xl bg-indigo/15 text-indigo grid place-items-center">
+            <ToggleLeft size={20} />
+          </div>
+          <div>
+            <h3 className="font-display font-semibold">Role Defaults</h3>
+            <p className="text-xs text-muted mt-1">
+              Default feature access per role. Individual employees can override these in the
+              Employee Directory.
+            </p>
+          </div>
+        </div>
+
+        {ROLE_OPTIONS.map((role) => {
+          const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+          const isSaving = roleDefaultsSaving === role;
+
+          return (
+            <div key={role} className="mt-4 border-t border-white/10 pt-4">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <span className="text-sm font-semibold text-ink">{roleLabel}</span>
+                <button
+                  type="button"
+                  onClick={() => saveRoleDefaults(role)}
+                  disabled={!roleDefaultsDirty[role] || roleDefaultsSaving !== null}
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Save size={14} />
+                  )}
+                  {isSaving ? 'Saving…' : 'Save ' + roleLabel}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {effectiveFlags.map((flag) => (
+                  <label
+                    key={flag.key}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-surface px-4 py-3"
+                  >
+                    <span className="text-sm font-medium">{flag.label}</span>
+                    <ToggleSwitch
+                      checked={roleDefaults[role]?.[flag.key] ?? true}
+                      onChange={(checked) => {
+                        setRoleDefaults((prev) => ({
+                          ...prev,
+                          [role]: { ...(prev[role] || {}), [flag.key]: checked },
+                        }));
+                        setRoleDefaultsDirty((prev) => ({ ...prev, [role]: true }));
+                      }}
+                      label={flag.label}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        {roleDefaultsMessage && (
+          <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+            {roleDefaultsMessage}
           </div>
         )}
       </div>

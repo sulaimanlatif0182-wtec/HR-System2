@@ -1147,6 +1147,53 @@ export default async function handler(req, res) {
         return res.status(200).json(flags);
       }
 
+      if (req.query?.feature_access === 'true') {
+        const { data: roleDefaults, error: rdErr } = await supabase
+          .from('role_feature_defaults')
+          .select('*')
+          .order('role', { ascending: true })
+          .order('feature_key', { ascending: true });
+
+        if (rdErr) return res.status(500).json({ error: rdErr.message });
+
+        let ovQuery = supabase
+          .from('employee_feature_access')
+          .select('*');
+
+        if (employee_id) ovQuery = ovQuery.eq('employee_id', Number(employee_id));
+
+        const { data: overrides, error: ovErr } = await ovQuery;
+
+        if (ovErr) return res.status(500).json({ error: ovErr.message });
+
+        return res.status(200).json({
+          flags: await getFeatureFlags(),
+          roleDefaults: roleDefaults || [],
+          overrides: overrides || [],
+        });
+      }
+
+      if (req.query?.my_feature_access === 'true') {
+        const { data: roleDefaults, error: rdErr } = await supabase
+          .from('role_feature_defaults')
+          .select('*')
+          .eq('role', authUser.role);
+
+        if (rdErr) return res.status(500).json({ error: rdErr.message });
+
+        const { data: overrides, error: ovErr } = await supabase
+          .from('employee_feature_access')
+          .select('*')
+          .eq('employee_id', authUser.id);
+
+        if (ovErr) return res.status(500).json({ error: ovErr.message });
+
+        return res.status(200).json({
+          roleDefaults: roleDefaults || [],
+          overrides: overrides || [],
+        });
+      }
+
       if (req.query?.policy_readiness === 'true') {
         const { data, error } = await supabase
           .from('policy_readiness_items')
@@ -1620,6 +1667,135 @@ export default async function handler(req, res) {
         });
 
         return res.status(200).json(savedFlags);
+      }
+
+      if (body.action === 'feature_access_bulk_update') {
+        const role = authUser?.role || 'employee';
+
+        if (role !== 'admin') {
+          return res.status(403).json({
+            error: 'Only admin can update feature access.',
+          });
+        }
+
+        const features = Array.isArray(body.features) ? body.features : [];
+
+        if (!features.length) {
+          return res.status(400).json({ error: 'No feature settings provided.' });
+        }
+
+        let employeeId = body.employee_id ? Number(body.employee_id) : null;
+
+        if (!employeeId && body.employee_no) {
+          const { data: emp } = await supabase
+            .from('employees')
+            .select('id')
+            .eq('employee_no', String(body.employee_no))
+            .maybeSingle();
+
+          if (!emp) {
+            return res.status(404).json({ error: 'Employee not found.' });
+          }
+
+          employeeId = emp.id;
+        }
+
+        if (!employeeId) {
+          return res.status(400).json({ error: 'Employee ID is required.' });
+        }
+
+        try {
+          for (const feature of features) {
+            const key = String(feature.key || '').trim();
+
+            if (!key) continue;
+
+            if (feature.enabled === null) {
+              await supabase
+                .from('employee_feature_access')
+                .delete()
+                .eq('employee_id', employeeId)
+                .eq('feature_key', key);
+            } else {
+              await supabase
+                .from('employee_feature_access')
+                .upsert(
+                  {
+                    employee_id: employeeId,
+                    feature_key: key,
+                    enabled: feature.enabled === true,
+                  },
+                  { onConflict: 'employee_id,feature_key' }
+                );
+            }
+          }
+        } catch (err) {
+          return res.status(400).json({ error: err.message });
+        }
+
+        await safeInsertSystemAudit({
+          module: 'feature_access',
+          action: 'feature_access_bulk_update',
+          record_id: String(employeeId),
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
+          new_data: { employee_id: employeeId, features },
+        });
+
+        return res.status(200).json({ success: true });
+      }
+
+      if (body.action === 'role_defaults_bulk_update') {
+        const role = authUser?.role || 'employee';
+
+        if (role !== 'admin') {
+          return res.status(403).json({
+            error: 'Only admin can update role defaults.',
+          });
+        }
+
+        const targetRole = String(body.role || '').trim();
+        const defaults = Array.isArray(body.defaults) ? body.defaults : [];
+
+        if (!['admin', 'manager', 'employee', 'worker'].includes(targetRole)) {
+          return res.status(400).json({ error: 'Invalid role.' });
+        }
+
+        if (!defaults.length) {
+          return res.status(400).json({ error: 'No defaults provided.' });
+        }
+
+        try {
+          for (const entry of defaults) {
+            const key = String(entry.key || '').trim();
+
+            if (!key) continue;
+
+            await supabase
+              .from('role_feature_defaults')
+              .upsert(
+                {
+                  role: targetRole,
+                  feature_key: key,
+                  enabled: entry.enabled === true,
+                },
+                { onConflict: 'role,feature_key' }
+              );
+          }
+        } catch (err) {
+          return res.status(400).json({ error: err.message });
+        }
+
+        await safeInsertSystemAudit({
+          module: 'feature_access',
+          action: 'role_defaults_bulk_update',
+          record_id: targetRole,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
+          new_data: { role: targetRole, defaults },
+        });
+
+        return res.status(200).json({ success: true });
       }
 
       if (body.action === 'reminder_rule_save') {
