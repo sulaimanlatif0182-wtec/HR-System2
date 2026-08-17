@@ -74,7 +74,7 @@ export function printDocument(options: PrintDocumentOptions): void {
       <body>
         ${headerHtml}
         ${bodyHtml}
-        <script>window.onafterprint = function () { window.close(); }; window.print();</script>
+        <script>window.print()</script>
       </body>
     </html>`;
 
