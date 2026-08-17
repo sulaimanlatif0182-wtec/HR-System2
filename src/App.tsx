@@ -126,7 +126,7 @@ function App() {
           <Route
             path="/"
             element={
-              <ProtectedPage>
+              <ProtectedPage workerAllowed>
                 <Dashboard />
               </ProtectedPage>
             }
@@ -281,7 +281,7 @@ function App() {
           <Route
             path="/leave"
             element={
-              <ProtectedPage>
+              <ProtectedPage workerAllowed>
                 <FeatureGate feature={['leave_request', 'leave_approval']}>
                   <Leave />
                 </FeatureGate>
@@ -303,7 +303,7 @@ function App() {
           <Route
             path="/claims"
             element={
-              <ProtectedPage>
+              <ProtectedPage workerAllowed>
                 <FeatureGate feature={['claims_request', 'claims_approval']}>
                   <Claims />
                 </FeatureGate>

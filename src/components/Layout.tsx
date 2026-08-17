@@ -77,11 +77,12 @@ export default function Layout({ children }: { children: ReactNode }) {
   const displayName = profile?.name ?? user?.email?.split('@')[0] ?? 'Worker';
   const displayEmail = user?.email ?? profile?.email ?? '';
   const initials = displayName.slice(0, 2).toUpperCase();
+  const workerAllowedPaths = ['/', '/performance', '/leave', '/claims'];
   const items = NAV.filter(
     (n) =>
       n.roles.includes(role) &&
       (!n.feature || isEnabled(n.feature)) &&
-      (!isWorker || n.to === '/performance')
+      (!isWorker || workerAllowedPaths.includes(n.to))
   );
 
   // Lazy-load the employee directory the first time the user types

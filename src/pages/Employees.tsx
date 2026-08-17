@@ -806,9 +806,11 @@ export default function Employees() {
     department: string,
     mode: 'add' | 'edit'
   ) => {
+    const isWorker = values.category === 'worker';
+
     if (
       !values.name ||
-      !values.email ||
+      (isWorker ? false : !values.email) ||
       !values.role ||
       !values.employee_no ||
       !values.phone ||
@@ -816,7 +818,13 @@ export default function Employees() {
       !department ||
       !values.location
     ) {
-      return 'Name, email, employee ID, phone, role, department, job title and location are required.';
+      return isWorker
+        ? 'Name, employee ID, phone, role, department, job title and location are required.'
+        : 'Name, email, employee ID, phone, role, department, job title and location are required.';
+    }
+
+    if (isWorker && !/^(WT|WL)/i.test(values.employee_no.trim())) {
+      return 'Worker Employee ID must start with WT or WL (e.g. WT001, WL012).';
     }
 
     if (values.identity_last4 && values.identity_last4.length !== 4) {
@@ -1019,6 +1027,7 @@ export default function Employees() {
     const departmentValue = mode === 'add' ? effectiveDepartment : values.department;
     const departmentOptions =
       mode === 'add' ? addDepartmentOptions : DEPARTMENT_OPTIONS;
+    const isWorker = values.category === 'worker';
 
     return (
       <>
@@ -1030,14 +1039,16 @@ export default function Employees() {
           className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
         />
 
-        <input
-          required
-          type="email"
-          placeholder="Email"
-          value={values.email}
-          onChange={(e) => setValues({ ...values, email: e.target.value })}
-          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-        />
+        {!isWorker && (
+          <input
+            required
+            type="email"
+            placeholder="Email"
+            value={values.email}
+            onChange={(e) => setValues({ ...values, email: e.target.value })}
+            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+          />
+        )}
 
         <select
           required
@@ -1062,11 +1073,18 @@ export default function Employees() {
 
         <input
           required
-          placeholder="Employee ID (numeric)"
+          placeholder={isWorker ? 'Employee ID (e.g. WT001 or WL001)' : 'Employee ID (numeric)'}
           value={values.employee_no}
           onChange={(e) => setValues({ ...values, employee_no: e.target.value })}
           className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
         />
+
+        {isWorker && (
+          <p className="text-xs text-amber bg-amber/10 border border-amber/20 rounded-lg px-3 py-2">
+            Worker Employee ID must start with <span className="font-semibold">WT</span> or{' '}
+            <span className="font-semibold">WL</span> (e.g. WT001, WL012).
+          </p>
+        )}
 
         {mode === 'edit' && (
           <select
@@ -1129,24 +1147,26 @@ export default function Employees() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {!isWorker && (
+            <div>
+              <label className="text-xs text-muted mb-1 block">
+                Birthday
+              </label>
+
+              <input
+                type="date"
+                value={values.date_of_birth}
+                onChange={(e) =>
+                  setValues({ ...values, date_of_birth: e.target.value })
+                }
+                className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+              />
+            </div>
+          )}
+
           <div>
             <label className="text-xs text-muted mb-1 block">
-              Birthday
-            </label>
-
-            <input
-              type="date"
-              value={values.date_of_birth}
-              onChange={(e) =>
-                setValues({ ...values, date_of_birth: e.target.value })
-              }
-              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs text-muted mb-1 block">
-              Identity Type
+              {isWorker ? 'Passport / IC number' : 'Identity Type'}
             </label>
 
               <select
@@ -1166,7 +1186,7 @@ export default function Employees() {
 
           <input
             maxLength={4}
-            placeholder="Last 4 digits/chars of IC or passport"
+            placeholder={isWorker ? 'Last 4 digits/chars of passport or IC' : 'Last 4 digits/chars of IC or passport'}
           value={values.identity_last4}
           onChange={(e) =>
             setValues({
@@ -1180,19 +1200,23 @@ export default function Employees() {
           className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
         />
 
-        <input
-          type="number"
-          step="0.01"
-          placeholder="Monthly salary"
-          value={values.salary}
-          onChange={(e) => setValues({ ...values, salary: e.target.value })}
-          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
-        />
+        {!isWorker && (
+          <>
+            <input
+              type="number"
+              step="0.01"
+              placeholder="Monthly salary"
+              value={values.salary}
+              onChange={(e) => setValues({ ...values, salary: e.target.value })}
+              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+            />
 
-        <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
-          Payslip PDF password will be birthday YYMMDD + last 4 digits/chars.
-          Example: 9508201234
-        </p>
+            <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
+              Payslip PDF password will be birthday YYMMDD + last 4 digits/chars.
+              Example: 9508201234
+            </p>
+          </>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <input
@@ -1221,10 +1245,12 @@ export default function Employees() {
           </select>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 border-t border-white/10 pt-3">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wide">
-            Emergency Contact & Bank Info
-          </p>
+        {!isWorker && (
+          <>
+          <div className="grid grid-cols-1 gap-3 border-t border-white/10 pt-3">
+            <p className="text-xs font-semibold text-muted uppercase tracking-wide">
+              Emergency Contact & Bank Info
+            </p>
           <input
             placeholder="Address"
             value={values.address}
@@ -1333,6 +1359,9 @@ export default function Employees() {
             </label>
           ))}
         </div>
+        </>
+        )}
+
       </>
     );
   };

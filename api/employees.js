@@ -2526,7 +2526,7 @@ export default async function handler(req, res) {
         return res.status(201).json(data);
       }
 
-      if (!body.name || !body.email) {
+      if (!body.name || (!body.email && body.category !== 'worker')) {
         return res.status(400).json({
           error: 'Name and email are required.',
         });
@@ -2534,7 +2534,7 @@ export default async function handler(req, res) {
 
       const payload = buildEmployeePayload(body, { partial: false });
 
-      if (await recordExists('employees', [['email', payload.email, 'ilike']])) {
+      if (payload.email && await recordExists('employees', [['email', payload.email, 'ilike']])) {
         return res.status(409).json({
           error: 'An employee with this email already exists. Please use a different email or edit the existing employee.',
         });
