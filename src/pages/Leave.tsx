@@ -448,7 +448,12 @@ export default function Leave() {
         return employeeDepartment === profileDepartment;
       });
     } else {
-      list = requests.filter((request) => request.employee_id === profile?.id);
+      list = requests.filter(
+        (request) =>
+          request.employee_id === profile?.id ||
+          Number(empMap[request.employee_id]?.supervisor_id) ===
+            Number(profile?.id)
+      );
     }
 
     if (filter !== 'all') {
@@ -480,15 +485,9 @@ export default function Leave() {
 
     const applicant = empMap[request.employee_id];
     const applicantRole = String(applicant?.role ?? '').toLowerCase();
-    const isSupervisorOfApplicant =
-      Number(profile.id) === Number(applicant?.supervisor_id);
 
     if (isAdmin) {
       return true;
-    }
-
-    if (request.status === 'pending_supervisor') {
-      return isSupervisorOfApplicant;
     }
 
     if (isManagerOnly) {

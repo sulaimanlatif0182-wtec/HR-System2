@@ -910,12 +910,10 @@ export default async function handler(req, res) {
 
         const isAdmin = role === 'admin';
         const isManager = role === 'manager';
-        const isSupervisor =
-          Number(actor_id) === Number(applicant.supervisor_id);
 
-        if (!isAdmin && !isManager && !isSupervisor) {
+        if (!isAdmin && !isManager) {
           return res.status(403).json({
-            error: 'Only the supervisor, manager or admin can act on this leave.',
+            error: 'Only the manager or admin can act on this leave.',
           });
         }
 
@@ -942,12 +940,12 @@ export default async function handler(req, res) {
             if (isAdmin) {
               // Admin may approve directly.
               updatePayload.status = 'approved';
-            } else if (isSupervisor) {
-              // Supervisor approves -> moves to department manager.
+            } else if (isManager) {
+              // Manager approves -> moves to department manager.
               updatePayload.status = 'pending_manager';
             } else {
               return res.status(403).json({
-                error: 'Only the supervisor or admin can approve this leave at this stage.',
+                error: 'Only the manager or admin can approve this leave at this stage.',
               });
             }
           } else if (request.status === 'pending_manager') {
@@ -972,10 +970,6 @@ export default async function handler(req, res) {
               }
 
               updatePayload.status = 'approved';
-            } else if (isSupervisor) {
-              return res.status(403).json({
-                error: 'This leave is pending the department manager approval.',
-              });
             } else {
               return res.status(403).json({
                 error: 'Only the department manager or admin can approve this leave.',
