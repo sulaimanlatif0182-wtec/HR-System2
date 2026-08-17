@@ -1069,8 +1069,9 @@ export default async function handler(req, res) {
       if (req.query?.cron_reminders === '1') {
         const expectedSecret = process.env.CRON_SECRET;
         const authHeader = req.headers.authorization || '';
+        const isVercelCron = req.headers['x-vercel-cron'] === '1';
 
-        if (expectedSecret && authHeader !== `Bearer ${expectedSecret}`) {
+        if (!isVercelCron && !(expectedSecret && authHeader === `Bearer ${expectedSecret}`)) {
           return res.status(401).json({ error: 'Unauthorized cron request.' });
         }
 

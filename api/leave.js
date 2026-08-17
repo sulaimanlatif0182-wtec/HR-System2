@@ -931,7 +931,7 @@ export default async function handler(req, res) {
           });
         }
 
-        if (Number(actor_id) === Number(applicant.id)) {
+        if (Number(actor_id) === Number(applicant.id) && !isAdmin) {
           return res.status(403).json({
             error: 'You cannot approve your own leave.',
           });
