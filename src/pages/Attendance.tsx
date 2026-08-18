@@ -31,6 +31,8 @@ import type { LucideIcon } from 'lucide-react';
 import {
   startRegistration,
   startAuthentication,
+  type PublicKeyCredentialCreationOptionsJSON,
+  type PublicKeyCredentialRequestOptionsJSON,
 } from '@simplewebauthn/browser';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -735,22 +737,6 @@ function formatTime(value?: string | null) {
   });
 }
 
-function formatDateTime(value?: string | null) {
-  if (!value) return '—';
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return '—';
-
-  return date.toLocaleString([], {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 function toDateTimeLocal(value?: string | null) {
   if (!value) return '';
 
@@ -962,8 +948,6 @@ export default function Attendance() {
   const fetchDevices = async () => {
     if (!profile?.id) return;
 
-    setDeviceLoading(true);
-
     try {
       const data = await apiClient.get(`/api/device-auth?employee_id=${profile.id}`);
 
@@ -976,9 +960,6 @@ export default function Attendance() {
   };
 
   const fetchAll = async () => {
-    setLoading(true);
-    setError('');
-
     try {
       const [att, emp, settings, holidayRows, correctionRows] = await Promise.all([
         apiClient.get('/api/attendance'),
@@ -1008,11 +989,15 @@ export default function Attendance() {
   };
 
   useEffect(() => {
-    fetchAll();
+    void (async () => {
+      await fetchAll();
+    })();
   }, []);
 
   useEffect(() => {
-    fetchDevices();
+    void (async () => {
+      await fetchDevices();
+    })();
   }, [profile?.id]);
 
   const empMap = useMemo(() => {
@@ -1264,9 +1249,11 @@ export default function Attendance() {
         employee_id: profile.id,
       });
 
-      const registrationResponse = await startRegistration(options as any);
+      const registrationResponse = await startRegistration({
+        optionsJSON: options as PublicKeyCredentialCreationOptionsJSON,
+      });
 
-      const verifyData = await apiClient.post('/api/device-auth', {
+      await apiClient.post('/api/device-auth', {
         action: 'registration_verify',
         employee_id: profile.id,
         response: registrationResponse,
@@ -1302,7 +1289,9 @@ export default function Attendance() {
       employee_id: profile.id,
     });
 
-    const authenticationResponse = await startAuthentication(authOptions as any);
+    const authenticationResponse = await startAuthentication({
+      optionsJSON: authOptions as PublicKeyCredentialRequestOptionsJSON,
+    });
 
     const verifyData = await apiClient.post<{ token?: string; device_id?: number }>('/api/device-auth', {
       action: 'authentication_verify',

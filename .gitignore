@@ -25,6 +25,7 @@ dist-ssr
 
 # opencode swarm state
 .opencode/
+.swarm/
 .vite-source-tags.js
 .vercel
 .env

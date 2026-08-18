@@ -44,8 +44,7 @@ export function canExport(profile: { role?: string } | null | undefined): boolea
  */
 export function scopeRows<T extends { employee_id?: number; id?: number }>(
   rows: T[],
-  profile: { id: number; role?: string } | null | undefined,
-  _getDept?: (r: T) => string | null | undefined
+  profile: { id: number; role?: string } | null | undefined
 ): T[] {
   if (!profile) return [];
   if (profile.role === 'admin' || profile.role === 'manager') return rows;

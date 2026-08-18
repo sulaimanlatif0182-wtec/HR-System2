@@ -1,29 +1,30 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Employees from './pages/Employees';
-import Attendance from './pages/Attendance';
-import Leave from './pages/Leave';
-import Payroll from './pages/Payroll';
-import Claims from './pages/Claims';
-import OrgChart from './pages/OrgChart';
-import ResetPassword from './pages/ResetPassword';
-import Profile from './pages/Profile';
-import Settings from './pages/Settings';
-import AuditLogs from './pages/AuditLogs';
-import ProfileUpdates from './pages/ProfileUpdates';
-import Announcements from './pages/Announcements';
-import HrLetters from './pages/HrLetters';
-import Performance from './pages/Performance';
-import MonthlyReports from './pages/MonthlyReports';
-import BackupCenter from './pages/BackupCenter';
-import AdminConfig from './pages/AdminConfig';
-import SystemHealth from './pages/SystemHealth';
+const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Employees = lazy(() => import('./pages/Employees'));
+const Attendance = lazy(() => import('./pages/Attendance'));
+const Leave = lazy(() => import('./pages/Leave'));
+const Payroll = lazy(() => import('./pages/Payroll'));
+const Claims = lazy(() => import('./pages/Claims'));
+const OrgChart = lazy(() => import('./pages/OrgChart'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Settings = lazy(() => import('./pages/Settings'));
+const AuditLogs = lazy(() => import('./pages/AuditLogs'));
+const ProfileUpdates = lazy(() => import('./pages/ProfileUpdates'));
+const Announcements = lazy(() => import('./pages/Announcements'));
+const HrLetters = lazy(() => import('./pages/HrLetters'));
+const Performance = lazy(() => import('./pages/Performance'));
+const MonthlyReports = lazy(() => import('./pages/MonthlyReports'));
+const BackupCenter = lazy(() => import('./pages/BackupCenter'));
+const AdminConfig = lazy(() => import('./pages/AdminConfig'));
+const SystemHealth = lazy(() => import('./pages/SystemHealth'));
 import { FeatureFlagsProvider, useFeatureFlags } from './lib/featureFlags';
 import type { FeatureFlagKey } from './lib/featureFlags';
 
@@ -121,11 +122,20 @@ function FeatureGate({
   return <>{children}</>;
 }
 
+function PageFallback() {
+  return (
+    <div className="min-h-screen bg-bg grid place-items-center">
+      <div className="w-10 h-10 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+    </div>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
       <FeatureFlagsProvider>
         <BrowserRouter>
+          <Suspense fallback={<PageFallback />}>
           <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
@@ -331,6 +341,7 @@ function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
         </BrowserRouter>
       </FeatureFlagsProvider>
     </AuthProvider>

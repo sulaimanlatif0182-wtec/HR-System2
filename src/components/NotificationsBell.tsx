@@ -248,7 +248,7 @@ export default function NotificationsBell() {
 
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [readIds, setReadIds] = useState<Set<string>>(() => loadRead());
 
   const ref = useRef<HTMLDivElement>(null);
 
@@ -258,10 +258,6 @@ export default function NotificationsBell() {
   const isFinanceManager =
     profile?.role === 'manager' &&
     String(profile?.department ?? '').trim().toLowerCase() === 'finance';
-
-  useEffect(() => {
-    setReadIds(loadRead());
-  }, []);
 
   useEffect(() => {
     if (!profile) return;

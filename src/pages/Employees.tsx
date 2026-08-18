@@ -447,18 +447,7 @@ export default function Employees() {
   const [documentError, setDocumentError] = useState('');
   const [uploadingDocument, setUploadingDocument] = useState(false);
 
-  useEffect(() => {
-    const q = searchParams.get('q');
-
-    if (q !== null) {
-      setSearch(q);
-    }
-  }, [searchParams]);
-
   const fetchEmployees = async () => {
-    setLoading(true);
-    setError('');
-
     try {
       const data = await apiClient.get('/api/employees');
 
@@ -471,9 +460,6 @@ export default function Employees() {
   };
 
   const fetchEmployeeDocuments = async (employeeId: number) => {
-    setDocumentLoading(true);
-    setDocumentError('');
-
     try {
       const data = await apiClient.get(
         `/api/employees?documents=true&employee_id=${employeeId}`
@@ -597,12 +583,16 @@ export default function Employees() {
   };
 
   useEffect(() => {
-    fetchEmployees();
+    void (async () => {
+      await fetchEmployees();
+    })();
   }, []);
 
   useEffect(() => {
     if (selected && tab === 'documents') {
-      fetchEmployeeDocuments(selected.id);
+      void (async () => {
+        await fetchEmployeeDocuments(selected.id);
+      })();
     }
   }, [selected?.id, tab]);
 
@@ -660,7 +650,7 @@ export default function Employees() {
     }
 
     return profile?.department ? [profile.department] : [];
-  }, [isAdmin, profile?.department]);
+  }, [isAdmin, profile?.department, profile]);
 
   const handleOpenAdd = () => {
     setForm({

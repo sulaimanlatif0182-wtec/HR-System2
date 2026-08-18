@@ -1,34 +1,15 @@
 import { supabase } from '../../lib/db-client.js';
 import crypto from 'crypto';
 import { setCors } from '../../lib/cors.js';
-import { verifyWorkerSession } from '../../lib/verifyWorkerSession.js';
+import { isRateLimited } from '../../lib/rateLimit.js';
+import { verifyWorkerSession, decodeWorkerToken, toEmployeeProfile } from '../../lib/verifyWorkerSession.js';
 import { parseWorkerLogin } from '../../lib/validators.js';
 
 const WORKER_SESSION_COOKIE = 'wtechr_worker_session';
 const SESSION_TTL_DAYS = 30;
-const RATE_LIMIT = new Map();
-const RATE_WINDOW_MS = 60 * 1000;
-const RATE_MAX = 10;
 
-function isRateLimited(employeeNo) {
-  const now = Date.now();
-  const rec = RATE_LIMIT.get(employeeNo);
-  if (!rec || now - rec.first > RATE_WINDOW_MS) {
-    RATE_LIMIT.set(employeeNo, { first: now, count: 1 });
-    return false;
-  }
-  rec.count += 1;
-  if (rec.count > RATE_MAX) {
-    if (now - rec.first <= RATE_WINDOW_MS) return true;
-    RATE_LIMIT.set(employeeNo, { first: now, count: 1 });
-    return false;
-  }
-  return false;
-}
-
-function encodeCookie(employee) {
-  const token = crypto.randomBytes(32).toString('hex');
-  const payload = Buffer.from(JSON.stringify({ token, employee })).toString('base64url');
+function encodeCookie(token) {
+  const payload = Buffer.from(JSON.stringify({ token })).toString('base64url');
   return { token, payload };
 }
 
@@ -63,7 +44,7 @@ export default async function handler(req, res) {
       }
       const cleanEmployeeNo = parsed.data.employee_no;
 
-      if (isRateLimited(cleanEmployeeNo)) {
+      if (isRateLimited(`worker-login:${cleanEmployeeNo}`, { windowMs: 60 * 1000, max: 10 })) {
         return res.status(429).json({ error: 'Too many attempts. Please try again later.' });
       }
 
@@ -86,22 +67,7 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'Worker login is only for employees with worker category.' });
       }
 
-      const { token, payload } = encodeCookie({
-        id: Number(employee.id),
-        name: employee.name ?? '',
-        email: employee.email ?? '',
-        role: employee.role ?? 'employee',
-        category: employee.category ?? 'worker',
-        department: employee.department ?? null,
-        title: employee.title ?? null,
-        status: employee.status ?? 'active',
-        phone: employee.phone ?? null,
-        location: employee.location ?? null,
-        join_date: employee.join_date ?? null,
-        salary: employee.salary ?? null,
-        avatar_url: employee.avatar_url ?? null,
-        employee_no: employee.employee_no ?? null,
-      });
+      const { token, payload } = encodeCookie(crypto.randomBytes(32).toString('hex'));
 
       const expiresAt = new Date(
         Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000
@@ -112,8 +78,10 @@ export default async function handler(req, res) {
       if (insertError) throw insertError;
 
       setWorkerSessionCookie(res, payload);
-      const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-      return res.status(200).json({ employee: decoded.employee });
+      // Only the session token travels in the cookie; this profile is the same
+      // row just fetched from the DB and is re-resolved server-side on every
+      // subsequent request via verifyWorkerSession().
+      return res.status(200).json({ employee: toEmployeeProfile(employee) });
     }
 
     if (req.method === 'GET') {
@@ -131,14 +99,7 @@ export default async function handler(req, res) {
         /(?:^|;\s*)wtechr_worker_session=([^;]+)/
       )?.[1];
       if (cookieValue) {
-        try {
-          const token = JSON.parse(
-            Buffer.from(cookieValue, 'base64url').toString('utf8')
-          ).token;
-          await destroySession(token);
-        } catch {
-          // ignore decode errors
-        }
+        await destroySession(decodeWorkerToken(cookieValue));
       }
       clearWorkerSessionCookie(res);
       return res.status(200).json({ ok: true });

@@ -75,9 +75,6 @@ export default function Announcements() {
   const [message, setMessage] = useState('');
 
   const fetchAll = async () => {
-    setLoading(true);
-    setError('');
-
     try {
       const data = await apiClient.get(`/api/employees?announcements=true&t=${Date.now()}`);
 
@@ -90,7 +87,9 @@ export default function Announcements() {
   };
 
   useEffect(() => {
-    fetchAll();
+    void (async () => {
+      await fetchAll();
+    })();
   }, []);
 
   const displayedItems = useMemo(() => {

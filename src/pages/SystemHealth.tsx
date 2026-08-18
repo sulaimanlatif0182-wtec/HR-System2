@@ -1,7 +1,6 @@
 import apiClient from '../lib/api';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity,
   CheckCircle2,
   XCircle,
   RefreshCw,
@@ -60,9 +59,6 @@ export default function SystemHealth() {
   } | null>(null);
 
   const fetchHealth = async () => {
-    setLoading(true);
-    setError('');
-
     try {
       const data = await apiClient.get(`/api/employees?system_health=true&t=${Date.now()}`);
 
@@ -75,7 +71,9 @@ export default function SystemHealth() {
   };
 
   useEffect(() => {
-    fetchHealth();
+    void (async () => {
+      await fetchHealth();
+    })();
   }, []);
 
   const runMaintenance = async () => {

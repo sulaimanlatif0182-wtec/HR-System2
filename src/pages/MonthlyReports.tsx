@@ -16,20 +16,34 @@ function money(value: unknown) {
   })}`;
 }
 
+interface MonthlyReport {
+  generated_at: string;
+  employees?: { total?: number; active?: number; new_joiners?: number };
+  attendance?: { records?: number; late_count?: number; pending_corrections?: number };
+  leave?: { pending?: number; approved_in_period?: number };
+  claims?: { pending?: number; approved_amount?: number };
+  payroll?: { total_net_pay?: number };
+  holidays?: Array<{
+    id: number;
+    name: string;
+    holiday_date: string;
+    type?: string;
+    is_working_day?: boolean;
+  }>;
+}
+
 export default function MonthlyReports() {
   const { profile } = useAuth();
   const isAdminOrManager = profile?.role === 'admin' || profile?.role === 'manager';
   const [period, setPeriod] = useState(currentPeriod());
-  const [report, setReport] = useState<any>(null);
+  const [report, setReport] = useState<MonthlyReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const fetchReport = async () => {
-    setLoading(true);
-    setError('');
     try {
       const data = await apiClient.get(`/api/employees?monthly_hr_report=true&period=${period}`);
-      setReport(data);
+      setReport(data as MonthlyReport);
     } catch {
       setError('Failed to load monthly HR report.');
     } finally {
@@ -38,7 +52,9 @@ export default function MonthlyReports() {
   };
 
   useEffect(() => {
-    fetchReport();
+    void (async () => {
+      await fetchReport();
+    })();
   }, [period]);
 
   if (!isAdminOrManager) {
@@ -146,7 +162,7 @@ export default function MonthlyReports() {
           <EmptyState label="No holidays in this period." />
         ) : (
           <div className="space-y-2">
-            {report.holidays.map((holiday: any) => (
+            {report.holidays.map((holiday) => (
               <div
                 key={holiday.id}
                 className="rounded-xl bg-surface border border-white/10 p-3 flex justify-between print-card"

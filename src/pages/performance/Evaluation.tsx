@@ -135,15 +135,8 @@ function computeOverall(scores: Record<string, { score: number }>, sections: Tem
   return max > 0 ? Math.round((earned / max) * 100) : 0;
 }
 
-function formatDate(value?: string | null): string {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
 export default function Evaluation() {
-  const { profile, authMode } = useAuth();
+  const { profile } = useAuth();
   const [searchParams] = useSearchParams();
 
   const isAdmin = profile?.role === 'admin';
@@ -187,10 +180,6 @@ export default function Evaluation() {
   const [ruleActive, setRuleActive] = useState(true);
 
   const fetchAll = async () => {
-    setLoading(true);
-    setError('');
-    setMessage('');
-
     try {
       const [emp, templateData, evaluationData, ruleData] = await Promise.all([
         apiClient.get('/api/employees'),
@@ -215,7 +204,9 @@ export default function Evaluation() {
   };
 
   useEffect(() => {
-    fetchAll();
+    void (async () => {
+      await fetchAll();
+    })();
   }, [profile?.id]);
 
   const employeesMap = useMemo(
@@ -280,8 +271,6 @@ export default function Evaluation() {
       },
     ];
   }, [employees, profile, isAdmin, isManager]);
-
-  const selectedSubject = subjects.find((subject) => subject.value === subjectId);
 
   const selectedTemplate = useMemo(() => {
     if (!subjectId) return null;

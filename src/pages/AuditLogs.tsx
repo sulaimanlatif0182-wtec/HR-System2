@@ -130,9 +130,6 @@ export default function AuditLogs() {
   const [dateTo, setDateTo] = useState('');
 
   const fetchAll = async () => {
-    setLoading(true);
-    setError('');
-
     try {
       const [auditData, employeeData] = await Promise.all([
         apiClient.get('/api/attendance?audit_logs=1'),
@@ -149,7 +146,9 @@ export default function AuditLogs() {
   };
 
   useEffect(() => {
-    fetchAll();
+    void (async () => {
+      await fetchAll();
+    })();
   }, []);
 
   const employeeMap = useMemo(() => {

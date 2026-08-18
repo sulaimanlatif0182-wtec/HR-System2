@@ -137,16 +137,11 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-
-  useEffect(() => {
-    const verified = searchParams.get('verified');
-
-    if (verified === '1') {
-      setSuccess('Email verified successfully. You can now sign in.');
-      setMode('signin');
-    }
-  }, [searchParams]);
+  const [success, setSuccess] = useState(() =>
+    searchParams.get('verified') === '1'
+      ? 'Email verified successfully. You can now sign in.'
+      : ''
+  );
 
   useEffect(() => {
     let mounted = true;

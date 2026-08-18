@@ -1,5 +1,5 @@
 import apiClient from '../lib/api';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -40,17 +40,18 @@ export default function Profile() {
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState('');
 
-  useEffect(() => {
-    if (profile) {
-      setForm({
-        name: profile.name ?? '',
-        title: profile.title ?? '',
-        phone: profile.phone ?? '',
-        location: profile.location ?? '',
-        department: profile.department ?? '',
-      });
-    }
-  }, [profile]);
+  const [appliedProfileId, setAppliedProfileId] = useState<number | null>(null);
+
+  if (profile && appliedProfileId !== profile.id) {
+    setAppliedProfileId(profile.id);
+    setForm({
+      name: profile.name ?? '',
+      title: profile.title ?? '',
+      phone: profile.phone ?? '',
+      location: profile.location ?? '',
+      department: profile.department ?? '',
+    });
+  }
 
   const saveInfo = async (e: FormEvent) => {
     e.preventDefault();

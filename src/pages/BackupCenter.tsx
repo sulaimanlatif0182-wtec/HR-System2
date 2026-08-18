@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Archive, Download, Database, Loader2, RefreshCw } from 'lucide-react';
+import { Archive, Download, Database, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { PageHeader, Badge, EmptyState, ErrorState } from '../components/ui';
 

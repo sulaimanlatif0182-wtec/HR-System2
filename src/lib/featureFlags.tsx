@@ -1,3 +1,5 @@
+/* eslint-disable react-refresh/only-export-components */
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import apiClient from './api';
@@ -133,8 +135,11 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refresh();
-    refreshAccess();
+    const load = async () => {
+      await refresh();
+      await refreshAccess();
+    };
+    void load();
   }, [refresh, refreshAccess]);
 
   const isEnabled = useCallback(

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { FileText, Save, Printer, Trash2, Loader2, RefreshCw } from 'lucide-react';
+import { Save, Printer, Trash2, Loader2, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { PageHeader, Badge, LoadingState, ErrorState, EmptyState } from '../components/ui';
 import apiClient from '../lib/api';
@@ -61,7 +61,6 @@ export default function HrLetters() {
   const [message, setMessage] = useState('');
 
   const fetchAll = async () => {
-    setLoading(true); setError('');
     try {
       const [emp, letterData] = await Promise.all([
         apiClient.get('/api/employees'),
@@ -73,7 +72,11 @@ export default function HrLetters() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    void (async () => {
+      await fetchAll();
+    })();
+  }, []);
 
   const selectedEmployee = useMemo(() => employees.find((e) => e.id === Number(employeeId)), [employees, employeeId]);
 

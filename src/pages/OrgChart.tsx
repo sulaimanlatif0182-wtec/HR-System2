@@ -26,8 +26,6 @@ export default function OrgChart() {
   const [error, setError] = useState('');
 
   const fetchAll = async () => {
-    setLoading(true);
-    setError('');
     try {
       const [e, d] = await Promise.all([
         apiClient.get('/api/employees'),
@@ -42,7 +40,11 @@ export default function OrgChart() {
     }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    void (async () => {
+      await fetchAll();
+    })();
+  }, []);
 
   const grouped = useMemo(() => {
     const byDept: Record<string, Employee[]> = {};

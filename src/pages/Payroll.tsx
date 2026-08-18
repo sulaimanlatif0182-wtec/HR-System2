@@ -571,9 +571,6 @@ export default function Payroll() {
   const [formError, setFormError] = useState('');
 
   const fetchAll = async () => {
-    setLoading(true);
-    setError('');
-
     try {
       const [pay, emp, batchData, settingsData, profileData, wageTableData] =
         await Promise.all([
@@ -602,30 +599,35 @@ export default function Payroll() {
   };
 
   useEffect(() => {
-    fetchAll();
+    void (async () => {
+      await fetchAll();
+    })();
   }, []);
 
-  useEffect(() => {
-    if (!profileForm.employee_id) return;
+  const [prefilledEmployeeId, setPrefilledEmployeeId] = useState('');
 
+  if (prefilledEmployeeId !== profileForm.employee_id) {
+    setPrefilledEmployeeId(profileForm.employee_id);
     const employeeId = Number(profileForm.employee_id);
-    const existingProfile = payrollProfiles.find(
-      (item) => item.employee_id === employeeId
-    );
 
-    if (existingProfile) {
-      setProfileForm(profileFormFromProfile(existingProfile));
-      return;
+    if (employeeId) {
+      const existingProfile = payrollProfiles.find(
+        (item) => item.employee_id === employeeId
+      );
+
+      if (existingProfile) {
+        setProfileForm(profileFormFromProfile(existingProfile));
+      } else {
+        const employee = employees.find((item) => item.id === employeeId);
+
+        setProfileForm({
+          ...emptyPayrollProfileForm(),
+          employee_id: String(employeeId),
+          date_of_birth: employee?.date_of_birth ?? '',
+        });
+      }
     }
-
-    const employee = employees.find((item) => item.id === employeeId);
-
-    setProfileForm((current) => ({
-      ...emptyPayrollProfileForm(),
-      employee_id: String(employeeId),
-      date_of_birth: employee?.date_of_birth ?? '',
-    }));
-  }, [profileForm.employee_id, payrollProfiles, employees]);
+  }
 
   const empMap = useMemo(() => {
     const m: Record<number, Emp> = {};

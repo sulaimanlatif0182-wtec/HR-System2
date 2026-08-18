@@ -108,9 +108,6 @@ export default function ProfileUpdates() {
   const fetchAll = async () => {
     if (!profile?.id) return;
 
-    setLoading(true);
-    setError('');
-
     try {
       const [me, req, emp] = await Promise.all([
         apiClient.get<Employee>(`/api/employees?id=${profile.id}`),
@@ -152,7 +149,9 @@ export default function ProfileUpdates() {
   };
 
   useEffect(() => {
-    fetchAll();
+    void (async () => {
+      await fetchAll();
+    })();
   }, [profile?.id]);
 
   const employeeMap = useMemo(() => {

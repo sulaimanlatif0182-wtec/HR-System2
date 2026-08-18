@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -61,7 +61,7 @@ export default function Settings() {
   const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
 
-  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
+  const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
   const [prefsSaved, setPrefsSaved] = useState(false);
 
   const [currentPw, setCurrentPw] = useState('');
@@ -72,8 +72,6 @@ export default function Settings() {
   const [pwSuccess, setPwSuccess] = useState('');
 
   const [signingOutAll, setSigningOutAll] = useState(false);
-
-  useEffect(() => { setPrefs(loadPrefs()); }, []);
 
   const updatePref = (key: keyof Prefs, value: boolean) => {
     const next = { ...prefs, [key]: value };

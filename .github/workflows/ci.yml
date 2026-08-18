@@ -18,3 +18,5 @@ jobs:
       - run: npm ci
       - run: npx tsc -b --pretty false
       - run: npm run lint
+      - run: npm run test
+      - run: npm run test:frontend

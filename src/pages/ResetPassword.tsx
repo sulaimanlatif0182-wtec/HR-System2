@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Lock, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react';
 import supabase from '../lib/supabase';
+import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 
 export default function ResetPassword() {
   const [password, setPassword] = useState('');
@@ -16,11 +17,11 @@ export default function ResetPassword() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }: { data: { session: any } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
       if (session) setSessionReady(true);
       setChecking(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       if (event === 'PASSWORD_RECOVERY' || session) {
         setSessionReady(true);
         setChecking(false);

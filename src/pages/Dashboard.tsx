@@ -14,6 +14,7 @@ import {
   Megaphone,
   Loader2,
   RefreshCw,
+  type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { PageHeader, Badge, LoadingState, ErrorState, EmptyState } from '../components/ui';
@@ -135,7 +136,7 @@ function StatCard({
   value,
   tone = 'primary',
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: string | number;
   tone?: 'primary' | 'emerald' | 'amber' | 'rose' | 'accent';
@@ -187,9 +188,6 @@ export default function Dashboard() {
   const [error, setError] = useState('');
 
   const fetchDashboard = async () => {
-    setLoading(true);
-    setError('');
-
     try {
       const [empData, attData, leaveData, claimData, payrollData, holidayData, announcementData] =
         await Promise.all([
@@ -217,7 +215,9 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchDashboard();
+    void (async () => {
+      await fetchDashboard();
+    })();
   }, []);
 
   const visibleEmployees = useMemo(() => {

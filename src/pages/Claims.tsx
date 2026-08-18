@@ -194,9 +194,6 @@ export default function Claims() {
   const [actingId, setActingId] = useState<number | null>(null);
 
   const fetchAll = async () => {
-    setLoading(true);
-    setError('');
-
     try {
       const [claimData, empData] = await Promise.all([
         apiClient.get('/api/claims'),
@@ -213,7 +210,9 @@ export default function Claims() {
   };
 
   useEffect(() => {
-    fetchAll();
+    void (async () => {
+      await fetchAll();
+    })();
   }, []);
 
   const empMap = useMemo(() => {

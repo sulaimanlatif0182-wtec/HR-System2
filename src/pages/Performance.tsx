@@ -136,9 +136,6 @@ export default function Performance() {
   const [message, setMessage] = useState('');
 
   const fetchAll = async () => {
-    setLoading(true);
-    setError('');
-
     try {
       const [emp, reviewData] = await Promise.all([
         apiClient.get('/api/employees'),
@@ -159,7 +156,9 @@ export default function Performance() {
   };
 
   useEffect(() => {
-    fetchAll();
+    void (async () => {
+      await fetchAll();
+    })();
   }, [profile?.id]);
 
   const employeeMap = useMemo(
@@ -399,18 +398,18 @@ export default function Performance() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              {[
+              {([
                 ['kpi_score', 'KPI'],
                 ['behavior_score', 'Behavior'],
                 ['attendance_score', 'Attendance'],
-              ].map(([key, label]) => (
+              ] as const).map(([key, label]) => (
                 <label key={key} className="text-xs text-muted">
                   {label}
                   <input
                     type="number"
                     min="0"
                     max="100"
-                    value={(form as any)[key]}
+                    value={form[key]}
                     onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                     className="mt-1 w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5"
                   />
@@ -422,22 +421,22 @@ export default function Performance() {
               </div>
             </div>
 
-            {['strengths', 'improvements', 'goals', 'recommendation'].map((key) => (
+            {(['strengths', 'improvements', 'goals', 'recommendation'] as const).map((key) => (
               <textarea
                 key={key}
                 rows={2}
-                value={(form as any)[key]}
+                value={form[key]}
                 onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                 placeholder={key.replace('_', ' ')}
                 className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 resize-none"
               />
             ))}
 
-            {['manager_remarks', 'admin_remarks'].map((key) => (
+            {(['manager_remarks', 'admin_remarks'] as const).map((key) => (
               <textarea
                 key={key}
                 rows={2}
-                value={(form as any)[key]}
+                value={form[key]}
                 onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                 placeholder={key.replace('_', ' ')}
                 className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 resize-none"

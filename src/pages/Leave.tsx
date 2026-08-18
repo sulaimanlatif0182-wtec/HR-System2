@@ -349,9 +349,6 @@ export default function Leave() {
     ATTACHMENT_REQUIRED_LEAVE_TYPES.has(form.leave_type);
 
   const fetchAll = async () => {
-    setLoading(true);
-    setError('');
-
     try {
       const [lv, emp, holidayRows] = await Promise.all([
         apiClient.get('/api/leave'),
@@ -372,8 +369,6 @@ export default function Leave() {
   const fetchBalances = async (employeeId?: number | null) => {
     if (!employeeId) return;
 
-    setBalanceLoading(true);
-
     try {
       const [balanceData, adjustmentData] = await Promise.all([
         apiClient.get(`/api/leave?balances=true&employee_id=${employeeId}`),
@@ -391,12 +386,16 @@ export default function Leave() {
   };
 
   useEffect(() => {
-    fetchAll();
+    void (async () => {
+      await fetchAll();
+    })();
   }, []);
 
   useEffect(() => {
     if (profile?.id) {
-      fetchBalances(profile.id);
+      void (async () => {
+        await fetchBalances(profile.id);
+      })();
     }
   }, [profile?.id]);
 
