@@ -34,7 +34,7 @@ alter table public.policy_readiness_items enable row level security;
 alter table public.admin_configurations enable row level security;
 alter table public.company_holidays enable row level security;
 
--- 3) Helper: caller's role from employees (auth.uid() == employees.id)
+-- 3) Helper: caller's role from employees (matched by email — employees.id is bigint, auth.uid() is uuid)
 create or replace function public.current_employee_role()
 returns text
 language sql
@@ -42,31 +42,48 @@ stable
 security definer
 set search_path = public
 as $$
-  select coalesce(role, 'employee') from public.employees where id = auth.uid() limit 1;
+  select coalesce(role, 'employee')
+  from public.employees
+  where lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  limit 1;
+$$;
+
+-- 3b) Helper: caller's employees.id (for employee_id = ... comparisons)
+create or replace function public.current_employee_id()
+returns bigint
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select id
+  from public.employees
+  where lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  limit 1;
 $$;
 
 -- 4) Anon = no direct table access (default-deny). Authenticated policies below.
 drop policy if exists employees_select on public.employees;
 create policy employees_select on public.employees
-  for select using (id = auth.uid() or public.current_employee_role() = 'admin');
+  for select using (lower(email) = lower(coalesce(auth.jwt() ->> 'email', '')) or public.current_employee_role() = 'admin');
 drop policy if exists employees_write on public.employees;
 create policy employees_write on public.employees
-  for all using (id = auth.uid() or public.current_employee_role() = 'admin')
-  with check (id = auth.uid() or public.current_employee_role() = 'admin');
+  for all using (lower(email) = lower(coalesce(auth.jwt() ->> 'email', '')) or public.current_employee_role() = 'admin')
+  with check (lower(email) = lower(coalesce(auth.jwt() ->> 'email', '')) or public.current_employee_role() = 'admin');
 
 drop policy if exists attendance_policy on public.attendance;
 create policy attendance_policy on public.attendance
-  for all using (employee_id = auth.uid() or public.current_employee_role() in ('admin','manager'))
-  with check (employee_id = auth.uid() or public.current_employee_role() in ('admin','manager'));
+  for all using (employee_id = public.current_employee_id() or public.current_employee_role() in ('admin','manager'))
+  with check (employee_id = public.current_employee_id() or public.current_employee_role() in ('admin','manager'));
 
 drop policy if exists leave_policy on public.leave_requests;
 create policy leave_policy on public.leave_requests
-  for all using (employee_id = auth.uid() or public.current_employee_role() in ('admin','manager'))
-  with check (employee_id = auth.uid() or public.current_employee_role() in ('admin','manager'));
+  for all using (employee_id = public.current_employee_id() or public.current_employee_role() in ('admin','manager'))
+  with check (employee_id = public.current_employee_id() or public.current_employee_role() in ('admin','manager'));
 
 drop policy if exists payroll_select on public.payroll;
 create policy payroll_select on public.payroll
-  for select using (employee_id = auth.uid() or public.current_employee_role() in ('admin','manager'));
+  for select using (employee_id = public.current_employee_id() or public.current_employee_role() in ('admin','manager'));
 drop policy if exists payroll_write on public.payroll;
 create policy payroll_write on public.payroll
   for all using (public.current_employee_role() in ('admin','manager'))
@@ -74,8 +91,8 @@ create policy payroll_write on public.payroll
 
 drop policy if exists claims_policy on public.claims;
 create policy claims_policy on public.claims
-  for all using (employee_id = auth.uid() or public.current_employee_role() in ('admin','manager'))
-  with check (employee_id = auth.uid() or public.current_employee_role() in ('admin','manager'));
+  for all using (employee_id = public.current_employee_id() or public.current_employee_role() in ('admin','manager'))
+  with check (employee_id = public.current_employee_id() or public.current_employee_role() in ('admin','manager'));
 
 -- Admin-only config-type tables
 do $$
