@@ -1,5 +1,5 @@
 import apiClient from '../../lib/api';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -179,17 +179,17 @@ export default function Evaluation() {
   const [ruleCriteria, setRuleCriteria] = useState<Set<string>>(new Set());
   const [ruleActive, setRuleActive] = useState(true);
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     try {
       const [emp, templateData, evaluationData, ruleData] = await Promise.all([
         apiClient.get('/api/employees'),
         apiClient.get('/api/employees?evaluation_templates=true'),
         apiClient.get(
-          canEvaluate
+          profile?.role === 'admin' || profile?.role === 'manager'
             ? '/api/employees?evaluations=true'
             : `/api/employees?evaluations=true&employee_id=${profile?.id}`
         ),
-        isAdmin ? apiClient.get('/api/employees?worker_rules=true') : Promise.resolve([]),
+        profile?.role === 'admin' ? apiClient.get('/api/employees?worker_rules=true') : Promise.resolve([]),
       ]);
 
       setEmployees(Array.isArray(emp) ? emp : []);
@@ -201,13 +201,13 @@ export default function Evaluation() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [profile]);
 
   useEffect(() => {
     void (async () => {
       await fetchAll();
     })();
-  }, [profile?.id]);
+  }, [fetchAll]);
 
   const employeesMap = useMemo(
     () => Object.fromEntries(employees.map((employee) => [employee.id, employee])),

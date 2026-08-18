@@ -1,5 +1,5 @@
 import apiClient from '../lib/api';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -945,7 +945,7 @@ export default function Attendance() {
     return () => window.clearInterval(interval);
   }, []);
 
-  const fetchDevices = async () => {
+  const fetchDevices = useCallback(async () => {
     if (!profile?.id) return;
 
     try {
@@ -957,9 +957,9 @@ export default function Attendance() {
     } finally {
       setDeviceLoading(false);
     }
-  };
+  }, [profile]);
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     try {
       const [att, emp, settings, holidayRows, correctionRows] = await Promise.all([
         apiClient.get('/api/attendance'),
@@ -967,7 +967,7 @@ export default function Attendance() {
         apiClient.get('/api/attendance?settings=1'),
         apiClient.get('/api/attendance?holidays=1'),
         apiClient.get(
-          isAdmin
+          profile?.role === 'admin'
             ? '/api/attendance?correction_requests=1'
             : `/api/attendance?correction_requests=1&employee_id=${profile?.id ?? ''}`
         ),
@@ -986,19 +986,19 @@ export default function Attendance() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [profile]);
 
   useEffect(() => {
     void (async () => {
       await fetchAll();
     })();
-  }, []);
+  }, [fetchAll]);
 
   useEffect(() => {
     void (async () => {
       await fetchDevices();
     })();
-  }, [profile?.id]);
+  }, [fetchDevices]);
 
   const empMap = useMemo(() => {
     const m: Record<number, Emp> = {};

@@ -1,5 +1,5 @@
 import apiClient from '../lib/api';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -135,7 +135,7 @@ export default function Performance() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     try {
       const [emp, reviewData] = await Promise.all([
         apiClient.get('/api/employees'),
@@ -153,13 +153,13 @@ export default function Performance() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [profile]);
 
   useEffect(() => {
     void (async () => {
       await fetchAll();
     })();
-  }, [profile?.id]);
+  }, [fetchAll]);
 
   const employeeMap = useMemo(
     () => Object.fromEntries(employees.map((employee) => [employee.id, employee])),

@@ -1,5 +1,5 @@
 import apiClient from '../lib/api';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FileBarChart, Printer, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { PageHeader, LoadingState, ErrorState, EmptyState, Badge } from '../components/ui';
@@ -40,7 +40,7 @@ export default function MonthlyReports() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetchReport = async () => {
+  const fetchReport = useCallback(async () => {
     try {
       const data = await apiClient.get(`/api/employees?monthly_hr_report=true&period=${period}`);
       setReport(data as MonthlyReport);
@@ -49,13 +49,13 @@ export default function MonthlyReports() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [period]);
 
   useEffect(() => {
     void (async () => {
       await fetchReport();
     })();
-  }, [period]);
+  }, [fetchReport]);
 
   if (!isAdminOrManager) {
     return <ErrorState message="Monthly HR Reports are for Admin/Manager only." onRetry={() => undefined} />;

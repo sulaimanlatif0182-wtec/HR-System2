@@ -1,5 +1,5 @@
 import apiClient from '../lib/api';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   UserCog,
@@ -105,7 +105,7 @@ export default function ProfileUpdates() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     if (!profile?.id) return;
 
     try {
@@ -146,13 +146,13 @@ export default function ProfileUpdates() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAdmin, profile]);
 
   useEffect(() => {
     void (async () => {
       await fetchAll();
     })();
-  }, [profile?.id]);
+  }, [fetchAll]);
 
   const employeeMap = useMemo(() => {
     const map: Record<number, Employee> = {};

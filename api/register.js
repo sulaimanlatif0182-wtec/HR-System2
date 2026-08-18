@@ -1,5 +1,6 @@
 import { supabase } from '../lib/db-client.js';
 import { parseRegister } from '../lib/validators.js';
+import { isRateLimited } from '../lib/rateLimit.js';
 
 // Server-side password policy — mirrors the frontend checklist.
 function validatePassword(password) {
@@ -17,6 +18,10 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  if (isRateLimited(`register:${req.ip || 'anon'}`, { windowMs: 60 * 1000, max: 10 })) {
+    return res.status(429).json({ error: 'Too many registration attempts. Please try again later.' });
+  }
 
   try {
     const parsed = parseRegister(req.body ?? {});

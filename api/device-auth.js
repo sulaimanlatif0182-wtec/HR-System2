@@ -7,6 +7,7 @@ import {
 } from '@simplewebauthn/server';
 import { supabase } from '../lib/db-client.js';
 import { parseDeviceAuth } from '../lib/validators.js';
+import { isRateLimited } from '../lib/rateLimit.js';
 
 function resolveAppBaseUrl() {
   if (process.env.APP_BASE_URL) {
@@ -162,6 +163,10 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(204).end();
+
+  if (isRateLimited(`device-auth:${req.ip || 'anon'}`, { windowMs: 60 * 1000, max: 30 })) {
+    return res.status(429).json({ error: 'Too many device-auth requests. Please try again later.' });
+  }
 
   try {
     // =========================

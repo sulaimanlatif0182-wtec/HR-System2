@@ -588,13 +588,15 @@ export default function Employees() {
     })();
   }, []);
 
+  const selectedId = selected?.id;
+
   useEffect(() => {
-    if (selected && tab === 'documents') {
+    if (selectedId && tab === 'documents') {
       void (async () => {
-        await fetchEmployeeDocuments(selected.id);
+        await fetchEmployeeDocuments(selectedId);
       })();
     }
-  }, [selected?.id, tab]);
+  }, [selectedId, tab]);
 
   const visibleEmployees = useMemo(() => {
     if (isAdmin) {
@@ -650,7 +652,7 @@ export default function Employees() {
     }
 
     return profile?.department ? [profile.department] : [];
-  }, [isAdmin, profile?.department, profile]);
+  }, [isAdmin, profile]);
 
   const handleOpenAdd = () => {
     setForm({

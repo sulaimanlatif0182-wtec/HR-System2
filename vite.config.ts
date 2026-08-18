@@ -17,5 +17,28 @@ export default defineConfig(async ({ mode }) => {
     plugins,
     envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
     define: processEnvDefines,
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (!id.includes('node_modules')) return;
+            if (id.includes('recharts') || id.includes('d3-')) return 'charts';
+            if (id.includes('framer-motion')) return 'motion';
+            if (id.includes('@supabase')) return 'supabase';
+            if (
+              id.includes('react') ||
+              id.includes('scheduler') ||
+              id.includes('loose-envify') ||
+              id.includes('object-assign') ||
+              id.includes('prop-types') ||
+              id.includes('react-is') ||
+              id.includes('use-sync-external-store')
+            )
+              return 'react';
+            return 'vendor';
+          },
+        },
+      },
+    },
   };
 })
