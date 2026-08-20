@@ -6,6 +6,7 @@ import {
   verifyAuthenticationResponse,
 } from '@simplewebauthn/server';
 import { supabase } from '../lib/db-client.js';
+import { dbError } from '../lib/errors.js';
 import { parseDeviceAuth } from '../lib/validators.js';
 import { isRateLimited, getClientIp } from '../lib/rateLimit.js';
 import { requireAuth } from '../lib/requireAuth.js';
@@ -561,15 +562,6 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     console.error('Device auth error:', err);
-
-    return res.status(500).json({
-      error:
-        err?.message ||
-        err?.details ||
-        err?.hint ||
-        err?.code ||
-        JSON.stringify(err) ||
-        'Internal server error.',
-    });
+    dbError(res, err, 'Internal server error.');
   }
 }

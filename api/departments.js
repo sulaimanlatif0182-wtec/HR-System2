@@ -2,6 +2,7 @@ import { supabase } from '../lib/db-client.js';
 import { requireAuth } from '../lib/requireAuth.js';
 import { setCors } from '../lib/cors.js';
 import { parseDepartmentCreate, parseId } from '../lib/validators.js';
+import { dbError } from '../lib/errors.js';
 
 export default async function handler(req, res) {
   setCors(res, req);
@@ -33,14 +34,19 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: parsedId.error });
       }
       const { id } = parsedId.data;
-      const { ...rest } = req.body;
-      const { data, error } = await supabase.from('departments').update(rest).eq('id', id).select().single();
+      const { name } = req.body ?? {};
+      const { data, error } = await supabase
+        .from('departments')
+        .update({ name: String(name).trim() })
+        .eq('id', id)
+        .select()
+        .single();
       if (error) throw error;
       return res.status(200).json(data);
     }
     res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
     console.error('API error:', err);
-    res.status(500).json({ error: err.message });
+    dbError(res, err);
   }
 }

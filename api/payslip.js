@@ -3,6 +3,15 @@ import path from 'path';
 import PDFDocument from 'pdfkit';
 import { supabase } from '../lib/db-client.js';
 import { requireAuth } from '../lib/requireAuth.js';
+import { dbError } from '../lib/errors.js';
+import {
+  money,
+  numberValue,
+  formatDate,
+  makePassword,
+  totalEmployeeDeductions,
+  safeFileName,
+} from '../lib/payslipMath.js';
 
 const BRAND_BLUE = '#1f4fa3';
 const BRAND_RED = '#dc1828';
@@ -10,57 +19,6 @@ const DARK = '#111827';
 const MUTED = '#6b7280';
 const LIGHT_BORDER = '#e5e7eb';
 const LIGHT_BG = '#f8fafc';
-
-function money(value) {
-  return `RM ${Number(value || 0).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-function numberValue(value) {
-  const number = Number(value || 0);
-  return Number.isFinite(number) ? number : 0;
-}
-
-function formatDate(value) {
-  if (!value) return '-';
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return String(value);
-  }
-
-  return date.toLocaleDateString('en-MY', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-}
-
-function makePassword(dateOfBirth, identityLast4) {
-  if (!dateOfBirth || !identityLast4) {
-    return null;
-  }
-
-  const date = new Date(dateOfBirth);
-
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  const yy = String(date.getFullYear()).slice(-2);
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  const last4 = String(identityLast4).trim();
-
-  if (last4.length < 4) {
-    return null;
-  }
-
-  return `${yy}${mm}${dd}${last4.slice(-4)}`;
-}
 
 function getLogoPath() {
   const candidates = [
@@ -267,18 +225,6 @@ function drawNetPayBox(doc, payroll, x, y, width = 523) {
       align: 'right',
     });
   doc.restore();
-}
-
-function totalEmployeeDeductions(payroll) {
-  return (
-    numberValue(payroll.epf_employee) +
-    numberValue(payroll.socso_employee) +
-    numberValue(payroll.eis_employee) +
-    numberValue(payroll.pcb) +
-    numberValue(payroll.leave_deduction) +
-    numberValue(payroll.lunch_deduction) +
-    numberValue(payroll.deductions)
-  );
 }
 
 async function buildPayslipPdf({ payroll, employee, password }) {
@@ -539,10 +485,7 @@ export default async function handler(req, res) {
       password,
     });
 
-    const safeName = String(employee.name || `employee-${employee.id}`)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+    const safeName = safeFileName(employee.name, employee.id);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
@@ -554,9 +497,6 @@ export default async function handler(req, res) {
     return res.status(200).send(buffer);
   } catch (err) {
     console.error('Payslip API error:', err);
-
-    return res.status(500).json({
-      error: err instanceof Error ? err.message : 'Internal server error.',
-    });
+    dbError(res, err, 'Internal server error.');
   }
 }

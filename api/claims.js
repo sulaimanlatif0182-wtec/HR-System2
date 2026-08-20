@@ -9,35 +9,16 @@ import {
   notifyClaimDecision,
 } from '../server/notify.js';
 import { parseClaim } from '../lib/validators.js';
-
-const ALLOWED_CLAIM_TYPES = [
-  'Fuel',
-  'Parking',
-  'Toll',
-  'Medical',
-  'Accommodation',
-  'Travel',
-  'Office Supplies',
-  'Other',
-];
-
-function cleanString(value) {
-  return String(value ?? '').trim();
-}
-
-function toNumber(value, fallback = 0) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : fallback;
-}
-
-function getDistanceKm(start, end) {
-  const s = toNumber(start, 0);
-  const e = toNumber(end, 0);
-
-  if (!s || !e || e <= s) return 0;
-
-  return Math.round((e - s) * 100) / 100;
-}
+import { dbError } from '../lib/errors.js';
+import {
+  cleanString,
+  toNumber,
+  isFinanceManager,
+  isAdmin,
+  isManager,
+  sameDepartment,
+  buildClaimPayload,
+} from '../lib/claimMath.js';
 
 async function getEmployee(employeeId) {
   if (!employeeId) return null;
@@ -51,34 +32,6 @@ async function getEmployee(employeeId) {
   if (error) throw error;
 
   return data || null;
-}
-
-function isFinanceManager(actorRole, actorDepartment) {
-  return (
-    String(actorRole || '').toLowerCase() === 'manager' &&
-    String(actorDepartment || '').trim().toLowerCase() === 'finance'
-  );
-}
-
-function isAdmin(actorRole) {
-  return String(actorRole || '').toLowerCase() === 'admin';
-}
-
-function isManager(actorRole) {
-  return String(actorRole || '').toLowerCase() === 'manager';
-}
-
-function sameDepartment(a, b) {
-  return (
-    String(a || '').trim().toLowerCase() ===
-    String(b || '').trim().toLowerCase()
-  );
-}
-
-function normalizeClaimType(value) {
-  const claimType = cleanString(value);
-
-  return ALLOWED_CLAIM_TYPES.includes(claimType) ? claimType : 'Other';
 }
 
 async function safeNotify(fn, payload) {
@@ -182,54 +135,7 @@ export default async function handler(req, res) {
         });
       }
 
-      const claimType = normalizeClaimType(body.claim_type);
-      const distanceKm = getDistanceKm(body.odometer_start, body.odometer_end);
-
-      const payload = {
-        employee_id: Number(body.employee_id),
-        claim_type: claimType,
-        claim_date: body.claim_date,
-        amount: toNumber(body.amount),
-        description: cleanString(body.description),
-
-        vehicle_no: claimType === 'Fuel' ? body.vehicle_no || null : null,
-        from_location: body.from_location || null,
-        to_location: body.to_location || null,
-
-        odometer_start:
-          claimType === 'Fuel' &&
-          body.odometer_start !== undefined &&
-          body.odometer_start !== ''
-            ? toNumber(body.odometer_start)
-            : null,
-
-        odometer_end:
-          claimType === 'Fuel' &&
-          body.odometer_end !== undefined &&
-          body.odometer_end !== ''
-            ? toNumber(body.odometer_end)
-            : null,
-
-        distance_km: claimType === 'Fuel' && distanceKm ? distanceKm : null,
-
-        fuel_liters:
-          claimType === 'Fuel' &&
-          body.fuel_liters !== undefined &&
-          body.fuel_liters !== ''
-            ? toNumber(body.fuel_liters)
-            : null,
-
-        petrol_station:
-          claimType === 'Fuel' ? body.petrol_station || null : null,
-
-        receipt_no: body.receipt_no || null,
-
-        attachment_url: body.attachment_url,
-        attachment_name: body.attachment_name || null,
-
-        status: 'pending_manager',
-        included_in_payroll: false,
-      };
+      const payload = buildClaimPayload(body);
 
       const { data, error } = await supabase
         .from('claims')
@@ -538,9 +444,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
     console.error('Claims API error:', err);
-
-    return res.status(500).json({
-      error: err instanceof Error ? err.message : 'Internal server error.',
-    });
+    dbError(res, err, 'Internal server error.');
   }
 }

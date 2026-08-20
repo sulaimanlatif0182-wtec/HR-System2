@@ -2,6 +2,7 @@ import { supabase } from '../lib/db-client.js';
 import { isFeatureEnabled } from '../lib/feature-flags.js';
 import { requireAuth } from '../lib/requireAuth.js';
 import { setCors } from '../lib/cors.js';
+import { dbError } from '../lib/errors.js';
 import {
   parsePayrollCreate,
   parsePayrollProfile,
@@ -753,9 +754,7 @@ async function generatePayrollFromSources(period) {
       await markClaimsIncluded(claimsResult.claims, period);
     } catch (err) {
       results.skipped += 1;
-      results.errors.push(
-        `${employee.name}: ${err instanceof Error ? err.message : 'failed'}`
-      );
+      results.errors.push(`${employee.name}: failed to generate`);
     }
   }
 
@@ -1160,11 +1159,7 @@ export default async function handler(req, res) {
             }
           } catch (err) {
             results.skipped += 1;
-            results.errors.push(
-              `Row ${i + 1}: ${
-                err instanceof Error ? err.message : 'Import failed'
-              }`
-            );
+            results.errors.push(`Row ${i + 1}: Import failed`);
           }
         }
 
@@ -1381,9 +1376,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
     console.error('API error:', err);
-
-    return res.status(500).json({
-      error: err instanceof Error ? err.message : 'Internal server error.',
-    });
+    dbError(res, err);
   }
 }

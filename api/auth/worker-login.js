@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/db-client.js';
 import crypto from 'crypto';
 import { setCors } from '../../lib/cors.js';
+import { dbError } from '../../lib/errors.js';
 import { isRateLimited } from '../../lib/rateLimit.js';
 import { verifyWorkerSession, decodeWorkerToken, toEmployeeProfile } from '../../lib/verifyWorkerSession.js';
 import { parseWorkerLogin } from '../../lib/validators.js';
@@ -108,6 +109,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
     console.error('Worker login error:', err);
-    return res.status(500).json({ error: err.message || 'Login failed.' });
+    dbError(res, err, 'Login failed.');
   }
 }
