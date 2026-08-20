@@ -290,6 +290,31 @@ interface AttendanceSettings {
   max_gps_accuracy_meters: number;
 }
 
+interface AttendanceSite {
+  id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+  is_active?: boolean;
+}
+
+interface OtWindow {
+  id: number;
+  start_minutes: number;
+  end_minutes: number;
+  overtime_hours: number;
+  label?: string | null;
+}
+
+function fmtMinutes(minutes: number) {
+  const m = Number(minutes);
+  if (!Number.isFinite(m) || m < 0 || m > 24 * 60) return '--:--';
+  const h = Math.floor(m / 60);
+  const min = Math.round(m % 60);
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
 const DEFAULT_ATTENDANCE_SETTINGS: AttendanceSettings = {
   id: 1,
   check_in_start: '06:00',
@@ -883,6 +908,26 @@ export default function Attendance() {
     useState<HolidayForm>(DEFAULT_HOLIDAY_FORM);
   const [savingHoliday, setSavingHoliday] = useState(false);
   const [holidayMessage, setHolidayMessage] = useState('');
+  const [sites, setSites] = useState<AttendanceSite[]>([]);
+  const [siteForm, setSiteForm] = useState({
+    id: '',
+    name: '',
+    latitude: '',
+    longitude: '',
+    radius_meters: '',
+  });
+  const [savingSite, setSavingSite] = useState(false);
+  const [siteMessage, setSiteMessage] = useState('');
+  const [otWindows, setOtWindows] = useState<OtWindow[]>([]);
+  const [otForm, setOtForm] = useState({
+    id: '',
+    start_minutes: '',
+    end_minutes: '',
+    overtime_hours: '',
+    label: '',
+  });
+  const [savingOt, setSavingOt] = useState(false);
+  const [otMessage, setOtMessage] = useState('');
   const [correctionRequests, setCorrectionRequests] = useState<AttendanceCorrectionRequest[]>([]);
   const [correctionRequestForm, setCorrectionRequestForm] =
     useState<CorrectionRequestForm>(DEFAULT_CORRECTION_REQUEST_FORM);
@@ -961,7 +1006,7 @@ export default function Attendance() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [att, emp, settings, holidayRows, correctionRows] = await Promise.all([
+      const [att, emp, settings, holidayRows, correctionRows, siteRows, otWindowRows] = await Promise.all([
         apiClient.get('/api/attendance'),
         apiClient.get('/api/employees'),
         apiClient.get('/api/attendance?settings=1'),
@@ -971,6 +1016,8 @@ export default function Attendance() {
             ? '/api/attendance?correction_requests=1'
             : `/api/attendance?correction_requests=1&employee_id=${profile?.id ?? ''}`
         ),
+        apiClient.get('/api/attendance?sites=1'),
+        apiClient.get('/api/attendance?ot_windows=1'),
       ]);
 
       const normalizedSettings = normalizeAttendanceSettings(settings as Partial<AttendanceSettings> | null | undefined);
@@ -981,6 +1028,8 @@ export default function Attendance() {
       setSettingsForm(normalizedSettings);
       setHolidays(Array.isArray(holidayRows) ? holidayRows : []);
       setCorrectionRequests(Array.isArray(correctionRows) ? correctionRows : []);
+      setSites(Array.isArray(siteRows) ? siteRows : []);
+      setOtWindows(Array.isArray(otWindowRows) ? otWindowRows : []);
     } catch {
       setError('Failed to load attendance records.');
     } finally {
@@ -1491,6 +1540,142 @@ export default function Attendance() {
       );
     } finally {
       setSavingHoliday(false);
+    }
+  };
+
+  const loadSites = useCallback(async () => {
+    try {
+      const rows = await apiClient.get('/api/attendance?sites=1');
+      setSites(Array.isArray(rows) ? rows : []);
+    } catch {
+      setSites([]);
+    }
+  }, []);
+
+  const loadOtWindows = useCallback(async () => {
+    try {
+      const rows = await apiClient.get('/api/attendance?ot_windows=1');
+      setOtWindows(Array.isArray(rows) ? rows : []);
+    } catch {
+      setOtWindows([]);
+    }
+  }, []);
+
+  const saveSite = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!isAdmin || !profile) return;
+
+    if (!siteForm.name.trim() || !siteForm.latitude || !siteForm.longitude) {
+      setSiteMessage('Site name, latitude and longitude are required.');
+      return;
+    }
+
+    setSavingSite(true);
+    setSiteMessage('');
+
+    try {
+      await apiClient.put('/api/attendance', {
+        action: 'site_upsert',
+        id: siteForm.id ? Number(siteForm.id) : undefined,
+        name: siteForm.name.trim(),
+        latitude: Number(siteForm.latitude),
+        longitude: Number(siteForm.longitude),
+        radius_meters: Number(siteForm.radius_meters) || undefined,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
+      });
+
+      await loadSites();
+      setSiteForm({ id: '', name: '', latitude: '', longitude: '', radius_meters: '' });
+      setSiteMessage('Site saved successfully.');
+    } catch (err) {
+      setSiteMessage(err instanceof Error ? err.message : 'Failed to save site.');
+    } finally {
+      setSavingSite(false);
+    }
+  };
+
+  const deleteSite = async (id: number) => {
+    if (!isAdmin || !profile) return;
+
+    if (!window.confirm('Delete this attendance site?')) return;
+
+    setSiteMessage('');
+
+    try {
+      await apiClient.put('/api/attendance', {
+        action: 'site_delete',
+        id,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
+      });
+
+      await loadSites();
+      setSiteMessage('Site deleted.');
+    } catch (err) {
+      setSiteMessage(err instanceof Error ? err.message : 'Failed to delete site.');
+    }
+  };
+
+  const saveOtWindow = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!isAdmin || !profile) return;
+
+    if (
+      !otForm.start_minutes ||
+      !otForm.end_minutes ||
+      !otForm.overtime_hours
+    ) {
+      setOtMessage('Start, end and OT hours are required.');
+      return;
+    }
+
+    setSavingOt(true);
+    setOtMessage('');
+
+    try {
+      await apiClient.put('/api/attendance', {
+        action: 'ot_window_upsert',
+        id: otForm.id ? Number(otForm.id) : undefined,
+        start_minutes: Number(otForm.start_minutes),
+        end_minutes: Number(otForm.end_minutes),
+        overtime_hours: Number(otForm.overtime_hours),
+        label: otForm.label.trim() || undefined,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
+      });
+
+      await loadOtWindows();
+      setOtForm({ id: '', start_minutes: '', end_minutes: '', overtime_hours: '', label: '' });
+      setOtMessage('OT window saved successfully.');
+    } catch (err) {
+      setOtMessage(err instanceof Error ? err.message : 'Failed to save OT window.');
+    } finally {
+      setSavingOt(false);
+    }
+  };
+
+  const deleteOtWindow = async (id: number) => {
+    if (!isAdmin || !profile) return;
+
+    if (!window.confirm('Delete this OT window?')) return;
+
+    setOtMessage('');
+
+    try {
+      await apiClient.put('/api/attendance', {
+        action: 'ot_window_delete',
+        id,
+        changed_by: profile.id,
+        changed_by_name: profile.name,
+      });
+
+      await loadOtWindows();
+      setOtMessage('OT window deleted.');
+    } catch (err) {
+      setOtMessage(err instanceof Error ? err.message : 'Failed to delete OT window.');
     }
   };
 
@@ -2630,6 +2815,315 @@ export default function Attendance() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="glass rounded-2xl p-5 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary grid place-items-center">
+              <MapPin size={18} />
+            </div>
+            <div>
+              <p className="font-display font-semibold text-sm">
+                Attendance Sites
+              </p>
+              <p className="text-xs text-muted">
+                Geofence check-in locations
+              </p>
+            </div>
+          </div>
+
+          {siteMessage && (
+            <div
+              className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
+                siteMessage.includes('success') || siteMessage.includes('deleted')
+                  ? 'border-emerald/30 bg-emerald/10 text-emerald'
+                  : 'border-rose/30 bg-rose/10 text-rose'
+              }`}
+            >
+              {siteMessage}
+            </div>
+          )}
+
+          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1 mb-4">
+            {sites.map((site) => (
+              <div
+                key={site.id}
+                className="rounded-xl border border-white/10 bg-surface px-3 py-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-sm">{site.name}</p>
+                    <p className="text-xs text-muted mt-0.5">
+                      Lat {Number(site.latitude).toFixed(6)}, Lng{' '}
+                      {Number(site.longitude).toFixed(6)} ·{' '}
+                      {site.radius_meters}m radius
+                    </p>
+                  </div>
+
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSiteForm({
+                          id: String(site.id),
+                          name: site.name,
+                          latitude: String(site.latitude),
+                          longitude: String(site.longitude),
+                          radius_meters: String(site.radius_meters ?? ''),
+                        });
+                        setSiteMessage('');
+                      }}
+                      className="rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                      title="Edit site"
+                    >
+                      <Pencil size={13} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => deleteSite(site.id)}
+                      className="rounded-lg border border-rose/20 bg-rose/10 p-2 text-rose hover:bg-rose/20"
+                      title="Delete site"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <form onSubmit={saveSite} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">Site Name</span>
+              <input
+                type="text"
+                value={siteForm.name}
+                onChange={(e) =>
+                  setSiteForm({ ...siteForm, name: e.target.value })
+                }
+                placeholder="Example: Factory 1"
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">Latitude</span>
+              <input
+                type="number"
+                step="any"
+                value={siteForm.latitude}
+                onChange={(e) =>
+                  setSiteForm({ ...siteForm, latitude: e.target.value })
+                }
+                placeholder="2.9662584"
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">Longitude</span>
+              <input
+                type="number"
+                step="any"
+                value={siteForm.longitude}
+                onChange={(e) =>
+                  setSiteForm({ ...siteForm, longitude: e.target.value })
+                }
+                placeholder="101.8372782"
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                Radius (meters)
+              </span>
+              <input
+                type="number"
+                min="1"
+                value={siteForm.radius_meters}
+                onChange={(e) =>
+                  setSiteForm({ ...siteForm, radius_meters: e.target.value })
+                }
+                placeholder="100"
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <div className="flex items-end">
+              <button
+                type="submit"
+                disabled={savingSite}
+                className="rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {savingSite ? 'Saving…' : siteForm.id ? 'Update Site' : 'Add Site'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="glass rounded-2xl p-5 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary grid place-items-center">
+              <Clock size={18} />
+            </div>
+            <div>
+              <p className="font-display font-semibold text-sm">
+                OT Windows
+              </p>
+              <p className="text-xs text-muted">
+                Overtime check-out windows
+              </p>
+            </div>
+          </div>
+
+          {otMessage && (
+            <div
+              className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
+                otMessage.includes('success') || otMessage.includes('deleted')
+                  ? 'border-emerald/30 bg-emerald/10 text-emerald'
+                  : 'border-rose/30 bg-rose/10 text-rose'
+              }`}
+            >
+              {otMessage}
+            </div>
+          )}
+
+          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1 mb-4">
+            {otWindows.map((window) => (
+              <div
+                key={window.id}
+                className="rounded-xl border border-white/10 bg-surface px-3 py-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-sm">
+                      {fmtMinutes(window.start_minutes)} –{' '}
+                      {fmtMinutes(window.end_minutes)}
+                      <span className="text-muted font-normal">
+                        {' '}
+                        · {window.overtime_hours}h OT
+                      </span>
+                    </p>
+                    {window.label && (
+                      <p className="text-xs text-muted mt-0.5">{window.label}</p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOtForm({
+                          id: String(window.id),
+                          start_minutes: String(window.start_minutes),
+                          end_minutes: String(window.end_minutes),
+                          overtime_hours: String(window.overtime_hours),
+                          label: window.label ?? '',
+                        });
+                        setOtMessage('');
+                      }}
+                      className="rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                      title="Edit OT window"
+                    >
+                      <Pencil size={13} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => deleteOtWindow(window.id)}
+                      className="rounded-lg border border-rose/20 bg-rose/10 p-2 text-rose hover:bg-rose/20"
+                      title="Delete OT window"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <form onSubmit={saveOtWindow} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                Start (minutes after midnight)
+              </span>
+              <input
+                type="number"
+                min="0"
+                max="1440"
+                value={otForm.start_minutes}
+                onChange={(e) =>
+                  setOtForm({ ...otForm, start_minutes: e.target.value })
+                }
+                placeholder="1066"
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                End (minutes after midnight)
+              </span>
+              <input
+                type="number"
+                min="0"
+                max="1440"
+                value={otForm.end_minutes}
+                onChange={(e) =>
+                  setOtForm({ ...otForm, end_minutes: e.target.value })
+                }
+                placeholder="1095"
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">
+                OT Hours
+              </span>
+              <input
+                type="number"
+                step="0.5"
+                min="0.5"
+                max="24"
+                value={otForm.overtime_hours}
+                onChange={(e) =>
+                  setOtForm({ ...otForm, overtime_hours: e.target.value })
+                }
+                placeholder="0.5"
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-xs text-muted mb-1">Label</span>
+              <input
+                type="text"
+                value={otForm.label}
+                onChange={(e) =>
+                  setOtForm({ ...otForm, label: e.target.value })
+                }
+                placeholder="Optional: e.g. OT 1st hour"
+                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              />
+            </label>
+
+            <div className="flex items-end">
+              <button
+                type="submit"
+                disabled={savingOt}
+                className="rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {savingOt ? 'Saving…' : otForm.id ? 'Update Window' : 'Add Window'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

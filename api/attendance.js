@@ -1,7 +1,9 @@
 import { supabase } from '../lib/db-client.js';
 import { isFeatureEnabled } from '../lib/feature-flags.js';
 import { requireAuth } from '../lib/requireAuth.js';
+import { assertAdmin } from '../lib/authorize.js';
 import { setCors } from '../lib/cors.js';
+import { dbError } from '../lib/errors.js';
 import {
   parseAttendanceCheckIn,
   parseAttendanceCheckOut,
@@ -11,6 +13,30 @@ import {
   parseAttendanceManualCorrection,
   parseId,
 } from '../lib/validators.js';
+import {
+  DEFAULT_ATTENDANCE_SETTINGS,
+  DEFAULT_ATTENDANCE_SITES,
+  DEFAULT_OT_WINDOWS,
+  GEOFENCE_RADIUS_METERS,
+  MAX_GPS_ACCURACY_METERS,
+  normalizeAttendanceSettings,
+  cleanTime,
+  timeToMinutes,
+  getAttendanceSettings,
+  getAttendanceSites,
+  getOtWindows,
+  getMalaysiaNowInfo,
+  getMalaysiaMinutesNow,
+  getMalaysiaDate,
+  isMalaysiaSaturdayNow,
+  getCheckInWindow,
+  getCheckOutWindow,
+  getLunchOutWindow,
+  getLunchInWindow,
+  getDistanceMeters,
+  findNearestSite,
+  validateLocation,
+} from '../lib/attendanceLogic.js';
 
 async function safeInsertSystemAudit(payload) {
   try {
@@ -28,82 +54,6 @@ async function safeInsertSystemAudit(payload) {
   } catch (err) {
     console.error('System audit insert failed:', err?.message || err);
   }
-}
-
-const GEOFENCE_RADIUS_METERS = 100;
-const MAX_GPS_ACCURACY_METERS = 250;
-
-const DEFAULT_ATTENDANCE_SETTINGS = {
-  id: 1,
-  check_in_start: '06:00',
-  check_in_normal_end: '08:15',
-  check_in_late_end: '09:00',
-  lunch_out_start: '12:00',
-  lunch_out_end: '13:00',
-  lunch_in_start: '13:00',
-  lunch_in_end: '14:30',
-  check_out_normal_start: '17:30',
-  check_out_normal_end: '17:45',
-  ot_start: '17:46',
-  saturday_check_out_start: '12:00',
-  saturday_check_out_end: '20:00',
-  geofence_radius_meters: GEOFENCE_RADIUS_METERS,
-  max_gps_accuracy_meters: MAX_GPS_ACCURACY_METERS,
-};
-
-const ATTENDANCE_SITES = [
-  {
-    name: 'Factory 1',
-    latitude: 2.9662584,
-    longitude: 101.8372782,
-    radiusMeters: GEOFENCE_RADIUS_METERS,
-  },
-  {
-    name: 'Factory 2',
-    latitude: 2.967353,
-    longitude: 101.836689,
-    radiusMeters: GEOFENCE_RADIUS_METERS,
-  },
-];
-
-function normalizeAttendanceSettings(value = {}) {
-  const merged = { ...DEFAULT_ATTENDANCE_SETTINGS, ...(value || {}) };
-
-  return {
-    ...merged,
-    geofence_radius_meters:
-      Number(merged.geofence_radius_meters) || GEOFENCE_RADIUS_METERS,
-    max_gps_accuracy_meters:
-      Number(merged.max_gps_accuracy_meters) || MAX_GPS_ACCURACY_METERS,
-  };
-}
-
-function cleanTime(value, fallback) {
-  const stringValue = String(value || '').trim();
-
-  return /^\d{2}:\d{2}$/.test(stringValue) ? stringValue : fallback;
-}
-
-function timeToMinutes(value, fallback) {
-  const source = cleanTime(value, fallback);
-  const [hour, minute] = source.split(':').map(Number);
-
-  return hour * 60 + minute;
-}
-
-async function getAttendanceSettings() {
-  const { data, error } = await supabase
-    .from('attendance_settings')
-    .select('*')
-    .eq('id', 1)
-    .maybeSingle();
-
-  if (error) {
-    // If the table has not been created yet, keep the system working with defaults.
-    return DEFAULT_ATTENDANCE_SETTINGS;
-  }
-
-  return normalizeAttendanceSettings(data || DEFAULT_ATTENDANCE_SETTINGS);
 }
 
 function settingsPayloadFromBody(body = {}) {
@@ -181,304 +131,6 @@ function settingsPayloadFromBody(body = {}) {
   };
 }
 
-function getMalaysiaNowInfo() {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Kuala_Lumpur',
-    weekday: 'short',
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-  }).formatToParts(new Date());
-
-  const weekday = parts.find((part) => part.type === 'weekday')?.value ?? '';
-  const hourPart = parts.find((part) => part.type === 'hour')?.value ?? '0';
-  const minutePart = parts.find((part) => part.type === 'minute')?.value ?? '0';
-
-  const hour = Number(hourPart) % 24;
-  const minute = Number(minutePart);
-
-  return {
-    weekday,
-    minutes: hour * 60 + minute,
-  };
-}
-
-function getMalaysiaMinutesNow() {
-  return getMalaysiaNowInfo().minutes;
-}
-
-function isMalaysiaSaturdayNow() {
-  return getMalaysiaNowInfo().weekday === 'Sat';
-}
-
-function getCheckInWindow(settings = DEFAULT_ATTENDANCE_SETTINGS) {
-  const now = getMalaysiaMinutesNow();
-
-  const normalStart = timeToMinutes(
-    settings.check_in_start,
-    DEFAULT_ATTENDANCE_SETTINGS.check_in_start
-  );
-  const normalEnd = timeToMinutes(
-    settings.check_in_normal_end,
-    DEFAULT_ATTENDANCE_SETTINGS.check_in_normal_end
-  );
-  const lateEnd = timeToMinutes(
-    settings.check_in_late_end,
-    DEFAULT_ATTENDANCE_SETTINGS.check_in_late_end
-  );
-
-  if (now < normalStart) {
-    return {
-      allowed: false,
-      type: 'not_open',
-      status: 'closed',
-      label: `Check-in opens at ${settings.check_in_start}`,
-      isLate: false,
-    };
-  }
-
-  if (now <= normalEnd) {
-    return {
-      allowed: true,
-      type: 'normal',
-      status: 'present',
-      label: 'Normal Check In',
-      isLate: false,
-    };
-  }
-
-  if (now <= lateEnd) {
-    return {
-      allowed: true,
-      type: 'late',
-      status: 'late',
-      label: 'Late Check In',
-      isLate: true,
-    };
-  }
-
-  return {
-    allowed: false,
-    type: 'missed',
-    status: 'absent',
-    label: 'Check-in window closed',
-    isLate: false,
-  };
-}
-
-function getCheckOutWindow(settings = DEFAULT_ATTENDANCE_SETTINGS) {
-  const now = getMalaysiaMinutesNow();
-
-  if (isMalaysiaSaturdayNow()) {
-    const saturdayStart = timeToMinutes(
-      settings.saturday_check_out_start,
-      DEFAULT_ATTENDANCE_SETTINGS.saturday_check_out_start
-    );
-    const saturdayEnd = timeToMinutes(
-      settings.saturday_check_out_end,
-      DEFAULT_ATTENDANCE_SETTINGS.saturday_check_out_end
-    );
-
-    if (now < saturdayStart) {
-      return {
-        allowed: false,
-        type: 'not_open',
-        label: `Saturday check-out opens at ${settings.saturday_check_out_start}`,
-        overtimeHours: 0,
-      };
-    }
-
-    if (now <= saturdayEnd) {
-      return {
-        allowed: true,
-        type: 'saturday',
-        label: 'Saturday Check Out',
-        overtimeHours: 0,
-      };
-    }
-
-    return {
-      allowed: false,
-      type: 'closed',
-      label: `Saturday check-out window closed at ${settings.saturday_check_out_end}`,
-      overtimeHours: 0,
-    };
-  }
-
-  const normalStart = timeToMinutes(
-    settings.check_out_normal_start,
-    DEFAULT_ATTENDANCE_SETTINGS.check_out_normal_start
-  );
-  const normalEnd = timeToMinutes(
-    settings.check_out_normal_end,
-    DEFAULT_ATTENDANCE_SETTINGS.check_out_normal_end
-  );
-  const otStart = timeToMinutes(
-    settings.ot_start,
-    DEFAULT_ATTENDANCE_SETTINGS.ot_start
-  );
-
-  if (now < normalStart) {
-    return {
-      allowed: false,
-      type: 'not_open',
-      label: `Check-out opens at ${settings.check_out_normal_start}`,
-      overtimeHours: 0,
-    };
-  }
-
-  if (now >= normalStart && now <= normalEnd) {
-    return {
-      allowed: true,
-      type: 'normal',
-      label: 'Normal Check Out',
-      overtimeHours: 0,
-    };
-  }
-
-  if (now < otStart) {
-    return {
-      allowed: false,
-      type: 'not_open',
-      label: `OT check-out starts at ${settings.ot_start}`,
-      overtimeHours: 0,
-    };
-  }
-
-  const overtimeWindows = [
-    { start: 17 * 60 + 46, end: 18 * 60 + 15, hours: 0.5 },
-    { start: 18 * 60 + 16, end: 18 * 60 + 45, hours: 1 },
-    { start: 18 * 60 + 46, end: 19 * 60 + 15, hours: 1.5 },
-    { start: 19 * 60 + 16, end: 19 * 60 + 45, hours: 2 },
-    { start: 19 * 60 + 46, end: 20 * 60 + 15, hours: 2.5 },
-    { start: 20 * 60 + 16, end: 20 * 60 + 45, hours: 3 },
-    { start: 20 * 60 + 46, end: 21 * 60 + 15, hours: 3.5 },
-    { start: 21 * 60 + 16, end: 21 * 60 + 45, hours: 4 },
-    { start: 21 * 60 + 46, end: 22 * 60 + 15, hours: 4.5 },
-    { start: 22 * 60 + 16, end: 22 * 60 + 45, hours: 5 },
-    { start: 22 * 60 + 46, end: 23 * 60 + 15, hours: 5.5 },
-    { start: 23 * 60 + 16, end: 23 * 60 + 45, hours: 6 },
-    { start: 23 * 60 + 46, end: 24 * 60, hours: 6.5 },
-  ];
-
-  const matchedWindow = overtimeWindows.find(
-    (window) => now >= window.start && now <= window.end
-  );
-
-  if (matchedWindow) {
-    return {
-      allowed: true,
-      type: 'ot',
-      label: `OT ${matchedWindow.hours} Check Out`,
-      overtimeHours: matchedWindow.hours,
-    };
-  }
-
-  return {
-    allowed: false,
-    type: 'closed',
-    label: 'Check-out window closed',
-    overtimeHours: 0,
-  };
-}
-
-function getLunchOutWindow(settings = DEFAULT_ATTENDANCE_SETTINGS) {
-  const now = getMalaysiaMinutesNow();
-
-  const lunchOutStart = timeToMinutes(
-    settings.lunch_out_start,
-    DEFAULT_ATTENDANCE_SETTINGS.lunch_out_start
-  );
-  const lunchOutEnd = timeToMinutes(
-    settings.lunch_out_end,
-    DEFAULT_ATTENDANCE_SETTINGS.lunch_out_end
-  );
-
-  if (now < lunchOutStart) {
-    return {
-      allowed: false,
-      label: `Lunch Out opens at ${settings.lunch_out_start}`,
-    };
-  }
-
-  if (now <= lunchOutEnd) {
-    return {
-      allowed: true,
-      label: 'Lunch Out',
-    };
-  }
-
-  return {
-    allowed: false,
-    label: 'Lunch Out window closed',
-  };
-}
-
-function getLunchInWindow(settings = DEFAULT_ATTENDANCE_SETTINGS) {
-  const now = getMalaysiaMinutesNow();
-
-  const lunchInStart = timeToMinutes(
-    settings.lunch_in_start,
-    DEFAULT_ATTENDANCE_SETTINGS.lunch_in_start
-  );
-  const lunchInEnd = timeToMinutes(
-    settings.lunch_in_end,
-    DEFAULT_ATTENDANCE_SETTINGS.lunch_in_end
-  );
-
-  if (now < lunchInStart) {
-    return {
-      allowed: false,
-      label: `Lunch In opens at ${settings.lunch_in_start}`,
-    };
-  }
-
-  if (now <= lunchInEnd) {
-    return {
-      allowed: true,
-      label: 'Lunch In',
-    };
-  }
-
-  return {
-    allowed: false,
-    label: `Lunch In window closed at ${settings.lunch_in_end}`,
-  };
-}
-
-function getDistanceMeters(lat1, lon1, lat2, lon2) {
-  const earthRadiusMeters = 6371000;
-  const toRadians = (value) => (value * Math.PI) / 180;
-
-  const dLat = toRadians(lat2 - lat1);
-  const dLon = toRadians(lon2 - lon1);
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) *
-      Math.cos(toRadians(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return earthRadiusMeters * c;
-}
-
-function findNearestSite(latitude, longitude) {
-  const sitesWithDistance = ATTENDANCE_SITES.map((site) => ({
-    site,
-    distanceMeters: getDistanceMeters(
-      latitude,
-      longitude,
-      site.latitude,
-      site.longitude
-    ),
-  }));
-
-  return sitesWithDistance.sort((a, b) => a.distanceMeters - b.distanceMeters)[0];
-}
-
 function toNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
@@ -500,73 +152,6 @@ function nullableNumber(value) {
   const number = Number(value);
 
   return Number.isFinite(number) ? number : null;
-}
-
-function validateLocation(
-  latitude,
-  longitude,
-  accuracy,
-  actionLabel,
-  settings = DEFAULT_ATTENDANCE_SETTINGS
-) {
-  if (latitude === null || longitude === null || accuracy === null) {
-    return {
-      ok: false,
-      status: 400,
-      error: `GPS location evidence is required for ${actionLabel}. Please allow location access and try again.`,
-    };
-  }
-
-  const maxAccuracy = Number(
-    settings.max_gps_accuracy_meters || MAX_GPS_ACCURACY_METERS
-  );
-
-  if (accuracy > maxAccuracy) {
-    return {
-      ok: false,
-      status: 400,
-      error: `GPS accuracy is too low (${Math.round(
-        accuracy
-      )}m). Please move near an open area and try again.`,
-    };
-  }
-
-  const nearest = findNearestSite(latitude, longitude);
-
-  if (!nearest) {
-    return {
-      ok: false,
-      status: 500,
-      error: 'No approved attendance site is configured.',
-    };
-  }
-
-  const site = nearest.site;
-  const distanceMeters = nearest.distanceMeters;
-  const allowedRadius = Number(
-    settings.geofence_radius_meters || site.radiusMeters
-  );
-
-  if (distanceMeters > allowedRadius) {
-    return {
-      ok: false,
-      status: 403,
-      error: `You are outside the approved ${actionLabel} area. Nearest site: ${
-        site.name
-      }. Distance: ${Math.round(distanceMeters)}m. Allowed radius: ${
-        allowedRadius
-      }m.`,
-      nearest_site: site.name,
-      distance_meters: Math.round(distanceMeters),
-      allowed_radius_meters: allowedRadius,
-    };
-  }
-
-  return {
-    ok: true,
-    site,
-    distanceMeters,
-  };
 }
 
 function addMinutes(date, minutes) {
@@ -794,7 +379,7 @@ export default async function handler(req, res) {
         const { data, error } = await query;
 
         if (error) {
-          return res.status(500).json({ error: error.message });
+          return dbError(res, error);
         }
 
         return res.status(200).json(data || []);
@@ -806,6 +391,32 @@ export default async function handler(req, res) {
         return res.status(200).json(settings);
       }
 
+      if (req.query?.sites === '1') {
+        const { data, error } = await supabase
+          .from('attendance_sites')
+          .select('*')
+          .order('id', { ascending: true });
+
+        if (error) {
+          return dbError(res, error);
+        }
+
+        return res.status(200).json(data || []);
+      }
+
+      if (req.query?.ot_windows === '1') {
+        const { data, error } = await supabase
+          .from('ot_windows')
+          .select('*')
+          .order('start_minutes', { ascending: true });
+
+        if (error) {
+          return dbError(res, error);
+        }
+
+        return res.status(200).json(data || []);
+      }
+
       if (req.query?.holidays === '1') {
         const { data, error } = await supabase
           .from('company_holidays')
@@ -814,9 +425,7 @@ export default async function handler(req, res) {
           .order('id', { ascending: true });
 
         if (error) {
-          return res.status(500).json({
-            error: error.message,
-          });
+          return dbError(res, error);
         }
 
         return res.status(200).json(data || []);
@@ -836,9 +445,7 @@ export default async function handler(req, res) {
         .order('id', { ascending: false });
 
       if (error) {
-        return res.status(500).json({
-          error: error.message,
-        });
+        return dbError(res, error);
       }
 
       return res.status(200).json(data || []);
@@ -930,7 +537,7 @@ export default async function handler(req, res) {
           .select()
           .single();
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'attendance',
@@ -1008,7 +615,7 @@ export default async function handler(req, res) {
         .from('attendance')
         .select('id, employee_id, date, check_in, check_out')
         .eq('employee_id', employee_id)
-        .eq('date', date)
+        .eq('date', getMalaysiaDate())
         .maybeSingle();
 
       if (existingError) {
@@ -1024,10 +631,15 @@ export default async function handler(req, res) {
         });
       }
 
+      // The server clock (Asia/Kuala_Lumpur) is the source of truth for the
+      // record — the client-supplied date/check_in are only trusted for the
+      // required-field check above, never stored as-is.
+      const serverNow = new Date();
+
       const payload = {
         employee_id,
-        date,
-        check_in,
+        date: getMalaysiaDate(serverNow),
+        check_in: serverNow.toISOString(),
         check_out: null,
         status: checkInWindow.status,
         check_in_type: checkInWindow.type,
@@ -1053,9 +665,7 @@ export default async function handler(req, res) {
         .single();
 
       if (error) {
-        return res.status(500).json({
-          error: error.message,
-        });
+        return dbError(res, error);
       }
 
       return res.status(201).json(data);
@@ -1189,7 +799,7 @@ export default async function handler(req, res) {
           .select()
           .single();
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'attendance',
@@ -1204,6 +814,159 @@ export default async function handler(req, res) {
         });
 
         return res.status(200).json(data);
+      }
+
+      // =========================
+      // ATTENDANCE SITES (admin only)
+      // =========================
+      if (action === 'site_upsert') {
+        if (!assertAdmin(authUser, res)) return;
+
+        const { id, name, latitude, longitude, radius_meters } = body;
+
+        if (!name || !String(name).trim() || !latitude || !longitude) {
+          return res.status(400).json({ error: 'Site name, latitude and longitude are required.' });
+        }
+
+        const payload = {
+          name: String(name).trim(),
+          latitude: Number(latitude),
+          longitude: Number(longitude),
+          radius_meters: Number(radius_meters) || GEOFENCE_RADIUS_METERS,
+          updated_at: new Date().toISOString(),
+        };
+
+        if (!Number.isFinite(payload.latitude) || !Number.isFinite(payload.longitude)) {
+          return res.status(400).json({ error: 'Invalid latitude or longitude.' });
+        }
+
+        let query;
+        if (id) {
+          query = supabase.from('attendance_sites').update(payload).eq('id', Number(id));
+        } else {
+          query = supabase.from('attendance_sites').insert({ ...payload, is_active: true });
+        }
+
+        const { data, error } = await query.select().single();
+        if (error) return dbError(res, error);
+
+        await safeInsertSystemAudit({
+          module: 'attendance',
+          action: id ? 'site_update' : 'site_create',
+          record_id: data?.id || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
+          new_data: data,
+        });
+
+        return res.status(200).json(data);
+      }
+
+      if (action === 'site_delete') {
+        if (!assertAdmin(authUser, res)) return;
+
+        const { id } = body;
+        if (!id) {
+          return res.status(400).json({ error: 'id is required.' });
+        }
+
+        const { error } = await supabase
+          .from('attendance_sites')
+          .delete()
+          .eq('id', Number(id));
+
+        if (error) return dbError(res, error);
+
+        await safeInsertSystemAudit({
+          module: 'attendance',
+          action: 'site_delete',
+          record_id: Number(id),
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
+          old_data: { id: Number(id) },
+        });
+
+        return res.status(200).json({ ok: true });
+      }
+
+      // =========================
+      // OT WINDOWS (admin only)
+      // =========================
+      if (action === 'ot_window_upsert') {
+        if (!assertAdmin(authUser, res)) return;
+
+        const { id, start_minutes, end_minutes, overtime_hours, label } = body;
+
+        const start = Number(start_minutes);
+        const end = Number(end_minutes);
+        const hours = Number(overtime_hours);
+
+        if (
+          !Number.isFinite(start) ||
+          !Number.isFinite(end) ||
+          !Number.isFinite(hours) ||
+          start < 0 ||
+          end > 24 * 60 ||
+          end <= start ||
+          hours <= 0
+        ) {
+          return res.status(400).json({
+            error: 'Valid start_minutes, end_minutes (end > start, within a day) and overtime_hours are required.',
+          });
+        }
+
+        const payload = {
+          start_minutes: start,
+          end_minutes: end,
+          overtime_hours: hours,
+          label: label ? String(label).trim() : null,
+        };
+
+        const { data, error } = await supabase
+          .from('ot_windows')
+          .upsert(payload, { onConflict: 'start_minutes,end_minutes' })
+          .select()
+          .single();
+
+        if (error) return dbError(res, error);
+
+        await safeInsertSystemAudit({
+          module: 'attendance',
+          action: 'ot_window_upsert',
+          record_id: data?.id || null,
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
+          new_data: data,
+        });
+
+        return res.status(200).json(data);
+      }
+
+      if (action === 'ot_window_delete') {
+        if (!assertAdmin(authUser, res)) return;
+
+        const { id } = body;
+        if (!id) {
+          return res.status(400).json({ error: 'id is required.' });
+        }
+
+        const { error } = await supabase
+          .from('ot_windows')
+          .delete()
+          .eq('id', Number(id));
+
+        if (error) return dbError(res, error);
+
+        await safeInsertSystemAudit({
+          module: 'attendance',
+          action: 'ot_window_delete',
+          record_id: Number(id),
+          changed_by: authUser?.id || null,
+          changed_by_name: authUser?.name || null,
+          old_data: { id: Number(id) },
+        });
+
+        return res.status(200).json({ ok: true });
       }
 
       // =========================
@@ -1312,11 +1075,12 @@ export default async function handler(req, res) {
         const { data, error } = await query.select().single();
 
         if (error) {
+          if (error?.message?.includes('duplicate')) {
           return res.status(500).json({
-            error: error.message?.includes('duplicate')
-              ? 'A holiday with this date already exists. Please edit the existing holiday.'
-              : error.message,
+            error: 'A holiday with this date already exists. Please edit the existing holiday.',
           });
+        }
+        return dbError(res, error);
         }
 
         await safeInsertSystemAudit({
@@ -1354,9 +1118,7 @@ export default async function handler(req, res) {
           .eq('id', Number(id));
 
         if (error) {
-          return res.status(500).json({
-            error: error.message,
-          });
+          return dbError(res, error);
         }
 
         await safeInsertSystemAudit({
@@ -1479,9 +1241,7 @@ export default async function handler(req, res) {
           .single();
 
         if (error) {
-          return res.status(500).json({
-            error: error.message,
-          });
+          return dbError(res, error);
         }
 
         await supabase.from('attendance_audit_logs').insert({
@@ -1611,9 +1371,7 @@ export default async function handler(req, res) {
           .single();
 
         if (error) {
-          return res.status(500).json({
-            error: error.message,
-          });
+          return dbError(res, error);
         }
 
         return res.status(200).json(data);
@@ -1747,9 +1505,7 @@ export default async function handler(req, res) {
           .single();
 
         if (error) {
-          return res.status(500).json({
-            error: error.message,
-          });
+          return dbError(res, error);
         }
 
         return res.status(200).json(data);
@@ -1779,13 +1535,16 @@ export default async function handler(req, res) {
       }
 
       const attendanceSettings = await getAttendanceSettings();
-      const checkOutWindow = getCheckOutWindow(attendanceSettings);
+      const checkOutWindow = await getCheckOutWindow(attendanceSettings);
 
       if (!checkOutWindow.allowed) {
         return res.status(403).json({
           error: checkOutWindow.label,
         });
       }
+
+      // Server clock is the source of truth for the check-out timestamp.
+      const serverCheckOut = new Date().toISOString();
 
       const latitude = toNumber(check_out_latitude);
       const longitude = toNumber(check_out_longitude);
@@ -1866,7 +1625,7 @@ export default async function handler(req, res) {
 
       if (existing.lunch_out && !existing.lunch_in) {
         const lunchOutDate = new Date(existing.lunch_out);
-        const checkOutDate = new Date(check_out);
+        const checkOutDate = new Date(serverCheckOut);
         const expectedReturnDate = existing.lunch_expected_return
           ? new Date(existing.lunch_expected_return)
           : addMinutes(lunchOutDate, 60);
@@ -1877,7 +1636,7 @@ export default async function handler(req, res) {
       }
 
       const payload = {
-        check_out,
+        check_out: serverCheckOut,
         check_out_type: checkOutWindow.type,
         overtime_hours: Number(checkOutWindow.overtimeHours),
         check_out_latitude: latitude,
@@ -1901,9 +1660,7 @@ export default async function handler(req, res) {
         .single();
 
       if (error) {
-        return res.status(500).json({
-          error: error.message,
-        });
+        return dbError(res, error);
       }
 
       return res.status(200).json(data);
@@ -1913,14 +1670,6 @@ export default async function handler(req, res) {
       error: `Method ${req.method} not allowed.`,
     });
   } catch (err) {
-    return res.status(500).json({
-      error:
-        err?.message ||
-        err?.details ||
-        err?.hint ||
-        err?.code ||
-        JSON.stringify(err) ||
-        'Internal server error.',
-    });
+    return dbError(res, err);
   }
 }

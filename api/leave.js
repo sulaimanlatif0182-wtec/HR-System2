@@ -2,11 +2,18 @@ import { supabase } from '../lib/db-client.js';
 import { isFeatureEnabled } from '../lib/feature-flags.js';
 import { requireAuth } from '../lib/requireAuth.js';
 import { setCors } from '../lib/cors.js';
+import { dbError } from '../lib/errors.js';
 import {
   notifyLeaveSubmittedToApproverSafe,
   notifyLeaveDecision,
 } from '../server/notify.js';
 import { parseLeaveRequest } from '../lib/validators.js';
+import {
+  dateKey,
+  countWorkingLeaveDays,
+  calculateTimeOffHours,
+  computeLeaveBalance,
+} from '../lib/leaveMath.js';
 
 const BALANCE_TYPES = [
   'Annual Leave',
@@ -51,14 +58,6 @@ function todayMalaysia() {
   return `${year}-${month}-${day}`;
 }
 
-function dateKey(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
-}
-
 async function getCompanyHolidayMap(startDate, endDate) {
   const { data, error } = await supabase
     .from('company_holidays')
@@ -78,35 +77,6 @@ async function getCompanyHolidayMap(startDate, endDate) {
   });
 
   return map;
-}
-
-function countWorkingLeaveDays(startDate, endDate, holidayMap = {}) {
-  const current = new Date(`${startDate}T00:00:00`);
-  const last = new Date(`${endDate}T00:00:00`);
-
-  if (Number.isNaN(current.getTime()) || Number.isNaN(last.getTime())) {
-    return 0;
-  }
-
-  if (last < current) return 0;
-
-  let total = 0;
-
-  while (current <= last) {
-    const key = dateKey(current);
-    const holiday = holidayMap[key];
-    const day = current.getDay();
-
-    // Company rule: Monday-Saturday count, Sunday excluded.
-    // Holiday excluded unless marked as working day.
-    if (day !== 0 && (!holiday || holiday.is_working_day)) {
-      total += 1;
-    }
-
-    current.setDate(current.getDate() + 1);
-  }
-
-  return total;
 }
 
 async function safeNotify(fn, payload) {
@@ -217,7 +187,11 @@ async function getBalanceDetail(employeeId, leaveType) {
     entitlement_days: entitlementDays,
     adjustment_days: adjustmentDays,
     used_days: usedDays,
-    balance_days: entitlementDays + adjustmentDays - usedDays,
+    balance_days: computeLeaveBalance({
+      entitlementDays,
+      adjustmentDays,
+      usedDays,
+    }),
   };
 }
 
@@ -278,22 +252,6 @@ async function insertBalanceAudit({
   });
 
   if (error) throw error;
-}
-
-function calculateTimeOffHours(start, end) {
-  if (!start || !end) return 0;
-
-  const [startHour, startMinute] = String(start).split(':').map(Number);
-  const [endHour, endMinute] = String(end).split(':').map(Number);
-
-  const startMinutes = startHour * 60 + startMinute;
-  const endMinutes = endHour * 60 + endMinute;
-
-  const diffMinutes = endMinutes - startMinutes;
-
-  if (diffMinutes <= 0) return 0;
-
-  return Math.round((diffMinutes / 60) * 100) / 100;
 }
 
 export default async function handler(req, res) {
@@ -724,11 +682,12 @@ export default async function handler(req, res) {
         .single();
 
       if (error) {
-        return res.status(500).json({
-          error: error.message?.includes('duplicate')
-            ? 'This leave request appears to already exist. Please refresh and check your request history.'
-            : error.message,
-        });
+        if (error?.message?.includes('duplicate')) {
+          return res.status(500).json({
+            error: 'This leave request appears to already exist. Please refresh and check your request history.',
+          });
+        }
+        return dbError(res, error);
       }
 
       await safeNotify(notifyLeaveSubmittedToApproverSafe, data);
@@ -1035,14 +994,6 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('API error:', err);
 
-    return res.status(500).json({
-      error:
-        err?.message ||
-        err?.details ||
-        err?.hint ||
-        err?.code ||
-        JSON.stringify(err) ||
-        'Internal server error.',
-    });
+    return dbError(res, err);
   }
 }

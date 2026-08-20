@@ -44,7 +44,7 @@ export default async function handler(req, res) {
       }
       const cleanEmployeeNo = parsed.data.employee_no;
 
-      if (isRateLimited(`worker-login:${cleanEmployeeNo}`, { windowMs: 60 * 1000, max: 10 })) {
+      if (await isRateLimited(`worker-login:${cleanEmployeeNo}`, { windowMs: 60 * 1000, max: 10 })) {
         return res.status(429).json({ error: 'Too many attempts. Please try again later.' });
       }
 

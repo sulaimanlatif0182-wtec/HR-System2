@@ -9,9 +9,9 @@ import {
 import { requireAuth } from '../lib/requireAuth.js';
 import { assertAdmin } from '../lib/authorize.js';
 import { setCors } from '../lib/cors.js';
+import { dbError } from '../lib/errors.js';
 import { projectEmployee } from '../lib/employeeProjection.js';
 import { parseAccountEmail, parseProfileUpdate } from '../lib/validators.js';
-import { isRateLimited } from '../lib/rateLimit.js';
 import { sendNotificationEmail } from '../server/email.js';
 import { handleImportEmployees, handleImportCreateAccounts } from '../lib/imports.js';
 
@@ -1177,7 +1177,7 @@ export default async function handler(req, res) {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         return res.status(200).json(data || []);
       }
@@ -1189,7 +1189,7 @@ export default async function handler(req, res) {
           .order('created_at', { ascending: false })
           .limit(500);
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         return res.status(200).json(data || []);
       }
@@ -1201,7 +1201,7 @@ export default async function handler(req, res) {
           .order('pinned', { ascending: false })
           .order('created_at', { ascending: false });
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         return res.status(200).json(data || []);
       }
@@ -1215,7 +1215,7 @@ export default async function handler(req, res) {
         if (employee_id) query = query.eq('employee_id', Number(employee_id));
 
         const { data, error } = await query;
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         return res.status(200).json(data || []);
       }
@@ -1235,7 +1235,7 @@ export default async function handler(req, res) {
         }
 
         const { data, error } = await query;
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         return res.status(200).json(data || []);
       }
@@ -1251,7 +1251,7 @@ export default async function handler(req, res) {
         }
 
         const { data, error } = await query;
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         return res.status(200).json(data || []);
       }
@@ -1275,7 +1275,7 @@ export default async function handler(req, res) {
         }
 
         const { data, error } = await query;
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         return res.status(200).json(data || []);
       }
@@ -1286,7 +1286,7 @@ export default async function handler(req, res) {
         if (employee_id) query = query.eq('employee_id', Number(employee_id));
 
         const { data, error } = await query;
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         return res.status(200).json(data || []);
       }
@@ -1311,7 +1311,7 @@ export default async function handler(req, res) {
         const { data, error } = await query;
 
         if (error) {
-          return res.status(500).json({ error: error.message });
+          return dbError(res, error);
         }
 
         return res.status(200).json(data || []);
@@ -1333,9 +1333,7 @@ export default async function handler(req, res) {
           .order('created_at', { ascending: false });
 
         if (error) {
-          return res.status(500).json({
-            error: error.message,
-          });
+          return dbError(res, error);
         }
 
         return res.status(200).json(data || []);
@@ -1409,9 +1407,7 @@ export default async function handler(req, res) {
           .maybeSingle();
 
         if (error) {
-          return res.status(500).json({
-            error: error.message,
-          });
+          return dbError(res, error);
         }
 
         return res.status(200).json(projectEmployee(data, authUser));
@@ -1433,9 +1429,7 @@ export default async function handler(req, res) {
           .maybeSingle();
 
         if (error) {
-          return res.status(500).json({
-            error: error.message,
-          });
+          return dbError(res, error);
         }
 
         return res.status(200).json(projectEmployee(data, authUser));
@@ -1461,9 +1455,7 @@ export default async function handler(req, res) {
       const { data, error } = await listQuery;
 
       if (error) {
-        return res.status(500).json({
-          error: error.message,
-        });
+        return dbError(res, error);
       }
 
       return res.status(200).json((data || []).map((row) => projectEmployee(row, authUser)));
@@ -1834,7 +1826,7 @@ export default async function handler(req, res) {
         }
 
         const { data, error } = await query.select().single();
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'reminders',
@@ -1862,7 +1854,7 @@ export default async function handler(req, res) {
           .delete()
           .eq('id', Number(body.id));
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'reminders',
@@ -1931,7 +1923,7 @@ export default async function handler(req, res) {
         }
 
         const { data, error } = await query.select().single();
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'announcements',
@@ -1959,7 +1951,7 @@ export default async function handler(req, res) {
           .delete()
           .eq('id', Number(body.id));
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'announcements',
@@ -2014,7 +2006,7 @@ export default async function handler(req, res) {
         }
 
         const { data, error } = await query.select().single();
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'hr_letters',
@@ -2034,7 +2026,7 @@ export default async function handler(req, res) {
 
         const { data: oldRow } = await supabase.from('hr_letters').select('*').eq('id', Number(body.id)).maybeSingle();
         const { error } = await supabase.from('hr_letters').delete().eq('id', Number(body.id));
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'hr_letters',
@@ -2099,7 +2091,7 @@ export default async function handler(req, res) {
         }
 
         const { data, error } = await query.select().single();
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'performance',
@@ -2155,7 +2147,7 @@ export default async function handler(req, res) {
           .select()
           .single();
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'performance',
@@ -2174,7 +2166,7 @@ export default async function handler(req, res) {
         if (!body.id) return res.status(400).json({ error: 'id is required.' });
         const { data: oldRow } = await supabase.from('performance_reviews').select('*').eq('id', Number(body.id)).maybeSingle();
         const { error } = await supabase.from('performance_reviews').delete().eq('id', Number(body.id));
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'performance',
@@ -2324,7 +2316,7 @@ export default async function handler(req, res) {
         }
 
         const { data, error } = await query.select().single();
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'performance',
@@ -2358,7 +2350,7 @@ export default async function handler(req, res) {
           .delete()
           .eq('id', Number(body.id));
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'performance',
@@ -2426,7 +2418,7 @@ export default async function handler(req, res) {
         }
 
         const { data, error } = await query.select().single();
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'performance',
@@ -2481,7 +2473,7 @@ export default async function handler(req, res) {
           .select()
           .single();
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'performance',
@@ -2516,7 +2508,7 @@ export default async function handler(req, res) {
           .delete()
           .eq('id', Number(body.id));
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'performance',
@@ -2586,7 +2578,7 @@ export default async function handler(req, res) {
           .select()
           .single();
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'performance',
@@ -2650,7 +2642,7 @@ export default async function handler(req, res) {
           .single();
 
         if (error) {
-          return res.status(500).json({ error: error.message });
+          return dbError(res, error);
         }
 
         await safeInsertSystemAudit({
@@ -2704,9 +2696,7 @@ export default async function handler(req, res) {
           .single();
 
         if (error) {
-          return res.status(500).json({
-            error: error.message,
-          });
+          return dbError(res, error);
         }
 
         await safeInsertSystemAudit({
@@ -2819,7 +2809,7 @@ export default async function handler(req, res) {
           .select()
           .single();
 
-        if (error) return res.status(500).json({ error: error.message });
+        if (error) return dbError(res, error);
 
         await safeInsertSystemAudit({
           module: 'employee_profile',
@@ -2939,9 +2929,7 @@ export default async function handler(req, res) {
           .eq('id', documentId);
 
         if (error) {
-          return res.status(500).json({
-            error: error.message,
-          });
+          return dbError(res, error);
         }
 
         if (documentRow.file_path) {

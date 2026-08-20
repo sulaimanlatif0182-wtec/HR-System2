@@ -7,7 +7,9 @@ import {
 } from '@simplewebauthn/server';
 import { supabase } from '../lib/db-client.js';
 import { parseDeviceAuth } from '../lib/validators.js';
-import { isRateLimited } from '../lib/rateLimit.js';
+import { isRateLimited, getClientIp } from '../lib/rateLimit.js';
+import { requireAuth } from '../lib/requireAuth.js';
+import { assertOwnershipOrRole } from '../lib/authorize.js';
 
 function resolveAppBaseUrl() {
   if (process.env.APP_BASE_URL) {
@@ -164,7 +166,10 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(204).end();
 
-  if (isRateLimited(`device-auth:${req.ip || 'anon'}`, { windowMs: 60 * 1000, max: 30 })) {
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
+
+  if (await isRateLimited(`device-auth:${getClientIp(req)}`, { windowMs: 60 * 1000, max: 30 })) {
     return res.status(429).json({ error: 'Too many device-auth requests. Please try again later.' });
   }
 
@@ -179,6 +184,10 @@ export default async function handler(req, res) {
         return res.status(400).json({
           error: 'employee_id is required.',
         });
+      }
+
+      if (!assertOwnershipOrRole(authUser, res, { ownerId: employeeId, roles: ['admin', 'manager'] })) {
+        return;
       }
 
       const { data, error } = await supabase
@@ -214,6 +223,10 @@ export default async function handler(req, res) {
           return res.status(400).json({
             error: 'employee_id is required.',
           });
+        }
+
+        if (!assertOwnershipOrRole(authUser, res, { ownerId: employeeId, roles: ['admin', 'manager'] })) {
+          return;
         }
 
         const employee = await getEmployee(employeeId);
@@ -275,6 +288,10 @@ export default async function handler(req, res) {
           return res.status(400).json({
             error: 'employee_id and response are required.',
           });
+        }
+
+        if (!assertOwnershipOrRole(authUser, res, { ownerId: employeeId, roles: ['admin', 'manager'] })) {
+          return;
         }
 
         const challengeRow = await getLatestChallenge(employeeId, 'register');
@@ -342,6 +359,10 @@ export default async function handler(req, res) {
           });
         }
 
+        if (!assertOwnershipOrRole(authUser, res, { ownerId: employeeId, roles: ['admin', 'manager'] })) {
+          return;
+        }
+
         const { data: devices, error } = await supabase
           .from('employee_devices')
           .select('*')
@@ -384,6 +405,10 @@ export default async function handler(req, res) {
           return res.status(400).json({
             error: 'employee_id and response are required.',
           });
+        }
+
+        if (!assertOwnershipOrRole(authUser, res, { ownerId: employeeId, roles: ['admin', 'manager'] })) {
+          return;
         }
 
         const credentialId = response.id;
