@@ -55,9 +55,10 @@ export default async function handler(req, res) {
       }
 
       // Public: feature access checks (my_feature_access, feature_access)
+      // These are handled by feature-flags handler which now allows feature_flags without auth
+      // but my_feature_access requires auth (user-specific). Let router handle it.
       if (params.get('my_feature_access') === 'true' || params.get('feature_access') === 'true') {
-        // Let these through to the router which will handle them
-        // but we need to NOT require auth in the feature-flags handler for these
+        // fall through to router
       }
     }
 
