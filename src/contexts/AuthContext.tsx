@@ -147,24 +147,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // getSession can hang when the gotrue auth-token lock is orphaned;
       // bound it and assume signed-out on timeout so we never stick on "loading".
-      const result = await Promise.race([
-        supabase.auth.getSession(),
-        new Promise<{ data: { session: null } }>((resolve) =>
-          setTimeout(() => resolve({ data: { session: null } }), 6000)
-        ),
-      ]);
+      let session = null;
+      try {
+        const result = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: null } }>((resolve) =>
+            setTimeout(() => resolve({ data: { session: null } }), 5000)
+          ),
+        ]);
+        session = result?.data?.session;
+      } catch (sessionErr) {
+        console.warn('getSession failed/timeout, assuming signed out:', sessionErr);
+        session = null;
+      }
 
       if (!mounted) return;
-
-      const session = result?.data?.session;
 
       if (session) {
         setSession(session);
         setUser(session?.user ?? null);
         setAuthMode('supabase');
-        await loadProfile(session?.user?.email);
+        await loadProfile(session?.user?.email).catch((err) => {
+          console.warn('loadProfile failed:', err);
+          setProfile(null);
+        });
       } else {
-        await restoreWorkerSession();
+        await restoreWorkerSession().catch((err) => {
+          console.warn('restoreWorkerSession failed:', err);
+        });
       }
     } catch (err) {
       console.error('initAuth failed:', err);
