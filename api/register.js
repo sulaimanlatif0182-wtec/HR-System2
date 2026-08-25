@@ -1,5 +1,5 @@
 import { supabase } from '../lib/db-client.js';
-import { parseRegister } from '../lib/validators.js';
+import { parseRegister, isCompanyEmail, COMPANY_EMAIL_DOMAIN } from '../lib/validators.js';
 import { isRateLimited, getClientIp } from '../lib/rateLimit.js';
 import { dbError } from '../lib/errors.js';
 
@@ -36,6 +36,13 @@ export default async function handler(req, res) {
     const pwErrors = validatePassword(password);
     if (pwErrors.length > 0) {
       return res.status(400).json({ error: `Password must contain ${pwErrors.join(', ')}.` });
+    }
+
+    // 1b. Enforce company email domain (server-side, cannot be bypassed)
+    if (!isCompanyEmail(cleanEmail)) {
+      return res.status(403).json({
+        error: `Only emails from @${COMPANY_EMAIL_DOMAIN} are allowed to create an account.`,
+      });
     }
 
     // 2. Whitelist check — email must exist in the employee directory

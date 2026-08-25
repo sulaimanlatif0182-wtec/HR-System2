@@ -18,6 +18,12 @@ import { useAuth } from '../contexts/AuthContext';
 
 type AuthMode = 'signin' | 'signup' | 'forgot' | 'worker';
 
+const COMPANY_EMAIL_DOMAIN = 'wtecgroup.com.my';
+
+function isCompanyEmail(value: string) {
+  return value.trim().toLowerCase().endsWith(`@${COMPANY_EMAIL_DOMAIN}`);
+}
+
 function getReadableError(err: unknown) {
   console.error('Auth error raw:', err);
 
@@ -290,6 +296,11 @@ export default function Login() {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+
+    if (!isCompanyEmail(cleanEmail)) {
+      setError(`Only emails from @${COMPANY_EMAIL_DOMAIN} are allowed to create an account.`);
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError('Password and confirm password do not match.');
@@ -643,7 +654,7 @@ export default function Login() {
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="you@company.com"
+                        placeholder="you@wtecgroup.com.my"
                         className="w-full bg-surface border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
                       />
                     </div>

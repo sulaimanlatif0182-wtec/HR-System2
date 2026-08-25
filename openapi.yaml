@@ -1,0 +1,749 @@
+openapi: 3.1.0
+info:
+  title: NimbusHR API
+  version: 1.0.0
+  description: |
+    Enterprise HR/ERP API for NimbusHR platform.
+    
+    ## Authentication
+    All endpoints (except worker auth) require a Bearer token from Supabase Auth.
+    
+    Workers use cookie-based sessions via `/api/auth/worker-login`.
+    
+    ## Rate Limiting
+    - General API: 100 requests/minute per IP
+    - Auth endpoints: 5 requests/15 minutes
+    - Import endpoints: 5 requests/minute
+    - Strict endpoints: 10 requests/minute
+    
+    ## Error Responses
+    All errors follow a consistent format:
+    ```json
+    { "error": "Human-readable error message" }
+    ```
+    
+    Common HTTP status codes:
+    - 200: Success
+    - 201: Created
+    - 400: Bad Request (validation error)
+    - 401: Unauthorized
+    - 403: Forbidden (insufficient permissions)
+    - 404: Not Found
+    - 409: Conflict (duplicate resource)
+    - 429: Too Many Requests
+    - 500: Internal Server Error
+    
+servers:
+  - url: https://hr-system2.vercel.app/api
+    description: Production server
+  - url: http://localhost:5173/api
+    description: Development server
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Employees
+    description: Employee directory and management
+  - name: Feature Flags
+    description: Feature flag management
+  - name: Admin Config
+    description: System configuration
+  - name: Reminders
+    description: Automated reminders and notifications
+  - name: Announcements
+    description: Company-wide announcements
+  - name: HR Letters
+    description: HR letter templates and generation
+  - name: Performance
+    description: Performance reviews and evaluations
+  - name: Documents
+    description: Employee documents and profile updates
+  - name: Imports
+    description: Bulk import operations
+  - name: Worker Auth
+    description: Kiosk-mode worker authentication
+  - name: System
+    description: System health and maintenance
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: worker_session
+
+  schemas:
+    Employee:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [admin, manager, employee] }
+        category: { type: string, enum: [worker, employee, manager] }
+        department: { type: string, nullable: true }
+        title: { type: string, nullable: true }
+        status: { type: string, enum: [active, on_leave, inactive] }
+        phone: { type: string, nullable: true }
+        location: { type: string, nullable: true }
+        join_date: { type: string, format: date, nullable: true }
+        salary: { type: number, nullable: true }
+        employee_no: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    EmployeeCreate:
+      type: object
+      required: [name, email]
+      properties:
+        name: { type: string, maxLength: 120 }
+        email: { type: string, format: email }
+        role: { type: string, enum: [admin, manager, employee], default: employee }
+        category: { type: string, enum: [worker, employee, manager], default: employee }
+        department: { type: string, nullable: true }
+        title: { type: string, nullable: true }
+        phone: { type: string, maxLength: 40, nullable: true }
+        location: { type: string, nullable: true }
+        join_date: { type: string, format: date, nullable: true }
+        salary: { type: number, nullable: true }
+        employee_no: { type: string, maxLength: 40, nullable: true }
+        status: { type: string, enum: [active, on_leave, inactive], default: active }
+
+    EmployeeUpdate:
+      type: object
+      properties:
+        name: { type: string, maxLength: 120 }
+        email: { type: string, format: email }
+        role: { type: string, enum: [admin, manager, employee] }
+        category: { type: string, enum: [worker, employee, manager] }
+        department: { type: string, nullable: true }
+        title: { type: string, nullable: true }
+        phone: { type: string, maxLength: 40, nullable: true }
+        location: { type: string, nullable: true }
+        join_date: { type: string, format: date, nullable: true }
+        salary: { type: number, nullable: true }
+        employee_no: { type: string, maxLength: 40, nullable: true }
+        status: { type: string, enum: [active, on_leave, inactive] }
+
+    FeatureFlag:
+      type: object
+      properties:
+        key: { type: string }
+        label: { type: string }
+        category: { type: string }
+        enabled: { type: boolean }
+
+    AdminConfig:
+      type: object
+      properties:
+        document_required_types: { type: array, items: { type: string } }
+        profile_required_fields: { type: array, items: { type: string } }
+        expiry_alert_days: { type: integer, default: 90 }
+        master_departments: { type: array, items: { type: string } }
+        master_locations: { type: array, items: { type: string } }
+        announcement_categories: { type: array, items: { type: string } }
+        performance_review_types: { type: array, items: { type: string } }
+
+    Announcement:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        body: { type: string }
+        category: { type: string }
+        pinned: { type: boolean }
+        expires_at: { type: string, format: date-time, nullable: true }
+        created_by_name: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    HR Letter:
+      type: object
+      properties:
+        id: { type: integer }
+        employee_id: { type: integer }
+        template_type: { type: string }
+        title: { type: string }
+        content: { type: string }
+        status: { type: string, enum: [draft, generated] }
+        generated_by_name: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    PerformanceReview:
+      type: object
+      properties:
+        id: { type: integer }
+        employee_id: { type: integer }
+        review_period: { type: string }
+        review_type: { type: string }
+        reviewer_id: { type: integer, nullable: true }
+        reviewer_name: { type: string, nullable: true }
+        kpi_score: { type: number }
+        behavior_score: { type: number }
+        attendance_score: { type: number }
+        overall_score: { type: number }
+        strengths: { type: string, nullable: true }
+        improvements: { type: string, nullable: true }
+        goals: { type: string, nullable: true }
+        recommendation: { type: string, nullable: true }
+        manager_remarks: { type: string, nullable: true }
+        admin_remarks: { type: string, nullable: true }
+        status: { type: string, enum: [draft, completed] }
+        employee_acknowledged: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+
+    RateLimitError:
+      type: object
+      properties:
+        error: { type: string, example: "Too Many Requests" }
+        message: { type: string }
+        retryAfter: { type: integer }
+
+  parameters:
+    employeeId:
+      name: id
+      in: query
+      description: Employee ID
+      required: true
+      schema: { type: integer }
+    employeeEmail:
+      name: email
+      in: query
+      description: Employee email (case-insensitive)
+      required: true
+      schema: { type: string, format: email }
+
+paths:
+  /employees:
+    get:
+      tags: [Employees]
+      summary: List employees
+      description: Returns paginated list of employees. Workers only see their own record.
+      parameters:
+        - $ref: '#/components/parameters/employeeId'
+        - $ref: '#/components/parameters/employeeEmail'
+        - name: limit
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: List of employees
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Employee' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Employees]
+      summary: Create employee (Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeeCreate' }
+      responses:
+        '201': { description: Created employee, content: { application/json: { schema: { $ref: '#/components/schemas/Employee' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: Email or employee_no already exists }
+    put:
+      tags: [Employees]
+      summary: Update employee (Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { allOf: [{ $ref: '#/components/schemas/EmployeeUpdate' }, { required: [id] }] }
+      responses:
+        '200': { description: Updated employee }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Email or employee_no already in use }
+    delete:
+      tags: [Employees]
+      summary: Deactivate employee (Admin only)
+      parameters:
+        - $ref: '#/components/parameters/employeeId'
+        - name: document_id
+          in: query
+          schema: { type: integer }
+          description: Delete specific document instead
+      responses:
+        '200': { description: Employee deactivated }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /employees/feature-flags:
+    get:
+      tags: [Feature Flags]
+      summary: Get all feature flags
+      responses:
+        '200':
+          description: Feature flags
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/FeatureFlag' } }
+    post:
+      tags: [Feature Flags]
+      summary: Update feature flag (Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, key]
+              properties:
+                action: { type: string, enum: [feature_flag_update, feature_flags_bulk_update, feature_access_bulk_update, role_defaults_bulk_update] }
+                key: { type: string }
+                enabled: { type: boolean }
+                label: { type: string }
+                category: { type: string }
+                flags: { type: array, items: { type: object } }
+                features: { type: array, items: { type: object } }
+                employee_id: { type: integer }
+                employee_no: { type: string }
+                role: { type: string }
+                defaults: { type: array, items: { type: object } }
+      responses:
+        '200': { description: Updated flags }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /employees/admin-config:
+    get:
+      tags: [Admin Config]
+      summary: Get admin configuration
+      responses:
+        '200':
+          description: Admin configuration
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminConfig' }
+    post:
+      tags: [Admin Config]
+      summary: Save admin configuration (Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, config]
+              properties:
+                action: { type: string, enum: [admin_config_save] }
+                config: { $ref: '#/components/schemas/AdminConfig' }
+      responses:
+        '200': { description: Saved configuration }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /employees/reminders:
+    get:
+      tags: [Reminders]
+      summary: Get reminder rules, logs, or document checklist
+      parameters:
+        - name: reminder_rules
+          in: query
+          schema: { type: boolean }
+        - name: reminder_logs
+          in: query
+          schema: { type: boolean }
+        - name: document_checklist
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200': { description: Reminder data }
+    post:
+      tags: [Reminders]
+      summary: Manage reminder rules or run reminders (Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [reminder_rule_save, reminder_rule_delete, run_reminders] }
+                id: { type: integer }
+                name: { type: string }
+                reminder_type: { type: string, enum: [expiry, missing_documents, missing_profile, pending_approvals] }
+                days_before: { type: integer }
+                enabled: { type: boolean }
+                send_email: { type: boolean }
+      responses:
+        '200': { description: Reminder operation result }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /employees/announcements:
+    get:
+      tags: [Announcements]
+      summary: Get all announcements
+      responses:
+        '200':
+          description: List of announcements
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Announcement' } }
+    post:
+      tags: [Announcements]
+      summary: Create or update announcement (Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, title, body]
+              properties:
+                action: { type: string, enum: [announcement_save, announcement_delete] }
+                id: { type: integer }
+                title: { type: string }
+                body: { type: string }
+                category: { type: string }
+                pinned: { type: boolean }
+                expires_at: { type: string, format: date-time, nullable: true }
+      responses:
+        '200': { description: Announcement saved/deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /employees/hr-letters:
+    get:
+      tags: [HR Letters]
+      summary: Get HR letters
+      parameters:
+        - name: employee_id
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: List of HR letters
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/HR Letter' } }
+    post:
+      tags: [HR Letters]
+      summary: Save or delete HR letter (Admin/Manager only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [hr_letter_save, hr_letter_delete] }
+                id: { type: integer }
+                employee_id: { type: integer }
+                template_type: { type: string }
+                title: { type: string }
+                content: { type: string }
+                status: { type: string, enum: [draft, generated] }
+      responses:
+        '200': { description: Letter saved/deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /employees/performance:
+    get:
+      tags: [Performance]
+      summary: Get performance reviews, templates, evaluations, or worker rules
+      parameters:
+        - name: performance_reviews
+          in: query
+          schema: { type: boolean }
+        - name: evaluation_templates
+          in: query
+          schema: { type: boolean }
+        - name: evaluations
+          in: query
+          schema: { type: boolean }
+        - name: worker_rules
+          in: query
+          schema: { type: boolean }
+        - name: employee_id
+          in: query
+          schema: { type: integer }
+        - name: evaluator_id
+          in: query
+          schema: { type: integer }
+        - name: category
+          in: query
+          schema: { type: string }
+      responses:
+        '200': { description: Performance data }
+    post:
+      tags: [Performance]
+      summary: Manage performance reviews, templates, evaluations, or worker rules
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [performance_save, performance_acknowledge, performance_delete, template_save, template_delete, evaluation_save, evaluation_acknowledge, evaluation_delete, worker_rule_save] }
+                id: { type: integer }
+                employee_id: { type: integer }
+                template_id: { type: integer }
+                review_period: { type: string }
+                review_type: { type: string }
+                scores: { type: object }
+                name: { type: string }
+                category: { type: string, enum: [worker, employee, manager] }
+                sections: { type: array }
+      responses:
+        '200': { description: Performance operation result }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /employees/documents:
+    get:
+      tags: [Documents]
+      summary: Get employee documents or profile update requests
+      parameters:
+        - name: documents
+          in: query
+          schema: { type: boolean }
+        - name: document_signed_url
+          in: query
+          schema: { type: boolean }
+        - name: profile_update_requests
+          in: query
+          schema: { type: boolean }
+        - name: employee_id
+          in: query
+          schema: { type: integer }
+        - name: document_id
+          in: query
+          schema: { type: integer }
+      responses:
+        '200': { description: Documents data }
+    post:
+      tags: [Documents]
+      summary: Create profile update request or upload document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [profile_update_request_create, document_create] }
+                employee_id: { type: integer }
+                requested_data: { type: object }
+                reason: { type: string }
+                title: { type: string }
+                file_path: { type: string }
+                file_url: { type: string }
+                document_type: { type: string }
+                visibility: { type: string, enum: [hr_only, employee, manager] }
+      responses:
+        '201': { description: Created }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      tags: [Documents]
+      summary: Approve/reject profile update request (Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, id, status]
+              properties:
+                action: { type: string, enum: [profile_update_decision] }
+                id: { type: integer }
+                status: { type: string, enum: [approved, rejected] }
+                admin_remarks: { type: string }
+                decided_by: { type: integer }
+                decided_by_name: { type: string }
+      responses:
+        '200': { description: Decision recorded }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      tags: [Documents]
+      summary: Delete document (Admin only)
+      parameters:
+        - name: document_id
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Document deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /employees/imports:
+    post:
+      tags: [Imports]
+      summary: Bulk import employees or create accounts (Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, employees]
+              properties:
+                action: { type: string, enum: [import_employees, import_create_accounts] }
+                employees: { type: array, items: { type: object } }
+      responses:
+        '200': { description: Import results }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /employees/worker-auth:
+    post:
+      tags: [Worker Auth]
+      summary: Worker kiosk authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [worker_login, worker_session] }
+                employee_no: { type: string }
+                employee_id: { type: string }
+                token: { type: string }
+      responses:
+        '200':
+          description: Auth token or employee data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  employee: { $ref: '#/components/schemas/Employee' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /employees/system:
+    get:
+      tags: [System]
+      summary: Get system health or monthly HR report (Admin only)
+      parameters:
+        - name: system_health
+          in: query
+          schema: { type: boolean }
+        - name: monthly_hr_report
+          in: query
+          schema: { type: boolean }
+        - name: period
+          in: query
+          schema: { type: string, pattern: '^\d{4}-\d{2}$' }
+      responses:
+        '200': { description: System health or monthly report }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [System]
+      summary: Run system maintenance (Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [system_maintenance] }
+      responses:
+        '200': { description: Maintenance results }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /auth/worker-login:
+    post:
+      tags: [Worker Auth]
+      summary: Worker login (sets HttpOnly cookie)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employee_no]
+              properties:
+                employee_no: { type: string }
+      responses:
+        '200': { description: Login successful }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Worker Auth]
+      summary: Clear worker session cookie
+      responses:
+        '200': { description: Cookie cleared }
+    get:
+      tags: [Worker Auth]
+      summary: Check worker session
+      responses:
+        '200':
+          description: Employee data if session valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  employee: { $ref: '#/components/schemas/Employee' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+responses:
+  Unauthorized:
+    description: Unauthorized
+    content:
+      application/json:
+        schema: { $ref: '#/components/schemas/Error' }
+  Forbidden:
+    description: Forbidden - insufficient permissions
+    content:
+      application/json:
+        schema: { $ref: '#/components/schemas/Error' }
+  NotFound:
+    description: Resource not found
+    content:
+      application/json:
+        schema: { $ref: '#/components/schemas/Error' }
+  BadRequest:
+    description: Bad request - validation error
+    content:
+      application/json:
+        schema: { $ref: '#/components/schemas/Error' }
+  RateLimited:
+    description: Rate limit exceeded
+    content:
+      application/json:
+        schema: { $ref: '#/components/schemas/RateLimitError' }

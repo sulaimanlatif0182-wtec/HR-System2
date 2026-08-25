@@ -6,6 +6,9 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'api/**/*.test.{js,ts}'],
+    testTimeout: 10000,
+    pool: 'threads',
+    poolOptions: { threads: { singleThread: true } },
   },
 });
