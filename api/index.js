@@ -8,6 +8,10 @@ import deviceAuthHandler from '../lib/api/device-auth.js';
 import attendanceHandler from '../lib/api/attendance.js';
 import authWorkerLoginHandler from '../lib/api/worker-login.js';
 import payslipHandler from '../lib/api/payslip.js';
+import { supabase } from '../lib/db-client.js';
+import { dbError } from '../lib/errors.js';
+import { normalizeEmail, publicEmployee } from '../lib/employeeLogic.js';
+import { getFeatureFlags } from '../lib/feature-flags.js';
 
 export default async function handler(req, res) {
   const url = req.url || '';
@@ -24,6 +28,40 @@ export default async function handler(req, res) {
   }
 
   try {
+    // ========== PUBLIC ENDPOINTS (no auth required) ==========
+    // Handle these BEFORE routing to sub-handlers that require auth
+
+    if (url.startsWith('/api/employees')) {
+      const queryStart = url.indexOf('?');
+      const queryString = queryStart !== -1 ? url.substring(queryStart) : '';
+      const params = new URLSearchParams(queryString);
+
+      // Public: profile lookup by email
+      if (params.has('email')) {
+        const cleanEmail = normalizeEmail(params.get('email'));
+        const { data, error } = await supabase
+          .from('employees')
+          .select('*')
+          .ilike('email', cleanEmail)
+          .maybeSingle();
+        if (error) return dbError(res, error);
+        return res.status(200).json(publicEmployee(data));
+      }
+
+      // Public: feature flags
+      if (params.get('feature_flags') === 'true') {
+        const flags = await getFeatureFlags();
+        return res.status(200).json(flags);
+      }
+
+      // Public: feature access checks (my_feature_access, feature_access)
+      if (params.get('my_feature_access') === 'true' || params.get('feature_access') === 'true') {
+        // Let these through to the router which will handle them
+        // but we need to NOT require auth in the feature-flags handler for these
+      }
+    }
+
+    // ========== ROUTE TO SUB-HANDLERS ==========
     // Route to appropriate handler based on path
     if (url.startsWith('/api/employees')) {
       // Rewrite URL for router
