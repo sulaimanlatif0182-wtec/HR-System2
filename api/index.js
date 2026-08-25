@@ -1,13 +1,13 @@
-import employeesRouter from './employees/router.js';
-import registerHandler from './register.js';
-import leaveHandler from './leave.js';
-import claimsHandler from './claims.js';
-import payrollHandler from './payroll.js';
-import departmentsHandler from './departments.js';
-import deviceAuthHandler from './device-auth.js';
-import attendanceHandler from './attendance.js';
-import authWorkerLoginHandler from './auth/worker-login.js';
-import payslipHandler from './payslip.js';
+import employeesRouter from '../lib/api/employees/router.js';
+import registerHandler from '../lib/api/register.js';
+import leaveHandler from '../lib/api/leave.js';
+import claimsHandler from '../lib/api/claims.js';
+import payrollHandler from '../lib/api/payroll.js';
+import departmentsHandler from '../lib/api/departments.js';
+import deviceAuthHandler from '../lib/api/device-auth.js';
+import attendanceHandler from '../lib/api/attendance.js';
+import authWorkerLoginHandler from '../lib/api/worker-login.js';
+import payslipHandler from '../lib/api/payslip.js';
 
 export default async function handler(req, res) {
   const url = req.url || '';
