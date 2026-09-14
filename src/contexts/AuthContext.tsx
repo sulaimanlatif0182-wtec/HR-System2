@@ -77,10 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const cleanEmail = email.trim().toLowerCase();
 
       const res = await fetch(
-        `/api/employees?email=${encodeURIComponent(cleanEmail)}&t=${Date.now()}`,
+        `/api/employees?email=${encodeURIComponent(cleanEmail)}`,
         {
           method: 'GET',
-          cache: 'no-store',
           signal: controller.signal,
         }
       );
@@ -108,7 +107,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch(WORKER_LOGIN_PATH, {
         method: 'GET',
         credentials: 'same-origin',
-        cache: 'no-store',
         signal: controller.signal,
       });
 
