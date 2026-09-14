@@ -131,7 +131,7 @@ function validatePassword(password: string) {
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { signInAsWorker } = useAuth();
+  const { signInAsWorker, profile, loading: authLoading } = useAuth();
 
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
@@ -141,7 +141,9 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const [loading, setLoading] = useState(false);
-  const [checkingSession, setCheckingSession] = useState(true);
+  // Derived from the auth provider (the single source of truth): show the
+  // splash only while the app is still resolving the session + profile.
+  const checkingSession = authLoading;
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(() =>
     searchParams.get('verified') === '1'
@@ -150,42 +152,16 @@ export default function Login() {
   );
 
   useEffect(() => {
-    let mounted = true;
-
-    const checkSession = async () => {
-      try {
-        // getSession can hang when the gotrue auth-token lock is orphaned
-        // (React Strict Mode / in-flight refresh). Bound it so the login form
-        // always appears instead of an endless "Checking session…".
-        const result = await Promise.race([
-          supabase.auth.getSession(),
-          new Promise<{ data: { session: null } }>((resolve) =>
-            setTimeout(() => resolve({ data: { session: null } }), 6000)
-          ),
-        ]);
-
-        if (!mounted) return;
-
-        const session = result?.data?.session;
-
-        if (session) {
-          navigate('/', { replace: true });
-          return;
-        }
-
-        setCheckingSession(false);
-      } catch {
-        if (!mounted) return;
-        setCheckingSession(false);
-      }
-    };
-
-    checkSession();
-
-    return () => {
-      mounted = false;
-    };
-  }, [navigate]);
+    // Leave this screen only when the app shell is ready too. Redirecting on
+    // a raw session alone causes an infinite bounce when the employee profile
+    // hasn't loaded: ProtectedRoute sends profile-less users back here, and
+    // this screen used to send sessions straight back there ("checking
+    // session" forever). A fresh sign-in heals via the SIGNED_IN full reload.
+    if (authLoading) return;
+    if (profile) {
+      navigate('/', { replace: true });
+    }
+  }, [authLoading, profile, navigate]);
 
   const resetMessages = () => {
     setError('');
