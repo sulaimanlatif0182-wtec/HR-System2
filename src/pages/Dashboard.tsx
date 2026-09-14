@@ -189,13 +189,20 @@ export default function Dashboard() {
 
   const fetchDashboard = async () => {
     try {
+      const todayStr = formatLocalDate();
+      const period = currentPeriod();
+      // Ask the server for only what this screen renders: today's attendance,
+      // pending leave/claims, and the current payroll period. Previously every
+      // table was downloaded in full and filtered here, which gets slower as
+      // history grows. Plain employees only see their own rows server-side.
+      const selfScope = !isAdminOrManager && profile?.id ? `&employee_id=${profile.id}` : '';
       const [empData, attData, leaveData, claimData, payrollData, holidayData, announcementData] =
         await Promise.all([
           apiClient.get('/api/employees'),
-          apiClient.get('/api/attendance'),
-          apiClient.get('/api/leave'),
-          apiClient.get('/api/claims').catch(() => []),
-          apiClient.get('/api/payroll').catch(() => []),
+          apiClient.get(`/api/attendance?date=${todayStr}${selfScope}`),
+          apiClient.get(`/api/leave?pending=true${selfScope}`),
+          apiClient.get(`/api/claims?pending=true${selfScope}`).catch(() => []),
+          apiClient.get(`/api/payroll?period=${period}${selfScope}`).catch(() => []),
           apiClient.get('/api/attendance?holidays=1').catch(() => []),
           apiClient.get('/api/employees?announcements=true').catch(() => []),
         ]);

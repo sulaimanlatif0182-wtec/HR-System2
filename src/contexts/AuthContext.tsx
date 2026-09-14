@@ -186,10 +186,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const {
     data: { subscription },
-  } = supabase.auth.onAuthStateChange(async (_event, session) => {
+  } = supabase.auth.onAuthStateChange(async (event, session) => {
     // During initial auth, initAuth() manages the loading state.
     // Only reset loading for subsequent auth events (sign-in, sign-out, token refresh).
     if (!authInitialized.current) return;
+
+    // Hourly token refreshes (and similar background events) must not blank
+    // the whole screen: update the session silently instead. INITIAL_SESSION
+    // is handled explicitly because it can arrive after a timed-out init.
+    if (session) {
+      setSession(session);
+      setUser(session?.user ?? null);
+    }
+    if (
+      event === 'TOKEN_REFRESHED' ||
+      event === 'USER_UPDATED' ||
+      event === 'PASSWORD_RECOVERY' ||
+      event === 'MFA_CHALLENGE_VERIFIED'
+    ) {
+      return;
+    }
 
     setLoading(true);
 
