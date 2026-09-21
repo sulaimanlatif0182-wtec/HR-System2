@@ -1,5 +1,4 @@
 import type { ReactNode, ComponentType } from 'react';
-import { motion } from 'framer-motion';
 import { RefreshCw, Inbox } from 'lucide-react';
 
 export function PageHeader({
@@ -14,13 +13,9 @@ export function PageHeader({
   return (
     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-8">
       <div className="min-w-0">
-        <motion.h1
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="font-display text-2xl sm:text-3xl font-bold tracking-tight"
-        >
+        <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight animate-fade">
           {title}
-        </motion.h1>
+        </h1>
 
         {subtitle && (
           <p className="text-muted text-sm mt-1.5">

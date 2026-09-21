@@ -63,6 +63,22 @@ function isExpired(item: Announcement) {
   return String(item.expires_at).slice(0, 10) < formatLocalDate();
 }
 
+function outlookWebComposeUrl(item: Announcement) {
+  const subject = encodeURIComponent(`[Announcement] ${item.title}`);
+  const body = encodeURIComponent(
+    `${item.body}\n\n—\nCategory: ${item.category}\nBy: ${item.created_by_name || 'HR'}\nDate: ${formatDate(item.created_at)}${item.expires_at ? `\nExpires: ${formatDate(item.expires_at)}` : ''}`
+  );
+  return `https://outlook.office.com/mail/deeplink/compose?subject=${subject}&body=${body}`;
+}
+
+function mailtoUrl(item: Announcement) {
+  const subject = encodeURIComponent(`[Announcement] ${item.title}`);
+  const body = encodeURIComponent(
+    `${item.body}\n\n—\nCategory: ${item.category}\nBy: ${item.created_by_name || 'HR'}`
+  );
+  return `mailto:?subject=${subject}&body=${body}`;
+}
+
 export default function Announcements() {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
@@ -376,6 +392,24 @@ export default function Announcements() {
                     Expires: {formatDate(item.expires_at)}
                   </p>
                 )}
+                <div className="flex flex-wrap gap-2 mt-4">
+                  <a
+                    href={outlookWebComposeUrl(item)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"
+                    title="Open this announcement in Outlook on the web"
+                  >
+                    Open in Outlook
+                  </a>
+                  <a
+                    href={mailtoUrl(item)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"
+                    title="Share via default mail app (Outlook desktop if set as default)"
+                  >
+                    Share via Email
+                  </a>
+                </div>
               </div>
             );
           })}

@@ -141,7 +141,7 @@ export default function Evaluation() {
 
   const isAdmin = profile?.role === 'admin';
   const isManager = profile?.role === 'manager';
-  const canEvaluate = isAdmin || isManager;
+  const canEvaluate = isAdmin;
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [templates, setTemplates] = useState<EvaluationTemplate[]>([]);
@@ -1166,7 +1166,7 @@ export default function Evaluation() {
                     onChange={(event) => handleSubjectChange(event.target.value ? Number(event.target.value) : '')}
                     className="w-full rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
                   >
-                    <option value="">Select subject…</option>
+                    <option value="">Select subject (staff)…</option>
                     {subjects.map((subject) => (
                       <option key={subject.value} value={subject.value}>
                         {subject.label}
@@ -1321,7 +1321,7 @@ export default function Evaluation() {
               const employee = employeesMap[evaluation.employee_id];
               const template = templates.find((template) => template.id === evaluation.template_id);
               const isMine = evaluation.employee_id === profile?.id;
-              const canEdit = isAdmin || evaluation.evaluator_id === profile?.id;
+              const canEdit = isAdmin;
 
               return (
                 <div key={evaluation.id} className="glass rounded-2xl p-5 space-y-3">
@@ -1332,7 +1332,7 @@ export default function Evaluation() {
                       </div>
                       <div>
                         <h4 className="font-semibold">
-                          {employee?.name || `Employee #${evaluation.employee_id}`}
+                          {employee?.name || `Staff #${evaluation.employee_id}`}
                           {employee?.employee_no ? (
                             <span className="text-xs text-muted font-normal ml-2">#{employee.employee_no}</span>
                           ) : null}

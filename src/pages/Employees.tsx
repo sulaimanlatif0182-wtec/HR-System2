@@ -74,7 +74,7 @@ const STATUS_OPTIONS = ['active', 'on_leave', 'inactive'] as const;
 
 const COMBINED_ROLE_OPTIONS = [
   { label: 'Worker', role: 'employee', category: 'worker' },
-  { label: 'Employee', role: 'employee', category: 'employee' },
+  { label: 'Staff', role: 'employee', category: 'employee' },
   { label: 'Manager', role: 'manager', category: 'manager' },
   { label: 'Admin', role: 'admin', category: 'employee' },
 ] as const;
@@ -94,6 +94,11 @@ function normalizeIdentityLast4(value: string, type: string) {
   }
 
   return value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4);
+}
+
+function displayRole(role: string | null | undefined) {
+  if (role === 'employee') return 'staff';
+  return role ?? '—';
 }
 
 interface Employee {
@@ -1520,13 +1525,13 @@ export default function Employees() {
     );
   };
 
-  if (loading) return <LoadingState label="Loading employee directory…" />;
+  if (loading) return <LoadingState label="Loading staff directory…" />;
   if (error) return <ErrorState message={error} onRetry={fetchEmployees} />;
 
   return (
     <div>
       <PageHeader
-        title="Employee Directory"
+        title="Staff Directory"
         subtitle={`${visibleEmployees.length} visible people across ${
           departments.length - 1
         } departments`}
@@ -1682,7 +1687,7 @@ export default function Employees() {
                             : 'default'
                       }
                     >
-                      {emp.role}
+                      {displayRole(emp.role)}
                     </Badge>
 
                     <Badge tone="info">{emp.department}</Badge>
@@ -1743,7 +1748,7 @@ export default function Employees() {
                             : 'default'
                       }
                     >
-                      {emp.role}
+                      {displayRole(emp.role)}
                     </Badge>
                   </td>
 
@@ -1819,7 +1824,7 @@ export default function Employees() {
                             : 'default'
                       }
                     >
-                      {selected.role}
+                      {displayRole(selected.role)}
                     </Badge>
 
                     <Badge tone="info">{selected.department}</Badge>

@@ -23,7 +23,6 @@ export interface Department {
   id: number;
   name: string;
   color: string;
-  budget: number;
   created_at: string;
 }
 

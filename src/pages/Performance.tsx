@@ -121,7 +121,8 @@ function formatDate(value?: string | null) {
 
 export default function Performance() {
   const { profile } = useAuth();
-  const isAdminOrManager = profile?.role === 'admin' || profile?.role === 'manager';
+  const isAdmin = profile?.role === 'admin';
+  const isAdminOrManager = isAdmin;
   const [searchParams] = useSearchParams();
 
   const initialTab = searchParams.get('tab') === 'appraisal' ? 'appraisal' : 'evaluation';
@@ -373,7 +374,7 @@ export default function Performance() {
               onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
               className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5"
             >
-              <option value="">Select employee</option>
+              <option value="">Select staff</option>
               {employees.map((employee) => (
                 <option key={employee.id} value={employee.id}>{employee.name}</option>
               ))}

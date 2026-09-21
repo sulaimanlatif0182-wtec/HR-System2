@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Users } from 'lucide-react';
 import { PageHeader, LoadingState, ErrorState } from '../components/Shared';
-import type { Employee, Department } from '../types';
+import type { Employee } from '../types';
 import apiClient from '../lib/api';
 
 const COLORS: Record<string, string> = {};
@@ -19,20 +19,20 @@ function initialsOf(name: string) {
   return name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase();
 }
 
+function displayRole(role: string | null | undefined) {
+  if (role === 'employee') return 'staff';
+  return role ?? '—';
+}
+
 export default function OrgChart() {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const fetchAll = async () => {
     try {
-      const [e, d] = await Promise.all([
-        apiClient.get('/api/employees'),
-        apiClient.get('/api/departments'),
-      ]);
+      const e = await apiClient.get('/api/employees');
       setEmployees(Array.isArray(e) ? e : []);
-      setDepartments(Array.isArray(d) ? d : []);
     } catch {
       setError('Failed to load org chart.');
     } finally {
@@ -123,7 +123,7 @@ export default function OrgChart() {
                     <p className="text-[11px] text-muted truncate">{m.title}</p>
                   </div>
                   {m.role !== 'employee' && (
-                    <span className="ml-auto text-[10px] uppercase tracking-wide text-primary font-semibold">{m.role}</span>
+                    <span className="ml-auto text-[10px] uppercase tracking-wide text-primary font-semibold">{displayRole(m.role)}</span>
                   )}
                 </motion.div>
               ))}
@@ -132,28 +132,6 @@ export default function OrgChart() {
         ))}
       </div>
 
-      {departments.length > 0 && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="glass rounded-2xl p-6 mt-6">
-          <h3 className="font-display font-semibold mb-4">Department Budgets</h3>
-          <div className="space-y-3">
-            {departments.map((d) => {
-              const max = Math.max(...departments.map((x) => Number(x.budget)));
-              const pct = (Number(d.budget) / max) * 100;
-              return (
-                <div key={d.id}>
-                  <div className="flex justify-between text-xs mb-1.5">
-                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full" style={{ background: colorFor(d.name) }} />{d.name}</span>
-                    <span className="text-muted">${Number(d.budget).toLocaleString()}</span>
-                  </div>
-                  <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                    <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8 }} className="h-full rounded-full" style={{ background: colorFor(d.name) }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      )}
     </div>
   );
 }

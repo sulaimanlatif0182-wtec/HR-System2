@@ -25,6 +25,7 @@ const ROLE_TONE: Record<string, string> = { admin: 'danger', manager: 'warning',
 
 export default function Profile() {
   const { user, profile, loading, refreshProfile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
 
   // Profile info form
   const [form, setForm] = useState({ name: '', title: '', phone: '', location: '', department: '' });
@@ -58,6 +59,10 @@ export default function Profile() {
     setInfoError('');
     setInfoSuccess('');
     if (!profile) return;
+    if (!isAdmin) {
+      setInfoError('Personal Information can only be edited by an admin. Please contact HR.');
+      return;
+    }
     if (!form.name.trim()) {
       setInfoError('Name cannot be empty.');
       return;
@@ -157,7 +162,7 @@ export default function Profile() {
           </p>
           <div className="flex gap-2 mt-2 justify-center sm:justify-start">
             <Badge tone={ROLE_TONE[role] ?? 'default'}>
-              <ShieldCheck size={11} /> {role}
+              <ShieldCheck size={11} /> {role === 'employee' ? 'staff' : role}
             </Badge>
             {profile?.department && <Badge tone="info">{profile.department}</Badge>}
             {profile?.join_date && (
@@ -191,13 +196,18 @@ export default function Profile() {
               <h3 className="font-display font-semibold">Personal Information</h3>
             </div>
             <p className="text-xs text-muted mb-5">These details appear across the portal (directory, org chart, approvals).</p>
+            {!isAdmin && (
+              <p className="text-amber text-xs bg-amber/10 border border-amber/20 rounded-xl px-4 py-3 mb-4">
+                View-only. Personal Information can only be edited by an admin. Staff and managers cannot edit this section.
+              </p>
+            )}
 
             <form onSubmit={saveInfo} className="space-y-4">
               <div>
                 <label className="text-xs text-muted mb-1.5 block">Full name</label>
                 <div className="relative">
                   <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-                  <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={`${inputCls} pl-10`} />
+                  <input value={form.name} disabled={!isAdmin} onChange={(e) => setForm({ ...form, name: e.target.value })} className={`${inputCls} pl-10 disabled:opacity-50 disabled:cursor-not-allowed`} />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -205,28 +215,28 @@ export default function Profile() {
                   <label className="text-xs text-muted mb-1.5 block">Job title</label>
                   <div className="relative">
                     <Briefcase size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-                    <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className={`${inputCls} pl-10`} />
+                    <input value={form.title} disabled={!isAdmin} onChange={(e) => setForm({ ...form, title: e.target.value })} className={`${inputCls} pl-10 disabled:opacity-50 disabled:cursor-not-allowed`} />
                   </div>
                 </div>
                 <div>
                   <label className="text-xs text-muted mb-1.5 block">Department</label>
                   <div className="relative">
                     <Building2 size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-                    <input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} className={`${inputCls} pl-10`} />
+                    <input value={form.department} disabled={!isAdmin} onChange={(e) => setForm({ ...form, department: e.target.value })} className={`${inputCls} pl-10 disabled:opacity-50 disabled:cursor-not-allowed`} />
                   </div>
                 </div>
                 <div>
                   <label className="text-xs text-muted mb-1.5 block">Phone</label>
                   <div className="relative">
                     <Phone size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-                    <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={`${inputCls} pl-10`} />
+                    <input value={form.phone} disabled={!isAdmin} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={`${inputCls} pl-10 disabled:opacity-50 disabled:cursor-not-allowed`} />
                   </div>
                 </div>
                 <div>
                   <label className="text-xs text-muted mb-1.5 block">Location</label>
                   <div className="relative">
                     <MapPin size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-                    <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className={`${inputCls} pl-10`} />
+                    <input value={form.location} disabled={!isAdmin} onChange={(e) => setForm({ ...form, location: e.target.value })} className={`${inputCls} pl-10 disabled:opacity-50 disabled:cursor-not-allowed`} />
                   </div>
                 </div>
               </div>
@@ -258,13 +268,15 @@ export default function Profile() {
                 )}
               </AnimatePresence>
 
-              <button
-                type="submit"
-                disabled={savingInfo}
-                className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-5 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] transition-all disabled:opacity-60"
-              >
-                {savingInfo ? <Loader2 size={15} className="animate-spin" /> : 'Save changes'}
-              </button>
+              {isAdmin && (
+                <button
+                  type="submit"
+                  disabled={savingInfo}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-5 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] transition-all disabled:opacity-60"
+                >
+                  {savingInfo ? <Loader2 size={15} className="animate-spin" /> : 'Save changes'}
+                </button>
+              )}
             </form>
           </motion.div>
         )}

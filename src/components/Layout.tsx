@@ -26,7 +26,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'manager', 'employee'] },
   { to: '/admin-config', label: 'Admin Config', icon: Settings, roles: ['admin'] },
-  { to: '/employees', label: 'Employees', icon: Users, roles: ['admin', 'manager'], feature: 'employees' },
+  { to: '/employees', label: 'Staff', icon: Users, roles: ['admin', 'manager'], feature: 'employees' },
   { to: '/profile-updates', label: 'Profile Updates', icon: UserCog, roles: ['admin', 'manager', 'employee'], feature: 'profile_updates' },
   { to: '/announcements', label: 'Announcements', icon: Megaphone, roles: ['admin', 'manager', 'employee'], feature: 'announcements' },
   { to: '/hr-letters', label: 'HR Letters', icon: FileText, roles: ['admin', 'manager'], feature: 'hr_letters' },

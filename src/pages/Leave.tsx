@@ -62,6 +62,7 @@ const BACKDATE_ALLOWED_LEAVE_TYPES = new Set([
 const ATTACHMENT_REQUIRED_LEAVE_TYPES = new Set([
   'Sick Leave',
   'Maternity/Paternity',
+  'EL',
 ]);
 
 type LeaveType = (typeof LEAVE_TYPES)[number];
