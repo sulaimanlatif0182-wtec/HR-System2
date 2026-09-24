@@ -3,12 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users,
-  UserCheck,
-  Clock,
-  AlertTriangle,
   CalendarDays,
   ReceiptText,
-  Wallet,
   Cake,
   CalendarCheck,
   Megaphone,
@@ -33,15 +29,6 @@ interface Employee {
   passport_expiry?: string | null;
   driving_license_expiry?: string | null;
   medical_checkup_expiry?: string | null;
-}
-
-interface AttendanceRecord {
-  id: number;
-  employee_id: number;
-  date: string;
-  status: string;
-  check_in?: string | null;
-  check_out?: string | null;
 }
 
 interface LeaveRequest {
@@ -178,7 +165,6 @@ export default function Dashboard() {
   const profileDepartment = String(profile?.department ?? '').trim().toLowerCase();
 
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [leave, setLeave] = useState<LeaveRequest[]>([]);
   const [claims, setClaims] = useState<ClaimRecord[]>([]);
   const [payroll, setPayroll] = useState<PayrollRecord[]>([]);
@@ -189,17 +175,15 @@ export default function Dashboard() {
 
   const fetchDashboard = async () => {
     try {
-      const todayStr = formatLocalDate();
       const period = currentPeriod();
-      // Ask the server for only what this screen renders: today's attendance,
-      // pending leave/claims, and the current payroll period. Previously every
+      // Ask the server for only what this screen renders: pending
+      // leave/claims, and the current payroll period. Previously every
       // table was downloaded in full and filtered here, which gets slower as
       // history grows. Plain employees only see their own rows server-side.
       const selfScope = !isAdminOrManager && profile?.id ? `&employee_id=${profile.id}` : '';
-      const [empData, attData, leaveData, claimData, payrollData, holidayData, announcementData] =
+      const [empData, leaveData, claimData, payrollData, holidayData, announcementData] =
         await Promise.all([
           apiClient.get('/api/employees'),
-          apiClient.get(`/api/attendance?date=${todayStr}${selfScope}`),
           apiClient.get(`/api/leave?pending=true${selfScope}`),
           apiClient.get(`/api/claims?pending=true${selfScope}`).catch(() => []),
           apiClient.get(`/api/payroll?period=${period}${selfScope}`).catch(() => []),
@@ -208,7 +192,6 @@ export default function Dashboard() {
         ]);
 
       setEmployees(Array.isArray(empData) ? empData : []);
-      setAttendance(Array.isArray(attData) ? attData : []);
       setLeave(Array.isArray(leaveData) ? leaveData : []);
       setClaims(Array.isArray(claimData) ? claimData : []);
       setPayroll(Array.isArray(payrollData) ? payrollData : []);
@@ -247,22 +230,6 @@ export default function Dashboard() {
 
   const today = formatLocalDate();
 
-  const todayAttendance = attendance.filter(
-    (record) => record.date === today && visibleEmployeeIds.has(record.employee_id)
-  );
-
-  const presentToday = todayAttendance.filter((record) =>
-    ['present', 'late', 'remote'].includes(record.status)
-  ).length;
-
-  const lateToday = todayAttendance.filter((record) => record.status === 'late').length;
-
-  const missingToday = Math.max(
-    0,
-    visibleEmployees.filter((employee) => String(employee.status ?? 'active') !== 'inactive')
-      .length - todayAttendance.length
-  );
-
   const pendingLeave = leave.filter(
     (request) =>
       ['pending', 'pending_supervisor', 'pending_manager'].includes(
@@ -279,10 +246,6 @@ export default function Dashboard() {
   const currentPayroll = payroll.filter(
     (record) => record.period === currentPeriod() && visibleEmployeeIds.has(record.employee_id)
   );
-
-  const draftPayroll = currentPayroll.filter((record) =>
-    ['draft', 'reviewed'].includes(record.status)
-  ).length;
 
   const upcomingHolidays = holidays
     .filter((holiday) => holiday.holiday_date >= today)
@@ -334,7 +297,7 @@ export default function Dashboard() {
         title="HR Dashboard"
         subtitle={
           isAdminOrManager
-            ? 'Management summary for attendance, leave, claims and payroll.'
+            ? 'Management summary for leave, claims and payroll.'
             : 'Your personal HR summary.'
         }
         action={
@@ -351,15 +314,10 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <StatCard icon={Users} label="Visible Employees" value={visibleEmployees.length} />
-        <StatCard icon={UserCheck} label="Present Today" value={presentToday} tone="emerald" />
-        <StatCard icon={Clock} label="Late Today" value={lateToday} tone="amber" />
-        <StatCard icon={AlertTriangle} label="Missing Today" value={missingToday} tone="rose" />
         <StatCard icon={CalendarDays} label="Pending Leave" value={pendingLeave.length} tone="accent" />
         <StatCard icon={ReceiptText} label="Pending Claims" value={pendingClaims.length} tone="amber" />
-        <StatCard icon={Wallet} label="Payroll Draft/Review" value={draftPayroll} tone="primary" />
         <StatCard icon={CalendarCheck} label="Upcoming Holidays" value={upcomingHolidays.length} tone="emerald" />
         <StatCard icon={Megaphone} label="Announcements" value={latestAnnouncements.length} tone="accent" />
-        <StatCard icon={AlertTriangle} label="Expiry Alerts" value={expiryAlerts.length} tone="rose" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
