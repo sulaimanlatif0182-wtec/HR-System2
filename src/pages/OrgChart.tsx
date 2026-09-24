@@ -63,6 +63,14 @@ export default function OrgChart() {
 
   const ceo = employees.find((e) => e.role === 'admin');
 
+  const nameById = useMemo(() => {
+    const map: Record<number, string> = {};
+    employees.forEach((e) => {
+      map[e.id] = e.name;
+    });
+    return map;
+  }, [employees]);
+
   if (loading) return <LoadingState label="Building organization tree…" />;
   if (error) return <ErrorState message={error} onRetry={fetchAll} />;
 
@@ -121,6 +129,11 @@ export default function OrgChart() {
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{m.name}</p>
                     <p className="text-[11px] text-muted truncate">{m.title}</p>
+                    {m.supervisor_id != null && nameById[m.supervisor_id] && (
+                      <p className="text-[11px] text-muted truncate">
+                        Reports to {nameById[m.supervisor_id]}
+                      </p>
+                    )}
                   </div>
                   {m.role !== 'employee' && (
                     <span className="ml-auto text-[10px] uppercase tracking-wide text-primary font-semibold">{displayRole(m.role)}</span>

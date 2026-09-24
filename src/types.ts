@@ -16,6 +16,7 @@ export interface Employee {
   location: string | null;
   join_date: string | null;
   salary: number | null;
+  supervisor_id?: number | null;
   created_at: string;
 }
 
