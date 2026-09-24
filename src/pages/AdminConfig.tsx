@@ -88,7 +88,7 @@ const DEFAULT_CONFIG: AdminConfigMap = {
     'Maintenance',
     'QC',
     'Store',
-    'Planner',
+    'PPC Dept ( Production Planning and Control )',
     'IT',
     'Purchasing',
     'Marketing',

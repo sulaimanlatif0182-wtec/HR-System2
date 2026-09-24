@@ -57,7 +57,7 @@ const DEPARTMENT_OPTIONS = [
   'Maintenance',
   'QC',
   'Store',
-  'Planner',
+  'PPC Dept ( Production Planning and Control )',
   'IT',
   'Purchasing',
   'Marketing',
@@ -97,8 +97,15 @@ function normalizeIdentityLast4(value: string, type: string) {
 }
 
 function displayRole(role: string | null | undefined) {
-  if (role === 'employee') return 'staff';
-  return role ?? '—';
+  if (role === 'employee') return 'Staff';
+  if (!role) return '—';
+  return role.charAt(0).toUpperCase() + role.slice(1);
+}
+
+function capLabel(value: string | null | undefined) {
+  if (!value) return '—';
+  const text = String(value).replace(/_/g, ' ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 interface Employee {
@@ -1690,10 +1697,10 @@ export default function Employees() {
                       {displayRole(emp.role)}
                     </Badge>
 
-                    <Badge tone="info">{emp.department}</Badge>
+                    <Badge tone="info">{capLabel(emp.department)}</Badge>
 
                     <Badge tone={STATUS_TONE[emp.status] ?? 'default'}>
-                      {emp.status.replace('_', ' ')}
+                      {capLabel(emp.status)}
                     </Badge>
                   </div>
                 </div>
@@ -1753,7 +1760,7 @@ export default function Employees() {
                   </td>
 
                   <td className="px-5 py-3.5 text-muted">
-                    {emp.department}
+                    {capLabel(emp.department)}
                   </td>
 
                   <td className="px-5 py-3.5 text-muted">
@@ -1762,7 +1769,7 @@ export default function Employees() {
 
                   <td className="px-5 py-3.5">
                     <Badge tone={STATUS_TONE[emp.status] ?? 'default'}>
-                      {emp.status.replace('_', ' ')}
+                      {capLabel(emp.status)}
                     </Badge>
                   </td>
 
@@ -1827,10 +1834,10 @@ export default function Employees() {
                       {displayRole(selected.role)}
                     </Badge>
 
-                    <Badge tone="info">{selected.department}</Badge>
+                    <Badge tone="info">{capLabel(selected.department)}</Badge>
 
                     <Badge tone={STATUS_TONE[selected.status] ?? 'default'}>
-                      {selected.status.replace('_', ' ')}
+                      {capLabel(selected.status)}
                     </Badge>
                   </div>
 
