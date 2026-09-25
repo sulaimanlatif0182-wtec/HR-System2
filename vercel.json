@@ -3,6 +3,10 @@
     {
       "path": "/api/employees?cron_reminders=1",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/employees?announcement_cleanup=1",
+      "schedule": "0 2 * * *"
     }
   ],
   "rewrites": [

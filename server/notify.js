@@ -217,6 +217,29 @@ export async function notifyLeaveDecision(leaveRequest) {
   });
 }
 
+export async function notifyAnnouncementPublished(announcement) {
+  const { data, error } = await supabase
+    .from('employees')
+    .select('id, name, email')
+    .eq('status', 'active');
+
+  if (error) return;
+
+  const recipients = uniqueRecipients(
+    (data || []).filter((e) => e.email && e.id !== announcement.created_by)
+  );
+
+  if (!recipients.length) return;
+
+  return emailMany(recipients, () => ({
+    subject: `New announcement: ${announcement.title}`,
+    title: announcement.title,
+    message: `${announcement.body}\n\nCategory: ${announcement.category || 'General'}`,
+    link: '/announcements',
+    actionLabel: 'View Announcement',
+  }));
+}
+
 // =========================
 // CLAIM NOTIFICATIONS
 // =========================
