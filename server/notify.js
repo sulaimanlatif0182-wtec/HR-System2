@@ -135,14 +135,24 @@ export async function notifyLeaveSubmittedToApproverSafe(leaveRequest) {
     }
   }
 
-  const managers = await getManagersByDepartment(applicant.department);
   const admins = await getAdmins();
 
-  const recipients = uniqueRecipients([
-    ...supervisors.filter((supervisor) => supervisor.id !== applicant.id),
-    ...managers.filter((manager) => manager.id !== applicant.id),
-    ...admins,
-  ]);
+  // When a supervisor (Working with) is assigned, only the supervisor plus
+  // admins are notified for approval — department managers are out of the
+  // chain. Applicants without a supervisor keep manager + admin routing.
+  let recipients;
+  if (applicant.supervisor_id) {
+    recipients = uniqueRecipients([
+      ...supervisors.filter((supervisor) => supervisor.id !== applicant.id),
+      ...admins,
+    ]);
+  } else {
+    const managers = await getManagersByDepartment(applicant.department);
+    recipients = uniqueRecipients([
+      ...managers.filter((manager) => manager.id !== applicant.id),
+      ...admins,
+    ]);
+  }
 
   const days = Number(leaveRequest.days || 0);
 
@@ -152,6 +162,42 @@ export async function notifyLeaveSubmittedToApproverSafe(leaveRequest) {
     message: `${applicant.name} submitted a ${leaveRequest.leave_type} request from ${leaveRequest.start_date} to ${leaveRequest.end_date}${days ? ` (${days} day${days > 1 ? 's' : ''})` : ''}.`,
     link: '/leave',
     actionLabel: 'Review Leave',
+  }));
+}
+
+export async function notifyLeaveSubmittedToPeers(leaveRequest) {
+  const applicant = await getEmployee(leaveRequest.employee_id);
+
+  if (!applicant?.supervisor_id) return;
+
+  const supervisor = await getEmployee(applicant.supervisor_id);
+
+  const { data, error } = await supabase
+    .from('employees')
+    .select('id, name, email')
+    .eq('supervisor_id', applicant.supervisor_id)
+    .eq('status', 'active');
+
+  if (error) return;
+
+  // Peers = everyone reporting to the same supervisor, minus the applicant
+  // and the supervisor (who already gets the approval email).
+  const recipients = uniqueRecipients(
+    (data || []).filter(
+      (peer) => peer.id !== applicant.id && peer.id !== applicant.supervisor_id
+    )
+  );
+
+  if (!recipients.length) return;
+
+  const days = Number(leaveRequest.days || 0);
+
+  return emailMany(recipients, () => ({
+    subject: `Team leave notice - ${applicant.name}`,
+    title: 'Team leave notice (no action needed)',
+    message: `${applicant.name} submitted a ${leaveRequest.leave_type} request from ${leaveRequest.start_date} to ${leaveRequest.end_date}${days ? ` (${days} day${days > 1 ? 's' : ''})` : ''}. This is for your information only — approval is by ${supervisor?.name || 'their supervisor'}.`,
+    link: '/leave',
+    actionLabel: 'View Leave',
   }));
 }
 

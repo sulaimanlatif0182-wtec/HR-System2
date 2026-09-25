@@ -483,17 +483,28 @@ export default function Leave() {
       return false;
     }
 
-    const applicant = empMap[request.employee_id];
-    const applicantRole = String(applicant?.role ?? '').toLowerCase();
-
     if (isAdmin) {
       return true;
+    }
+
+    const applicant = empMap[request.employee_id];
+    const applicantSupervisorId = Number(applicant?.supervisor_id);
+
+    // Supervisor-final rule: the assigned supervisor (Working with) decides
+    // regardless of role.
+    if (applicantSupervisorId) {
+      return (
+        applicantSupervisorId === Number(profile.id) &&
+        Number(profile.id) !== Number(request.employee_id)
+      );
     }
 
     if (isManagerOnly) {
       if (Number(profile.id) === Number(request.employee_id)) {
         return false;
       }
+
+      const applicantRole = String(applicant?.role ?? '').toLowerCase();
 
       if (applicantRole === 'manager' || applicantRole === 'admin') {
         return false;
@@ -1366,9 +1377,7 @@ export default function Leave() {
                       ) : (
                         <Check size={13} />
                       )}
-                      {request.status === 'pending_supervisor'
-                        ? 'Approve → Manager'
-                        : 'Approve'}
+                      Approve
                     </button>
 
                     <button
