@@ -28,7 +28,7 @@ export default function Profile() {
   const isAdmin = profile?.role === 'admin';
 
   // Profile info form
-  const [form, setForm] = useState({ name: '', title: '', phone: '', location: '', department: '' });
+  const [form, setForm] = useState({ name: '', title: '', phone: '', location: '', department: '', date_of_birth: '' });
   const [savingInfo, setSavingInfo] = useState(false);
   const [infoError, setInfoError] = useState('');
   const [infoSuccess, setInfoSuccess] = useState('');
@@ -51,6 +51,7 @@ export default function Profile() {
       phone: profile.phone ?? '',
       location: profile.location ?? '',
       department: profile.department ?? '',
+      date_of_birth: profile.date_of_birth ?? '',
     });
   }
 
@@ -60,7 +61,27 @@ export default function Profile() {
     setInfoSuccess('');
     if (!profile) return;
     if (!isAdmin) {
-      setInfoError('Personal Information can only be edited by an admin. Please contact HR.');
+      // Staff and managers may only set their own birthday here.
+      // Everything else stays admin-only.
+      if (!form.date_of_birth) {
+        setInfoError('Please pick your birthday date first.');
+        return;
+      }
+      setSavingInfo(true);
+      try {
+        await apiClient.put('/api/employees', {
+          action: 'update_own_birthday',
+          id: profile.id,
+          date_of_birth: form.date_of_birth,
+        });
+        await refreshProfile();
+        setInfoSuccess('Birthday saved successfully.');
+        setTimeout(() => setInfoSuccess(''), 4000);
+      } catch (err) {
+        setInfoError(err instanceof Error ? err.message : 'Something went wrong.');
+      } finally {
+        setSavingInfo(false);
+      }
       return;
     }
     if (!form.name.trim()) {
@@ -76,6 +97,7 @@ export default function Profile() {
         phone: form.phone.trim() || null,
         location: form.location.trim() || null,
         department: form.department.trim() || null,
+        date_of_birth: form.date_of_birth || null,
       });
       await refreshProfile();
       setInfoSuccess('Profile updated successfully.');
@@ -170,6 +192,11 @@ export default function Profile() {
                 <Calendar size={11} /> Joined {profile.join_date}
               </Badge>
             )}
+            {profile?.date_of_birth && (
+              <Badge tone="default">
+                <Calendar size={11} /> Born {profile.date_of_birth}
+              </Badge>
+            )}
           </div>
         </div>
       </motion.div>
@@ -198,7 +225,7 @@ export default function Profile() {
             <p className="text-xs text-muted mb-5">These details appear across the portal (directory, org chart, approvals).</p>
             {!isAdmin && (
               <p className="text-amber text-xs bg-amber/10 border border-amber/20 rounded-xl px-4 py-3 mb-4">
-                View-only. Personal Information can only be edited by an admin. Staff and managers cannot edit this section.
+                Mostly view-only — you can set your own Birthday below, but everything else needs an admin.
               </p>
             )}
 
@@ -239,6 +266,13 @@ export default function Profile() {
                     <input value={form.location} disabled={!isAdmin} onChange={(e) => setForm({ ...form, location: e.target.value })} className={`${inputCls} pl-10 disabled:opacity-50 disabled:cursor-not-allowed`} />
                   </div>
                 </div>
+                <div>
+                  <label className="text-xs text-muted mb-1.5 block">Birthday — you can set this yourself</label>
+                  <div className="relative">
+                    <Calendar size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+                    <input type="date" value={form.date_of_birth} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} className={`${inputCls} pl-10`} />
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -268,15 +302,13 @@ export default function Profile() {
                 )}
               </AnimatePresence>
 
-              {isAdmin && (
-                <button
-                  type="submit"
-                  disabled={savingInfo}
+              <button
+                type="submit"
+                disabled={savingInfo}
                   className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-5 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] transition-all disabled:opacity-60"
                 >
                   {savingInfo ? <Loader2 size={15} className="animate-spin" /> : 'Save changes'}
                 </button>
-              )}
             </form>
           </motion.div>
         )}

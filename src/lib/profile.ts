@@ -12,6 +12,7 @@ export interface EmployeeProfile {
   phone: string | null;
   location: string | null;
   join_date: string | null;
+  date_of_birth: string | null;
   salary: number | null;
   avatar_url: string | null;
   employee_no: string | null;
@@ -62,6 +63,7 @@ export function normalizeProfile(data: unknown): EmployeeProfile | null {
     phone: str('phone'),
     location: str('location'),
     join_date: str('join_date'),
+    date_of_birth: str('date_of_birth'),
     salary: num('salary'),
     avatar_url: str('avatar_url'),
     employee_no: str('employee_no'),
