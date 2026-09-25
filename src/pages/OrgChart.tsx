@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Users } from 'lucide-react';
+import { Users, ChevronDown } from 'lucide-react';
 import { PageHeader, LoadingState, ErrorState } from '../components/Shared';
 import type { Employee } from '../types';
 import apiClient from '../lib/api';
@@ -22,6 +22,128 @@ function initialsOf(name: string) {
 function displayRole(role: string | null | undefined) {
   if (role === 'employee') return 'staff';
   return role ?? '—';
+}
+
+function rankOf(role: string) {
+  return role === 'admin' ? 0 : role === 'manager' ? 1 : 2;
+}
+
+interface ForestNode {
+  employee: Employee;
+  children: ForestNode[];
+}
+
+function sortForest(nodes: ForestNode[]): ForestNode[] {
+  nodes.sort(
+    (a, b) =>
+      rankOf(a.employee.role) - rankOf(b.employee.role) ||
+      a.employee.name.localeCompare(b.employee.name)
+  );
+  nodes.forEach((node) => sortForest(node.children));
+  return nodes;
+}
+
+function buildForest(employees: Employee[]): ForestNode[] {
+  const byId = new Map<number, ForestNode>();
+  employees.forEach((e) => byId.set(e.id, { employee: e, children: [] }));
+
+  const roots: ForestNode[] = [];
+  employees.forEach((e) => {
+    const node = byId.get(e.id);
+    if (!node) return;
+    const sup = e.supervisor_id;
+    const parent = sup != null && sup !== e.id ? byId.get(sup) : undefined;
+    if (parent) {
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  });
+
+  // Supervisor cycles (A reports to B reports to A) are detached from every
+  // root and would otherwise vanish — surface leftovers as roots. The render
+  // guard below stops infinite recursion through them.
+  const seen = new Set<number>();
+  const walk = (node: ForestNode) => {
+    if (seen.has(node.employee.id)) return;
+    seen.add(node.employee.id);
+    node.children.forEach(walk);
+  };
+  roots.forEach(walk);
+  byId.forEach((node) => {
+    if (!seen.has(node.employee.id)) {
+      roots.push(node);
+      seen.add(node.employee.id);
+    }
+  });
+
+  return sortForest(roots);
+}
+
+function TreeNode({ node, ancestors }: { node: ForestNode; ancestors: number[] }) {
+  const { employee } = node;
+  const [open, setOpen] = useState(true);
+  const dept = employee.department || 'Unassigned';
+  const kids = node.children.filter((c) => !ancestors.includes(c.employee.id));
+  const next = [...ancestors, employee.id];
+
+  return (
+    <div>
+      <div className="flex items-center gap-3 rounded-xl bg-surface border border-white/10 px-3 py-2.5 hover:bg-white/[0.04] transition-all">
+        {kids.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="w-6 h-6 grid place-items-center rounded-md text-muted hover:text-ink hover:bg-white/10 transition-all shrink-0"
+            title={open ? 'Collapse team' : 'Expand team'}
+          >
+            <ChevronDown
+              size={14}
+              className={`transition-transform ${open ? '' : '-rotate-90'}`}
+            />
+          </button>
+        ) : (
+          <span className="w-6 shrink-0" />
+        )}
+
+        <div
+          className="w-9 h-9 rounded-lg grid place-items-center text-xs font-bold shrink-0"
+          style={{ background: `${colorFor(dept)}30`, color: colorFor(dept) }}
+        >
+          {initialsOf(employee.name)}
+        </div>
+
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate">{employee.name}</p>
+          <p className="text-[11px] text-muted truncate">
+            {employee.title}
+            {dept !== 'Unassigned' ? ` · ${dept}` : ''}
+          </p>
+        </div>
+
+        {employee.role !== 'employee' && (
+          <span className="ml-2 text-[10px] uppercase tracking-wide text-primary font-semibold shrink-0">
+            {displayRole(employee.role)}
+          </span>
+        )}
+
+        {kids.length > 0 && (
+          <span className="ml-auto text-[11px] text-muted flex items-center gap-1 shrink-0">
+            <Users size={11} />
+            {kids.length}
+          </span>
+        )}
+      </div>
+
+      {open && kids.length > 0 && (
+        <div className="ml-5 mt-2 space-y-2 border-l border-white/10 pl-4">
+          {kids.map((child) => (
+            <TreeNode key={child.employee.id} node={child} ancestors={next} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function OrgChart() {
@@ -46,105 +168,31 @@ export default function OrgChart() {
     })();
   }, []);
 
-  const grouped = useMemo(() => {
-    const byDept: Record<string, Employee[]> = {};
-    employees.forEach((e) => {
-      const key = e.department || 'Unassigned';
-      if (!byDept[key]) byDept[key] = [];
-      byDept[key].push(e);
-    });
-    // sort so admin/manager appear first within a dept
-    Object.values(byDept).forEach((list) => list.sort((a, b) => {
-      const rank = (r: string) => (r === 'admin' ? 0 : r === 'manager' ? 1 : 2);
-      return rank(a.role) - rank(b.role);
-    }));
-    return byDept;
-  }, [employees]);
-
-  const ceo = employees.find((e) => e.role === 'admin');
-
-  const nameById = useMemo(() => {
-    const map: Record<number, string> = {};
-    employees.forEach((e) => {
-      map[e.id] = e.name;
-    });
-    return map;
-  }, [employees]);
+  const forest = useMemo(() => buildForest(employees), [employees]);
 
   if (loading) return <LoadingState label="Building organization tree…" />;
   if (error) return <ErrorState message={error} onRetry={fetchAll} />;
 
   return (
     <div>
-      <PageHeader title="Organization Chart" subtitle="Interactive reporting hierarchy across all departments." />
+      <PageHeader
+        title="Organization Chart"
+        subtitle={`Reporting hierarchy by Working with across ${employees.length} people.`}
+      />
 
-      {ceo && (
-        <div className="flex justify-center mb-10">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center"
-          >
-            <div className="glass rounded-2xl px-6 py-4 flex flex-col items-center gap-2 shadow-2xl shadow-primary/20 border-primary/30">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent grid place-items-center text-xl font-bold shadow-lg">
-                {initialsOf(ceo.name)}
-              </div>
-              <p className="font-display font-semibold">{ceo.name}</p>
-              <p className="text-xs text-muted">{ceo.title}</p>
-            </div>
-            <div className="w-px h-10 bg-gradient-to-b from-primary/60 to-transparent" />
-          </motion.div>
-        </div>
+      {forest.length === 0 ? (
+        <p className="text-sm text-muted">No employees to display.</p>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-3xl mx-auto space-y-2"
+        >
+          {forest.map((node) => (
+            <TreeNode key={node.employee.id} node={node} ancestors={[]} />
+          ))}
+        </motion.div>
       )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {Object.entries(grouped).map(([dept, members], di) => (
-          <motion.div
-            key={dept}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: di * 0.06 }}
-            className="glass rounded-2xl p-5"
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: colorFor(dept) }} />
-              <h3 className="font-display font-semibold">{dept}</h3>
-              <span className="ml-auto text-xs text-muted flex items-center gap-1"><Users size={12} /> {members.length}</span>
-            </div>
-            <div className="space-y-2">
-              {members.map((m, i) => (
-                <motion.div
-                  key={m.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: di * 0.06 + i * 0.03 }}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all hover:bg-white/5 ${m.role !== 'employee' ? 'bg-white/[0.04] border border-white/10' : ''}`}
-                  style={{ marginLeft: m.role === 'employee' ? 14 : 0 }}
-                >
-                  <div
-                    className="w-9 h-9 rounded-lg grid place-items-center text-xs font-bold shrink-0"
-                    style={{ background: `${colorFor(dept)}30`, color: colorFor(dept) }}
-                  >
-                    {initialsOf(m.name)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{m.name}</p>
-                    <p className="text-[11px] text-muted truncate">{m.title}</p>
-                    {m.supervisor_id != null && nameById[m.supervisor_id] && (
-                      <p className="text-[11px] text-muted truncate">
-                        Reports to {nameById[m.supervisor_id]}
-                      </p>
-                    )}
-                  </div>
-                  {m.role !== 'employee' && (
-                    <span className="ml-auto text-[10px] uppercase tracking-wide text-primary font-semibold">{displayRole(m.role)}</span>
-                  )}
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
     </div>
   );
 }
