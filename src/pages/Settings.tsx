@@ -46,7 +46,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 border ${checked ? 'bg-primary border-primary' : 'bg-white/10 border-white/15'}`}
+      className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 border ${checked ? 'bg-primary border-primary' : 'bg-[#E2E8F4] border-[#C6D2E4]'}`}
     >
       <span
         className={`absolute left-0.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`}
@@ -142,7 +142,7 @@ export default function Settings() {
 
   const role = profile?.role ?? 'employee';
   const inputCls =
-    'w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all';
+    'w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all';
 
   return (
     <div>
@@ -294,7 +294,7 @@ export default function Settings() {
               </div>
             </div>
 
-            <div className="bg-white/[0.03] border border-white/10 rounded-xl px-3.5 py-3 space-y-1.5">
+            <div className="bg-[#F6F9FE] border border-border rounded-xl px-3.5 py-3 space-y-1.5">
               <p className="text-[11px] text-muted font-medium mb-1 flex items-center gap-1.5">
                 <ShieldCheck size={12} className="text-primary" /> Password requirements
               </p>
@@ -331,7 +331,7 @@ export default function Settings() {
             <button
               type="submit"
               disabled={savingPw}
-              className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-5 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] transition-all disabled:opacity-60"
+              className="flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white px-5 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] transition-all disabled:opacity-60"
             >
               {savingPw ? <Loader2 size={15} className="animate-spin" /> : 'Update password'}
             </button>

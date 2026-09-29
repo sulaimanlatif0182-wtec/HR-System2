@@ -242,7 +242,7 @@ export default function ProfileUpdates() {
           <button
             type="button"
             onClick={fetchAll}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-white/[0.05]"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft"
           >
             <RefreshCw size={16} />
             Refresh
@@ -284,7 +284,7 @@ export default function ProfileUpdates() {
                   <select
                     value={form.marital_status}
                     onChange={(e) => setForm({ ...form, marital_status: e.target.value })}
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   >
                     <option value="">Select</option>
                     <option value="single">Single</option>
@@ -300,7 +300,7 @@ export default function ProfileUpdates() {
                     onChange={(e) =>
                       setForm({ ...form, [key]: e.target.value })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 )}
               </label>
@@ -313,7 +313,7 @@ export default function ProfileUpdates() {
               rows={3}
               value={form.reason}
               onChange={(e) => setForm({ ...form, reason: e.target.value })}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
+              className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
             />
           </label>
 
@@ -337,7 +337,7 @@ export default function ProfileUpdates() {
           ) : (
             <div className="space-y-3 max-h-[720px] overflow-y-auto pr-1">
               {requests.map((request) => (
-                <div key={request.id} className="rounded-xl border border-white/10 bg-surface p-4">
+                <div key={request.id} className="rounded-xl border border-border bg-surface p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold text-sm">
@@ -350,7 +350,7 @@ export default function ProfileUpdates() {
                     <Badge tone={statusTone(request.status)}>{request.status}</Badge>
                   </div>
 
-                  <pre className="mt-3 max-h-44 overflow-auto rounded-xl bg-black/20 p-3 text-[11px] text-muted whitespace-pre-wrap">
+                  <pre className="mt-3 max-h-44 overflow-auto rounded-xl bg-[#EDF1F8] p-3 text-[11px] text-muted whitespace-pre-wrap">
                     {JSON.stringify(request.requested_data, null, 2)}
                   </pre>
 

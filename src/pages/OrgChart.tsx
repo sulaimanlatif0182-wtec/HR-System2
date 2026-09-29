@@ -6,7 +6,7 @@ import type { Employee } from '../types';
 import apiClient from '../lib/api';
 
 const COLORS: Record<string, string> = {};
-const PALETTE = ['#8b5cf6', '#22d3ee', '#fbbf24', '#fb7185', '#34d399', '#6366f1', '#f472b6'];
+const PALETTE = ['#17479D', '#D71921', '#2E6BC4', '#0EA5E9', '#16A34A', '#D97706', '#7BA7E0'];
 
 function colorFor(dept: string) {
   if (!COLORS[dept]) {
@@ -89,12 +89,12 @@ function TreeNode({ node, ancestors }: { node: ForestNode; ancestors: number[] }
 
   return (
     <div>
-      <div className="flex items-center gap-3 rounded-xl bg-surface border border-white/10 px-3 py-2.5 hover:bg-white/[0.04] transition-all">
+      <div className="flex items-center gap-3 rounded-xl bg-surface border border-border px-3 py-2.5 hover:bg-primary-soft/50 transition-all">
         {kids.length > 0 ? (
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="w-6 h-6 grid place-items-center rounded-md text-muted hover:text-ink hover:bg-white/10 transition-all shrink-0"
+            className="w-6 h-6 grid place-items-center rounded-md text-muted hover:text-ink hover:bg-primary-soft transition-all shrink-0"
             title={open ? 'Collapse team' : 'Expand team'}
           >
             <ChevronDown
@@ -136,7 +136,7 @@ function TreeNode({ node, ancestors }: { node: ForestNode; ancestors: number[] }
       </div>
 
       {open && kids.length > 0 && (
-        <div className="ml-5 mt-2 space-y-2 border-l border-white/10 pl-4">
+        <div className="ml-5 mt-2 space-y-2 border-l border-border pl-4">
           {kids.map((child) => (
             <TreeNode key={child.employee.id} node={child} ancestors={next} />
           ))}

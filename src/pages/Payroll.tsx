@@ -28,12 +28,12 @@ import {
 } from '../components/ui';
 
 const PIE_COLORS = [
-  '#8b5cf6',
-  '#22d3ee',
-  '#fbbf24',
-  '#fb7185',
-  '#34d399',
-  '#6366f1',
+  '#17479D',
+  '#D71921',
+  '#2E6BC4',
+  '#0EA5E9',
+  '#16A34A',
+  '#D97706',
 ];
 
 const PAYROLL_STATUSES = ['draft', 'reviewed', 'approved', 'released', 'paid'];
@@ -1272,7 +1272,7 @@ export default function Payroll() {
                 type="button"
                 onClick={handleExportCsv}
                 disabled={visible.length === 0}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50 transition-all"
               >
                 <Download size={16} />
                 Export CSV
@@ -1298,7 +1298,7 @@ export default function Payroll() {
             type="month"
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+            className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
           />
         </div>
 
@@ -1321,7 +1321,7 @@ export default function Payroll() {
                 type="button"
                 onClick={createBatch}
                 disabled={actionLoading}
-                className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/10 disabled:opacity-50 transition-all"
+                className="flex items-center gap-2 rounded-xl bg-[#EEF2F9] border border-border px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft disabled:opacity-50 transition-all"
               >
                 <Plus size={16} />
                 Create Batch
@@ -1331,7 +1331,7 @@ export default function Payroll() {
                 type="button"
                 onClick={generateFromSources}
                 disabled={actionLoading}
-                className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/10 disabled:opacity-50 transition-all"
+                className="flex items-center gap-2 rounded-xl bg-[#EEF2F9] border border-border px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft disabled:opacity-50 transition-all"
               >
                 <FileText size={16} />
                 Generate Payroll
@@ -1341,13 +1341,13 @@ export default function Payroll() {
                 type="button"
                 onClick={openCreateForm}
                 disabled={actionLoading}
-                className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/10 disabled:opacity-50 transition-all"
+                className="flex items-center gap-2 rounded-xl bg-[#EEF2F9] border border-border px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft disabled:opacity-50 transition-all"
               >
                 <Pencil size={16} />
                 Add Record
               </button>
 
-              <label className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/10 disabled:opacity-50 transition-all cursor-pointer">
+              <label className="flex items-center gap-2 rounded-xl bg-[#EEF2F9] border border-border px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft disabled:opacity-50 transition-all cursor-pointer">
                 <Upload size={16} />
                 Import CSV
                 <input
@@ -1425,7 +1425,7 @@ export default function Payroll() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+              <label className="flex items-center gap-2 bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-muted">
                 <input
                   type="checkbox"
                   checked={settingsForm.epf_enabled}
@@ -1433,7 +1433,7 @@ export default function Payroll() {
                 />
                 EPF enabled
               </label>
-              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+              <label className="flex items-center gap-2 bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-muted">
                 <input
                   type="checkbox"
                   checked={settingsForm.socso_enabled}
@@ -1441,7 +1441,7 @@ export default function Payroll() {
                 />
                 SOCSO enabled
               </label>
-              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+              <label className="flex items-center gap-2 bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-muted">
                 <input
                   type="checkbox"
                   checked={settingsForm.eis_enabled}
@@ -1456,7 +1456,7 @@ export default function Payroll() {
                   onChange={(e) =>
                     setSettingsForm({ ...settingsForm, pcb_mode: e.target.value })
                   }
-                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                 >
                   <option value="manual_profile">Manual per employee profile</option>
                 </select>
@@ -1488,7 +1488,7 @@ export default function Payroll() {
                         e.target.value
                       )
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
               ))}
@@ -1543,7 +1543,7 @@ export default function Payroll() {
                       employee_id: e.target.value,
                     });
                   }}
-                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                 >
                   <option value="">Select employee</option>
                   {employees.map((employee) => (
@@ -1565,7 +1565,7 @@ export default function Payroll() {
                       citizenship_type: e.target.value,
                     })
                   }
-                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                 >
                   <option value="local">Local / Malaysian</option>
                   <option value="foreign">Foreign</option>
@@ -1580,7 +1580,7 @@ export default function Payroll() {
                   onChange={(e) =>
                     setProfileForm({ ...profileForm, date_of_birth: e.target.value })
                   }
-                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                 />
               </label>
 
@@ -1599,7 +1599,7 @@ export default function Payroll() {
                     })
                   }
                   placeholder="Blank = use setting"
-                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                 />
               </label>
 
@@ -1618,11 +1618,11 @@ export default function Payroll() {
                     })
                   }
                   placeholder="Blank = use setting"
-                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                 />
               </label>
 
-              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+              <label className="flex items-center gap-2 bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-muted">
                 <input
                   type="checkbox"
                   checked={profileForm.socso_enabled}
@@ -1636,7 +1636,7 @@ export default function Payroll() {
                 SOCSO enabled for employee
               </label>
 
-              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+              <label className="flex items-center gap-2 bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-muted">
                 <input
                   type="checkbox"
                   checked={profileForm.eis_enabled}
@@ -1657,7 +1657,7 @@ export default function Payroll() {
                   onChange={(e) =>
                     setProfileForm({ ...profileForm, socso_category: e.target.value })
                   }
-                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                 >
                   <option value="standard">Standard</option>
                   <option value="employment_injury_only">Employment injury only</option>
@@ -1677,7 +1677,7 @@ export default function Payroll() {
                       pcb_monthly_amount: e.target.value,
                     })
                   }
-                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                  className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                 />
               </label>
 
@@ -1689,7 +1689,7 @@ export default function Payroll() {
                   onChange={(e) =>
                     setProfileForm({ ...profileForm, pcb_notes: e.target.value })
                   }
-                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
+                  className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
                 />
               </label>
             </div>
@@ -1730,7 +1730,7 @@ export default function Payroll() {
                     onChange={(e) =>
                       setWageTableForm({ ...wageTableForm, scheme: e.target.value })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   >
                     <option value="SOCSO">SOCSO</option>
                     <option value="EIS">EIS</option>
@@ -1746,7 +1746,7 @@ export default function Payroll() {
                     onChange={(e) =>
                       setWageTableForm({ ...wageTableForm, wage_from: e.target.value })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -1760,7 +1760,7 @@ export default function Payroll() {
                       setWageTableForm({ ...wageTableForm, wage_to: e.target.value })
                     }
                     placeholder="Blank = no upper limit"
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -1776,7 +1776,7 @@ export default function Payroll() {
                         employee_amount: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -1792,7 +1792,7 @@ export default function Payroll() {
                         employer_amount: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -1807,7 +1807,7 @@ export default function Payroll() {
                         effective_from: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -1822,11 +1822,11 @@ export default function Payroll() {
                         effective_to: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
-                <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+                <label className="flex items-center gap-2 bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-muted">
                   <input
                     type="checkbox"
                     checked={wageTableForm.active}
@@ -1847,7 +1847,7 @@ export default function Payroll() {
                     onChange={(e) =>
                       setWageTableForm({ ...wageTableForm, notes: e.target.value })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
               </div>
@@ -1857,7 +1857,7 @@ export default function Payroll() {
                   <button
                     type="button"
                     onClick={resetWageTableForm}
-                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold hover:bg-white/10"
+                    className="rounded-xl border border-border bg-[#EEF2F9] px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft"
                   >
                     Cancel Edit
                   </button>
@@ -1885,7 +1885,7 @@ export default function Payroll() {
               ) : (
                 <table className="min-w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-white/10">
+                    <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-border bg-surface-2">
                       <th className="py-3 pr-4">Scheme</th>
                       <th className="py-3 pr-4">Wage Range</th>
                       <th className="py-3 pr-4">Employee</th>
@@ -1896,7 +1896,7 @@ export default function Payroll() {
                   </thead>
                   <tbody>
                     {wageTables.map((row) => (
-                      <tr key={row.id} className="border-b border-white/5 last:border-0">
+                      <tr key={row.id} className="border-b border-border last:border-0 even:bg-[#FAFBFE]">
                         <td className="py-3 pr-4">
                           <Badge tone={row.scheme === 'SOCSO' ? 'info' : 'success'}>
                             {row.scheme}
@@ -1920,7 +1920,7 @@ export default function Payroll() {
                             <button
                               type="button"
                               onClick={() => editWageTable(row)}
-                              className="rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                              className="rounded-lg border border-border bg-[#EEF2F9] p-2 hover:bg-primary-soft"
                               title="Edit"
                             >
                               <Pencil size={13} />
@@ -1952,31 +1952,31 @@ export default function Payroll() {
               label: isAdmin ? 'Total Gross Pay' : 'Department Gross Pay',
               value: money(totalGross),
               icon: Wallet,
-              grad: 'from-violet-500 to-fuchsia-500',
+              grad: 'from-[#17479D] to-[#2E6BC4]',
             },
             {
               label: 'Total Net Pay',
               value: money(totalNet),
               icon: TrendingUp,
-              grad: 'from-cyan-400 to-blue-500',
+              grad: 'from-[#0EA5E9] to-[#2E6BC4]',
             },
             {
               label: 'OT Pay',
               value: money(totalOt),
               icon: FileText,
-              grad: 'from-amber-400 to-orange-500',
+              grad: 'from-[#D97706] to-[#F59E0B]',
             },
             {
               label: 'Claims',
               value: money(totalClaims),
               icon: Wallet,
-              grad: 'from-emerald-400 to-teal-500',
+              grad: 'from-[#15803D] to-[#16A34A]',
             },
             {
               label: 'Lunch Deduction',
               value: money(totalLunchDeduction),
               icon: FileText,
-              grad: 'from-rose-400 to-red-500',
+              grad: 'from-[#D71921] to-[#F87171]',
             },
           ].map((card, index) => {
             const Icon = card.icon;
@@ -2019,7 +2019,7 @@ export default function Payroll() {
               : 'xl:col-span-3 glass rounded-2xl overflow-hidden'
           }
         >
-          <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+          <div className="px-6 py-4 border-b border-border flex items-center justify-between">
             <h3 className="font-display font-semibold">
               {isAdmin
                 ? 'Payslip Records'
@@ -2039,7 +2039,7 @@ export default function Payroll() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-white/5">
+                  <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-border bg-surface-2">
                     {isAdminOrManager && (
                       <th className="px-6 py-3 font-medium">Employee</th>
                     )}
@@ -2064,7 +2064,7 @@ export default function Payroll() {
                   {visible.map((record) => (
                     <tr
                       key={record.id}
-                      className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-all"
+                      className="border-b border-border last:border-0 hover:bg-primary-soft/50 even:bg-[#FAFBFE] transition-all"
                     >
                       {isAdminOrManager && (
                         <td className="px-6 py-3">
@@ -2195,10 +2195,11 @@ export default function Payroll() {
 
                     <Tooltip
                       contentStyle={{
-                        background: '#12131f',
-                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: '#FFFFFF',
+                        border: '1px solid #E2E8F4',
                         borderRadius: 12,
                         fontSize: 12,
+                        color: '#14264E',
                       }}
                       formatter={(v) => money(v)}
                     />
@@ -2239,7 +2240,7 @@ export default function Payroll() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 z-50"
+              className="fixed inset-0 bg-[#14264E]/40 z-50"
               onClick={() => setShowForm(false)}
             />
 
@@ -2277,7 +2278,7 @@ export default function Payroll() {
                       onChange={(e) =>
                         updatePayrollForm('employee_id', e.target.value)
                       }
-                      className="bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                      className="bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                     >
                       <option value="">Select employee</option>
                       {employees.map((employee) => (
@@ -2294,7 +2295,7 @@ export default function Payroll() {
                       onChange={(e) =>
                         updatePayrollForm('period', e.target.value)
                       }
-                      className="bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                      className="bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                     />
 
                     <select
@@ -2302,7 +2303,7 @@ export default function Payroll() {
                       onChange={(e) =>
                         updatePayrollForm('status', e.target.value)
                       }
-                      className="bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                      className="bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                     >
                       {PAYROLL_STATUSES.map((status) => (
                         <option key={status} value={status}>
@@ -2326,7 +2327,7 @@ export default function Payroll() {
                           onChange={(e) =>
                             updatePayrollForm(key, e.target.value)
                           }
-                          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                          className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                         />
                       </div>
                     ))}
@@ -2341,7 +2342,7 @@ export default function Payroll() {
                       <input
                         readOnly
                         value={payrollForm.gross_pay}
-                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none text-muted"
+                        className="w-full bg-[#F6F9FE] border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none text-muted"
                       />
                     </div>
 
@@ -2353,7 +2354,7 @@ export default function Payroll() {
                       <input
                         readOnly
                         value={payrollForm.net_pay}
-                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none text-muted"
+                        className="w-full bg-[#F6F9FE] border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none text-muted"
                       />
                     </div>
                   </div>
@@ -2365,7 +2366,7 @@ export default function Payroll() {
                       updatePayrollForm('remarks', e.target.value)
                     }
                     rows={3}
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 resize-none"
+                    className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 resize-none"
                   />
 
                   {formError && (
@@ -2377,7 +2378,7 @@ export default function Payroll() {
                   <button
                     type="submit"
                     disabled={actionLoading}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold disabled:opacity-60"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white py-2.5 text-sm font-semibold disabled:opacity-60"
                   >
                     {actionLoading ? (
                       <Loader2 size={16} className="animate-spin" />

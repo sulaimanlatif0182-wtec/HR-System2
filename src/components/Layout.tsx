@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, LayoutDashboard, Users, CalendarCheck, CalendarDays, Wallet, Network, ReceiptText,
+  LayoutDashboard, Users, CalendarCheck, CalendarDays, Wallet, Network, ReceiptText,
   FileSearch, UserCog, Megaphone, FileText, BarChart3, FileBarChart, Archive, Activity, Search, ChevronDown, Settings, UserCircle, LogOut, PanelLeftClose, PanelLeftOpen, Menu, X,
   CornerDownLeft,
 } from 'lucide-react';
@@ -155,7 +155,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         {mobileOpen && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+            className="fixed inset-0 bg-[#14264E]/40 z-40 lg:hidden"
             onClick={() => setMobileOpen(false)}
           />
         )}
@@ -164,26 +164,24 @@ export default function Layout({ children }: { children: ReactNode }) {
       <motion.aside
         animate={{ width: collapsed ? 84 : 260 }}
         transition={{ duration: 0.25, ease: 'easeInOut' }}
-        className={`fixed lg:sticky top-0 z-50 h-screen glass-solid border-r border-white/5 flex flex-col
+        className={`fixed lg:sticky top-0 z-50 h-screen glass-solid border-r border-border flex flex-col
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} transition-transform duration-300`}
       >
         <div className="flex items-center gap-3 px-5 h-20 shrink-0">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center shrink-0 shadow-lg shadow-primary/30">
-            <Sparkles size={18} className="text-white" />
-          </div>
+          <img src="/wtec-logo.svg" alt="WTEC" className="h-8 w-auto shrink-0" />
           <AnimatePresence>
             {!collapsed && (
               <motion.span
                 initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }}
-                className="font-display font-bold text-lg tracking-tight whitespace-nowrap overflow-hidden"
+                className="font-display font-bold text-lg tracking-tight whitespace-nowrap overflow-hidden text-ink"
               >
-                Wtec<span className="text-gradient">HR</span>
+                HR Portal
               </motion.span>
             )}
           </AnimatePresence>
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="ml-auto hidden lg:grid w-8 h-8 place-items-center rounded-lg text-muted hover:text-ink hover:bg-white/5 transition-all"
+            className="ml-auto hidden lg:grid w-8 h-8 place-items-center rounded-lg text-muted hover:text-ink hover:bg-primary-soft transition-all"
           >
             {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
@@ -203,7 +201,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 onClick={() => setMobileOpen(false)}
                 className={({ isActive }) =>
                   `flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all
-                  ${isActive ? 'bg-primary/15 text-primary border border-primary/25 shadow-lg shadow-primary/10' : 'text-muted hover:text-ink hover:bg-white/5 border border-transparent'}`
+                  ${isActive ? 'nav-active bg-primary-soft text-primary border border-primary/20' : 'text-muted hover:text-ink hover:bg-primary-soft border border-transparent'}`
                 }
               >
                 <Icon size={18} className="shrink-0" />
@@ -224,7 +222,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         <div className="px-3 pb-5 shrink-0">
           <div className={`glass rounded-xl p-3 flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center text-xs font-bold shrink-0">
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center text-xs font-bold text-white shrink-0">
               {initials}
             </div>
             {!collapsed && (
@@ -238,8 +236,8 @@ export default function Layout({ children }: { children: ReactNode }) {
       </motion.aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-30 glass-solid border-b border-white/5 h-20 flex items-center gap-4 px-4 sm:px-8">
-          <button onClick={() => setMobileOpen(true)} className="lg:hidden w-10 h-10 grid place-items-center rounded-xl bg-white/5">
+        <header className="sticky top-0 z-30 glass shadow-card border-b border-border h-20 flex items-center gap-4 px-4 sm:px-8">
+          <button onClick={() => setMobileOpen(true)} className="lg:hidden w-10 h-10 grid place-items-center rounded-xl bg-[#EEF2F9]">
             <Menu size={18} />
           </button>
 
@@ -252,7 +250,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); }}
                 onFocus={() => { if (query.trim()) setSearchOpen(true); }}
                 placeholder="Search employees, pages…"
-                className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-8 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
+                className="w-full bg-[#EEF2F9] border border-border rounded-xl pl-10 pr-8 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
               />
               {query && (
                 <button
@@ -271,7 +269,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -6, scale: 0.98 }}
                   transition={{ duration: 0.12 }}
-                  className="absolute left-0 right-0 mt-2 glass-solid border border-white/10 rounded-xl shadow-2xl shadow-black/50 overflow-hidden max-h-[70vh] overflow-y-auto scrollbar-thin"
+                  className="absolute left-0 right-0 mt-2 glass-solid border border-border rounded-xl shadow-2xl shadow-[#14264E]/10 overflow-hidden max-h-[70vh] overflow-y-auto scrollbar-thin"
                 >
                   {/* Pages */}
                   {pageResults.length > 0 && (
@@ -283,7 +281,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                           <button
                             key={p.to}
                             onClick={() => goToPage(p.to)}
-                            className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm text-muted hover:text-ink hover:bg-white/5 transition-all"
+                            className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm text-muted hover:text-ink hover:bg-primary-soft transition-all"
                           >
                             <Icon size={15} className="text-primary shrink-0" />
                             {p.label}
@@ -296,15 +294,15 @@ export default function Layout({ children }: { children: ReactNode }) {
 
                   {/* Employees */}
                   {employeeResults.length > 0 && (
-                    <div className="p-1.5 border-t border-white/5">
+                    <div className="p-1.5 border-t border-border">
                       <p className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-muted font-medium">Employees</p>
                       {employeeResults.map((emp) => (
                         <button
                           key={emp.id}
                           onClick={() => (canSeeEmployees ? goToEmployee(emp) : undefined)}
-                          className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-all ${canSeeEmployees ? 'text-muted hover:text-ink hover:bg-white/5 cursor-pointer' : 'text-muted cursor-default'}`}
+                          className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-all ${canSeeEmployees ? 'text-muted hover:text-ink hover:bg-primary-soft cursor-pointer' : 'text-muted cursor-default'}`}
                         >
-                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center text-[10px] font-bold shrink-0">
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center text-[10px] font-bold text-white shrink-0">
                             {initialsOf(emp.name)}
                           </div>
                           <div className="min-w-0 text-left">
@@ -337,9 +335,9 @@ export default function Layout({ children }: { children: ReactNode }) {
             <div className="relative">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-white/5 transition-all"
+                className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-primary-soft transition-all"
               >
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center text-xs font-bold shrink-0">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center text-xs font-bold text-white shrink-0">
                   {initials}
                 </div>
                 <div className="hidden sm:block text-left">
@@ -355,22 +353,22 @@ export default function Layout({ children }: { children: ReactNode }) {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -8, scale: 0.97 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-52 glass rounded-xl p-1.5 shadow-2xl shadow-black/50"
+                    className="absolute right-0 mt-2 w-52 glass rounded-xl p-1.5 shadow-2xl shadow-[#14264E]/10"
                   >
-                    <div className="px-3 py-2 border-b border-white/5 mb-1">
+                    <div className="px-3 py-2 border-b border-border mb-1">
                       <p className="text-sm font-medium truncate">{displayEmail}</p>
                       <p className="text-[11px] text-muted capitalize">{displayRole} access</p>
                     </div>
                     <button
                       onClick={() => { setMenuOpen(false); navigate('/profile'); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted hover:text-ink hover:bg-white/5 transition-all"
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted hover:text-ink hover:bg-primary-soft transition-all"
                     >
                       <UserCircle size={15} /> My Profile
                     </button>
                     {!isWorker && (
                       <button
                         onClick={() => { setMenuOpen(false); navigate('/settings'); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted hover:text-ink hover:bg-white/5 transition-all"
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted hover:text-ink hover:bg-primary-soft transition-all"
                       >
                         <Settings size={15} /> Settings
                       </button>

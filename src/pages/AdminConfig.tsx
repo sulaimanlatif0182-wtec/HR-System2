@@ -173,7 +173,7 @@ function ToggleSwitch({
       aria-label={label}
       onClick={() => onChange(!checked)}
       className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-        checked ? 'bg-primary' : 'bg-white/10'
+        checked ? 'bg-primary' : 'bg-[#C6D2E4]'
       }`}
     >
       <span
@@ -562,7 +562,7 @@ export default function AdminConfig() {
           <button
             type="button"
             onClick={fetchAll}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-white/[0.05]"
+            className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft"
           >
             <RefreshCw size={16} /> Refresh
           </button>
@@ -602,7 +602,7 @@ export default function AdminConfig() {
               value={documentTypesText}
               onChange={(e) => setDocumentTypesText(e.target.value)}
               placeholder="IC Copy, Offer Letter, Employment Contract"
-              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
+              className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
             />
             <span className="text-[11px] text-muted">Separate with comma.</span>
           </label>
@@ -613,7 +613,7 @@ export default function AdminConfig() {
               {PROFILE_FIELD_OPTIONS.map(([key, label]) => (
                 <label
                   key={key}
-                  className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted"
+                  className="flex items-center gap-2 bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-muted"
                 >
                   <input
                     type="checkbox"
@@ -640,11 +640,11 @@ export default function AdminConfig() {
               onChange={(e) =>
                 setConfig({ ...config, expiry_alert_days: Number(e.target.value || 90) })
               }
-              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
             />
           </label>
 
-          <div className="border-t border-white/10 pt-4 space-y-3">
+          <div className="border-t border-border pt-4 space-y-3">
             <div>
               <h4 className="font-display font-semibold text-sm">Master Data Cleanup</h4>
               <p className="text-xs text-muted mt-1">
@@ -658,7 +658,7 @@ export default function AdminConfig() {
                 rows={2}
                 value={departmentsText}
                 onChange={(e) => setDepartmentsText(e.target.value)}
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
               />
             </label>
 
@@ -667,7 +667,7 @@ export default function AdminConfig() {
               <input
                 value={locationsText}
                 onChange={(e) => setLocationsText(e.target.value)}
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -676,7 +676,7 @@ export default function AdminConfig() {
               <input
                 value={announcementCategoriesText}
                 onChange={(e) => setAnnouncementCategoriesText(e.target.value)}
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -685,21 +685,21 @@ export default function AdminConfig() {
               <input
                 value={performanceTypesText}
                 onChange={(e) => setPerformanceTypesText(e.target.value)}
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
           </div>
 
-          <div className="border-t border-white/10 pt-4">
+          <div className="border-t border-border pt-4">
             <h4 className="font-display font-semibold text-sm">Data Import Templates</h4>
             <p className="text-xs text-muted mt-1 mb-3">
               Download CSV templates first. The next phase can connect these templates to guided imports.
             </p>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => downloadTemplate('holidays')} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold">Holiday CSV</button>
-              <button type="button" onClick={() => downloadTemplate('wage_table')} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold">SOCSO/EIS CSV</button>
-              <button type="button" onClick={() => downloadTemplate('payroll_profiles')} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold">Payroll Profiles CSV</button>
-              <button type="button" onClick={() => downloadTemplate('employee_extra')} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold">Employee Extra Fields CSV</button>
+              <button type="button" onClick={() => downloadTemplate('holidays')} className="rounded-xl border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold">Holiday CSV</button>
+              <button type="button" onClick={() => downloadTemplate('wage_table')} className="rounded-xl border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold">SOCSO/EIS CSV</button>
+              <button type="button" onClick={() => downloadTemplate('payroll_profiles')} className="rounded-xl border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold">Payroll Profiles CSV</button>
+              <button type="button" onClick={() => downloadTemplate('employee_extra')} className="rounded-xl border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold">Employee Extra Fields CSV</button>
             </div>
           </div>
 
@@ -730,7 +730,7 @@ export default function AdminConfig() {
               type="button"
               onClick={exportChecklist}
               disabled={missingRows.length === 0}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold disabled:opacity-50"
             >
               <Download size={14} /> CSV
             </button>
@@ -741,7 +741,7 @@ export default function AdminConfig() {
           ) : (
             <div className="space-y-2 max-h-[620px] overflow-y-auto pr-1">
               {missingRows.map((row) => (
-                <div key={row.employee_id} className="rounded-xl border border-white/10 bg-surface p-4">
+                <div key={row.employee_id} className="rounded-xl border border-border bg-surface p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold text-sm">{row.employee_name}</p>
@@ -786,12 +786,12 @@ export default function AdminConfig() {
                 value={ruleForm.name}
                 onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })}
                 placeholder="Reminder rule name"
-                className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
               <select
                 value={ruleForm.reminder_type}
                 onChange={(e) => setRuleForm({ ...ruleForm, reminder_type: e.target.value })}
-                className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               >
                 {REMINDER_TYPES.map(([key, label]) => (
                   <option key={key} value={key}>{label}</option>
@@ -803,9 +803,9 @@ export default function AdminConfig() {
                 value={ruleForm.days_before}
                 onChange={(e) => setRuleForm({ ...ruleForm, days_before: e.target.value })}
                 placeholder="Days before"
-                className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
-              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+              <label className="flex items-center gap-2 bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-muted">
                 <input
                   type="checkbox"
                   checked={ruleForm.enabled}
@@ -820,7 +820,7 @@ export default function AdminConfig() {
                 <button
                   type="button"
                   onClick={() => setRuleForm({ id: null, name: '', reminder_type: 'expiry', days_before: '30', enabled: true })}
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold"
+                  className="rounded-xl border border-border bg-[#EEF2F9] px-4 py-2.5 text-sm font-semibold"
                 >
                   Cancel Edit
                 </button>
@@ -852,7 +852,7 @@ export default function AdminConfig() {
             ) : (
               <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                 {reminderRules.map((rule) => (
-                  <div key={rule.id} className="rounded-xl border border-white/10 bg-surface p-4">
+                  <div key={rule.id} className="rounded-xl border border-border bg-surface p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-sm">{rule.name}</p>
@@ -871,7 +871,7 @@ export default function AdminConfig() {
                             days_before: String(rule.days_before),
                             enabled: rule.enabled,
                           })}
-                          className="rounded-lg border border-white/10 bg-white/5 p-2"
+                          className="rounded-lg border border-border bg-[#EEF2F9] p-2"
                         >
                           <Save size={13} />
                         </button>
@@ -894,7 +894,7 @@ export default function AdminConfig() {
                 <h4 className="font-display font-semibold mb-3">Latest Reminder Results</h4>
                 <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                   {reminderResults.map((item, index) => (
-                    <div key={`${item.title}-${index}`} className="rounded-xl border border-white/10 bg-surface p-3">
+                    <div key={`${item.title}-${index}`} className="rounded-xl border border-border bg-surface p-3">
                       <p className="font-semibold text-sm">{item.title}</p>
                       <p className="text-xs text-muted mt-1">{item.message}</p>
                       {item.employee_name && (
@@ -906,14 +906,14 @@ export default function AdminConfig() {
               </div>
             )}
 
-            <div className="mt-5 border-t border-white/10 pt-4">
+            <div className="mt-5 border-t border-border pt-4">
               <div className="flex items-center justify-between gap-3 mb-3">
                 <h4 className="font-display font-semibold">Reminder History Report</h4>
                 <button
                   type="button"
                   onClick={exportReminderHistory}
                   disabled={reminderLogs.length === 0}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold disabled:opacity-50"
                 >
                   <Download size={14} /> CSV
                 </button>
@@ -923,7 +923,7 @@ export default function AdminConfig() {
               ) : (
                 <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
                   {reminderLogs.slice(0, 20).map((log) => (
-                    <div key={log.id} className="rounded-xl border border-white/10 bg-surface p-3">
+                    <div key={log.id} className="rounded-xl border border-border bg-surface p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <p className="font-semibold text-sm">{log.title}</p>
@@ -970,7 +970,7 @@ export default function AdminConfig() {
               type="button"
               onClick={resetFeatureToggles}
               disabled={!draftDiffers}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold disabled:opacity-50"
             >
               <RefreshCw size={14} /> Reset
             </button>
@@ -994,7 +994,7 @@ export default function AdminConfig() {
           {effectiveFlags.map((flag) => (
             <label
               key={flag.key}
-              className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-surface px-4 py-3"
+              className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3"
             >
               <span className="text-sm font-medium">{flag.label}</span>
               <ToggleSwitch
@@ -1034,7 +1034,7 @@ export default function AdminConfig() {
           const isSaving = roleDefaultsSaving === role;
 
           return (
-            <div key={role} className="mt-4 border-t border-white/10 pt-4">
+            <div key={role} className="mt-4 border-t border-border pt-4">
               <div className="flex items-center justify-between gap-3 mb-3">
                 <span className="text-sm font-semibold text-ink">{roleLabel}</span>
                 <button
@@ -1056,7 +1056,7 @@ export default function AdminConfig() {
                 {effectiveFlags.map((flag) => (
                   <label
                     key={flag.key}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-surface px-4 py-3"
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3"
                   >
                     <span className="text-sm font-medium">{flag.label}</span>
                     <ToggleSwitch

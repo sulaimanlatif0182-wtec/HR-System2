@@ -8,7 +8,7 @@ interface TiltCardProps {
   intensity?: number;
 }
 
-export default function TiltCard({ children, className = '', glowColor = '139,92,246', intensity = 10 }: TiltCardProps) {
+export default function TiltCard({ children, className = '', glowColor = '23,71,157', intensity = 10 }: TiltCardProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState({ rx: 0, ry: 0, mx: 50, my: 50 });
 

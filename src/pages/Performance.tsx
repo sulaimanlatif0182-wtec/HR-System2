@@ -305,13 +305,13 @@ export default function Performance() {
 
   return (
     <>
-      <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-surface p-1 w-fit">
+      <div className="flex items-center gap-1 rounded-xl border border-border bg-surface p-1 w-fit">
         <button
           type="button"
           onClick={() => setTab('evaluation')}
           className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
             tab === 'evaluation'
-              ? 'bg-gradient-to-r from-primary to-primary-2 text-white shadow-lg shadow-primary/30'
+              ? 'bg-primary hover:bg-[#0F3475] text-white shadow-lg shadow-primary/30'
               : 'text-muted hover:text-ink'
           }`}
         >
@@ -322,7 +322,7 @@ export default function Performance() {
           onClick={() => setTab('appraisal')}
           className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
             tab === 'appraisal'
-              ? 'bg-gradient-to-r from-primary to-primary-2 text-white shadow-lg shadow-primary/30'
+              ? 'bg-primary hover:bg-[#0F3475] text-white shadow-lg shadow-primary/30'
               : 'text-muted hover:text-ink'
           }`}
         >
@@ -341,7 +341,7 @@ export default function Performance() {
           <button
             type="button"
             onClick={fetchAll}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold"
+            className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold"
           >
             <RefreshCw size={16} /> Refresh
           </button>
@@ -372,7 +372,7 @@ export default function Performance() {
             <select
               value={form.employee_id}
               onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5"
+              className="w-full bg-surface border border-border rounded-xl px-3 py-2.5"
             >
               <option value="">Select staff</option>
               {employees.map((employee) => (
@@ -385,12 +385,12 @@ export default function Performance() {
                 value={form.review_period}
                 onChange={(e) => setForm({ ...form, review_period: e.target.value })}
                 placeholder="Review period"
-                className="bg-surface border border-white/10 rounded-xl px-3 py-2.5"
+                className="bg-surface border border-border rounded-xl px-3 py-2.5"
               />
               <select
                 value={form.review_type}
                 onChange={(e) => setForm({ ...form, review_type: e.target.value })}
-                className="bg-surface border border-white/10 rounded-xl px-3 py-2.5"
+                className="bg-surface border border-border rounded-xl px-3 py-2.5"
               >
                 {REVIEW_TYPES.map((type) => (
                   <option key={type} value={type}>{type}</option>
@@ -412,7 +412,7 @@ export default function Performance() {
                     max="100"
                     value={form[key]}
                     onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                    className="mt-1 w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5"
+                    className="mt-1 w-full bg-surface border border-border rounded-xl px-3 py-2.5"
                   />
                 </label>
               ))}
@@ -429,7 +429,7 @@ export default function Performance() {
                 value={form[key]}
                 onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                 placeholder={key.replace('_', ' ')}
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 resize-none"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 resize-none"
               />
             ))}
 
@@ -440,14 +440,14 @@ export default function Performance() {
                 value={form[key]}
                 onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                 placeholder={key.replace('_', ' ')}
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 resize-none"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 resize-none"
               />
             ))}
 
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value })}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5"
+              className="w-full bg-surface border border-border rounded-xl px-3 py-2.5"
             >
               <option value="draft">Draft</option>
               <option value="completed">Completed</option>
@@ -459,7 +459,7 @@ export default function Performance() {
                 <button
                   type="button"
                   onClick={() => setForm(EMPTY)}
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5"
+                  className="rounded-xl border border-border bg-[#EEF2F9] px-4 py-2.5"
                 >
                   Cancel
                 </button>
@@ -482,7 +482,7 @@ export default function Performance() {
           ) : (
             <div className="space-y-3 max-h-[760px] overflow-y-auto">
               {reviews.map((review) => (
-                <div key={review.id} className="rounded-xl border border-white/10 bg-surface p-4">
+                <div key={review.id} className="rounded-xl border border-border bg-surface p-4">
                   <div className="flex justify-between gap-3">
                     <div>
                       <p className="font-semibold">{employeeMap[review.employee_id]?.name ?? `#${review.employee_id}`}</p>
@@ -512,7 +512,7 @@ export default function Performance() {
                     <button
                       type="button"
                       onClick={() => printReview(review)}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold"
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold"
                     >
                       <Printer size={14} /> Print
                     </button>
@@ -532,7 +532,7 @@ export default function Performance() {
                         <button
                           type="button"
                           onClick={() => editReview(review)}
-                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold"
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold"
                         >
                           <Pencil size={14} /> Edit
                         </button>

@@ -113,7 +113,7 @@ export default function BackupCenter() {
     try {
       const result: Record<string, unknown> = {
         generated_at: new Date().toISOString(),
-        source: 'WtecHR Backup Center',
+        source: 'WTEC HR Backup Center',
       };
       for (const item of BACKUP_ITEMS) {
         result[item.key] = await fetchItem(item);
@@ -191,7 +191,7 @@ export default function BackupCenter() {
                 type="button"
                 onClick={() => backupOne(item, 'json')}
                 disabled={loading}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold disabled:opacity-50"
               >
                 <Download size={14} /> JSON
               </button>
@@ -199,7 +199,7 @@ export default function BackupCenter() {
                 type="button"
                 onClick={() => backupOne(item, 'csv')}
                 disabled={loading}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold disabled:opacity-50"
               >
                 <Download size={14} /> CSV
               </button>

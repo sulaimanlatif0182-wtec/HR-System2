@@ -599,7 +599,7 @@ export default function Claims() {
                 type="button"
                 onClick={handleExportCsv}
                 disabled={visible.length === 0}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50 transition-all"
               >
                 <Download size={16} />
                 Export CSV
@@ -609,7 +609,7 @@ export default function Claims() {
             <button
               type="button"
               onClick={openClaimModal}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:scale-[1.02] transition-all"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:scale-[1.02] transition-all"
             >
               <Plus size={16} />
               Submit Claim
@@ -654,7 +654,7 @@ export default function Claims() {
         </div>
       </div>
 
-      <div className="flex gap-1 bg-surface border border-white/10 rounded-xl p-1 mb-6 w-fit overflow-x-auto">
+      <div className="flex gap-1 bg-surface border border-border rounded-xl p-1 mb-6 w-fit overflow-x-auto">
         {[
           ['all', 'All'],
           ['pending_admin', 'Pending Admin'],
@@ -712,7 +712,7 @@ export default function Claims() {
                 </Badge>
               </div>
 
-              <p className="text-sm text-muted/90 bg-white/[0.03] rounded-lg px-3 py-2 mb-3">
+              <p className="text-sm text-muted/90 bg-[#F6F9FE] rounded-lg px-3 py-2 mb-3">
                 "{claim.description}"
               </p>
 
@@ -768,7 +768,7 @@ export default function Claims() {
                 <button
                   type="button"
                   onClick={() => printClaimForm(claim)}
-                  className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-lg bg-white/5 text-muted border border-white/10 px-3 py-2 text-xs font-medium hover:bg-white/10 transition-all"
+                  className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-lg bg-[#EEF2F9] text-muted border border-border px-3 py-2 text-xs font-medium hover:bg-primary-soft transition-all"
                 >
                   <Printer size={13} />
                   Print
@@ -844,7 +844,7 @@ export default function Claims() {
                     type="button"
                     onClick={() => handleAction(claim, 'cancel')}
                     disabled={actingId === claim.id}
-                    className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-lg bg-white/5 text-muted border border-white/10 px-3 py-2 text-xs font-medium hover:bg-white/10 transition-all disabled:opacity-50"
+                    className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-lg bg-[#EEF2F9] text-muted border border-border px-3 py-2 text-xs font-medium hover:bg-primary-soft transition-all disabled:opacity-50"
                   >
                     <Ban size={13} />
                     Cancel
@@ -863,7 +863,7 @@ export default function Claims() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 z-50"
+              className="fixed inset-0 bg-[#14264E]/40 z-50"
               onClick={() => setShowModal(false)}
             />
 
@@ -918,7 +918,7 @@ export default function Claims() {
                             : '',
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                   >
                     {CLAIM_TYPES.map((type) => (
                       <option key={type} value={type}>
@@ -940,7 +940,7 @@ export default function Claims() {
                         onChange={(e) =>
                           setForm({ ...form, claim_date: e.target.value })
                         }
-                        className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                        className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                       />
                     </div>
 
@@ -957,7 +957,7 @@ export default function Claims() {
                         onChange={(e) =>
                           setForm({ ...form, amount: e.target.value })
                         }
-                        className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                        className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                       />
                     </div>
                   </div>
@@ -970,7 +970,7 @@ export default function Claims() {
                       setForm({ ...form, description: e.target.value })
                     }
                     rows={3}
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 resize-none"
+                    className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 resize-none"
                   />
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -980,7 +980,7 @@ export default function Claims() {
                       onChange={(e) =>
                         setForm({ ...form, from_location: e.target.value })
                       }
-                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                      className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                     />
 
                     <input
@@ -989,7 +989,7 @@ export default function Claims() {
                       onChange={(e) =>
                         setForm({ ...form, to_location: e.target.value })
                       }
-                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                      className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                     />
                   </div>
 
@@ -999,7 +999,7 @@ export default function Claims() {
                     onChange={(e) =>
                       setForm({ ...form, receipt_no: e.target.value })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                   />
 
                   {form.claim_type === 'Fuel' && (
@@ -1010,7 +1010,7 @@ export default function Claims() {
                         onChange={(e) =>
                           setForm({ ...form, vehicle_no: e.target.value })
                         }
-                        className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                        className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                       />
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1031,7 +1031,7 @@ export default function Claims() {
                               ),
                             });
                           }}
-                          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                          className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                         />
 
                         <input
@@ -1051,7 +1051,7 @@ export default function Claims() {
                               ),
                             });
                           }}
-                          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                          className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                         />
                       </div>
 
@@ -1060,7 +1060,7 @@ export default function Claims() {
                           readOnly
                           placeholder="Distance KM auto"
                           value={form.distance_km}
-                          className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none text-muted"
+                          className="w-full bg-[#F6F9FE] border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none text-muted"
                         />
 
                         <input
@@ -1071,7 +1071,7 @@ export default function Claims() {
                           onChange={(e) =>
                             setForm({ ...form, fuel_liters: e.target.value })
                           }
-                          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                          className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                         />
                       </div>
 
@@ -1084,7 +1084,7 @@ export default function Claims() {
                             petrol_station: e.target.value,
                           })
                         }
-                        className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                        className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                       />
                     </>
                   )}
@@ -1100,7 +1100,7 @@ export default function Claims() {
                       onChange={(e) =>
                         setAttachmentFile(e.target.files?.[0] ?? null)
                       }
-                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                      className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                     />
                   </div>
 
@@ -1113,7 +1113,7 @@ export default function Claims() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold mt-2 disabled:opacity-60"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white py-2.5 text-sm font-semibold mt-2 disabled:opacity-60"
                   >
                     {saving ? (
                       <Loader2 size={16} className="animate-spin" />

@@ -1179,7 +1179,7 @@ export default function Leave() {
               <button
                 type="button"
                 onClick={openBalanceEditor}
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] transition-all"
+                className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-primary-soft transition-all"
               >
                 <Pencil size={16} />
                 Edit Balances
@@ -1191,7 +1191,7 @@ export default function Leave() {
                 type="button"
                 onClick={handleExportCsv}
                 disabled={visible.length === 0}
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+                className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50 transition-all"
               >
                 <Download size={16} />
                 Export CSV
@@ -1201,7 +1201,7 @@ export default function Leave() {
             <button
               type="button"
               onClick={openRequestModal}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:scale-[1.02] transition-all"
+              className="flex items-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:scale-[1.02] transition-all"
             >
               <Plus size={16} />
               Request Leave
@@ -1253,7 +1253,7 @@ export default function Leave() {
         </div>
       )}
 
-      <div className="flex gap-1 bg-surface border border-white/10 rounded-xl p-1 mb-6 w-fit">
+      <div className="flex gap-1 bg-surface border border-border rounded-xl p-1 mb-6 w-fit">
         {['all', 'pending', 'approved', 'rejected'].map((f) => (
           <button
             type="button"
@@ -1320,7 +1320,7 @@ export default function Leave() {
               )}
 
               {request.reason && (
-                <p className="text-sm text-muted/90 bg-white/[0.03] rounded-lg px-3 py-2 mb-3">
+                <p className="text-sm text-muted/90 bg-[#F6F9FE] rounded-lg px-3 py-2 mb-3">
                   "{request.reason}"
                 </p>
               )}
@@ -1358,7 +1358,7 @@ export default function Leave() {
                 <button
                   type="button"
                   onClick={() => printLeaveForm(request)}
-                  className="flex items-center justify-center gap-1.5 rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-xs font-medium text-muted hover:text-ink hover:bg-white/10 transition-all"
+                  className="flex items-center justify-center gap-1.5 rounded-lg bg-[#EEF2F9] border border-border px-3 py-2 text-xs font-medium text-muted hover:text-ink hover:bg-primary-soft transition-all"
                 >
                   <Printer size={13} />
                   Print Form
@@ -1408,7 +1408,7 @@ export default function Leave() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 z-50"
+              className="fixed inset-0 bg-[#14264E]/40 z-50"
               onClick={() => setShowModal(false)}
             />
 
@@ -1446,7 +1446,7 @@ export default function Leave() {
                       className={`rounded-xl px-4 py-2.5 text-sm font-semibold border transition-all ${
                         form.request_mode === 'leave'
                           ? 'bg-primary/20 text-primary border-primary/30'
-                          : 'bg-surface border-white/10 text-muted'
+                          : 'bg-surface border-border text-muted'
                       }`}
                     >
                       Leave
@@ -1460,7 +1460,7 @@ export default function Leave() {
                       className={`rounded-xl px-4 py-2.5 text-sm font-semibold border transition-all ${
                         form.request_mode === 'time_off'
                           ? 'bg-primary/20 text-primary border-primary/30'
-                          : 'bg-surface border-white/10 text-muted'
+                          : 'bg-surface border-border text-muted'
                       }`}
                     >
                       Time Off
@@ -1476,7 +1476,7 @@ export default function Leave() {
                       <select
                         value={submittedForEmployeeId}
                         onChange={(e) => setSubmittedForEmployeeId(e.target.value)}
-                        className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                        className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                       >
                         <option value="">Myself</option>
                         {eligibleEmployees.map((emp) => (
@@ -1500,7 +1500,7 @@ export default function Leave() {
                             end_date: '',
                           })
                         }
-                        className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                        className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                       >
                         {LEAVE_TYPES.map((t) => (
                           <option key={t} value={t}>
@@ -1526,7 +1526,7 @@ export default function Leave() {
                                 start_date: e.target.value,
                               })
                             }
-                            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                            className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                           />
                         </div>
 
@@ -1546,7 +1546,7 @@ export default function Leave() {
                             onChange={(e) =>
                               setForm({ ...form, end_date: e.target.value })
                             }
-                            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                            className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                           />
                         </div>
                       </div>
@@ -1559,7 +1559,7 @@ export default function Leave() {
                             half_day_period: e.target.value as HalfDayPeriod,
                           })
                         }
-                        className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                        className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                       >
                         {HALF_DAY_OPTIONS.map((option) => (
                           <option key={option} value={option}>
@@ -1606,7 +1606,7 @@ export default function Leave() {
                               time_off_date: e.target.value,
                             })
                           }
-                          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                          className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                         />
                       </div>
 
@@ -1618,7 +1618,7 @@ export default function Leave() {
                             time_off_period: e.target.value as TimeOffPeriod,
                           })
                         }
-                        className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                        className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                       >
                         {TIME_OFF_PERIODS.map((option) => (
                           <option key={option} value={option}>
@@ -1643,7 +1643,7 @@ export default function Leave() {
                                 time_off_start: e.target.value,
                               })
                             }
-                            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                            className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                           />
                         </div>
 
@@ -1662,12 +1662,12 @@ export default function Leave() {
                                 time_off_end: e.target.value,
                               })
                             }
-                            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                            className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                           />
                         </div>
                       </div>
 
-                      <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
+                      <p className="text-xs text-muted bg-[#F6F9FE] border border-border rounded-lg px-3 py-2">
                         Time Off is limited to maximum 2 hours and cannot be
                         submitted for a past date.
                       </p>
@@ -1682,7 +1682,7 @@ export default function Leave() {
                       setForm({ ...form, reason: e.target.value })
                     }
                     rows={3}
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 resize-none"
+                    className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 resize-none"
                   />
 
                   <input
@@ -1695,7 +1695,7 @@ export default function Leave() {
                         duties_covered_by: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                   />
 
                   <div>
@@ -1711,7 +1711,7 @@ export default function Leave() {
                       onChange={(e) =>
                         setAttachmentFile(e.target.files?.[0] ?? null)
                       }
-                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                      className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                     />
 
                     {attachmentRequired && (
@@ -1721,7 +1721,7 @@ export default function Leave() {
                     )}
                   </div>
 
-                  <label className="flex items-start gap-2 text-xs text-muted bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2">
+                  <label className="flex items-start gap-2 text-xs text-muted bg-[#F6F9FE] border border-border rounded-xl px-3 py-2">
                     <input
                       type="checkbox"
                       checked={form.employee_acknowledged}
@@ -1748,7 +1748,7 @@ export default function Leave() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold mt-2 disabled:opacity-60"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white py-2.5 text-sm font-semibold mt-2 disabled:opacity-60"
                   >
                     {saving ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -1770,7 +1770,7 @@ export default function Leave() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 z-50"
+              className="fixed inset-0 bg-[#14264E]/40 z-50"
               onClick={() => setShowBalanceModal(false)}
             />
 
@@ -1806,7 +1806,7 @@ export default function Leave() {
                       setBalanceEmployeeId(id);
                       await loadEditableBalances(id);
                     }}
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                   >
                     <option value="">Select Employee</option>
                     {employees.map((employee) => (
@@ -1841,7 +1841,7 @@ export default function Leave() {
                                   [type]: e.target.value,
                                 })
                               }
-                              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                              className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                             />
                           </div>
                         ))}
@@ -1853,14 +1853,14 @@ export default function Leave() {
                       value={balanceReason}
                       onChange={(e) => setBalanceReason(e.target.value)}
                       rows={2}
-                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 resize-none mt-3"
+                      className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 resize-none mt-3"
                     />
 
                     <button
                       type="button"
                       onClick={saveEditableBalances}
                       disabled={savingBalances || !balanceEmployeeId}
-                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold disabled:opacity-60 mt-3"
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white py-2.5 text-sm font-semibold disabled:opacity-60 mt-3"
                     >
                       {savingBalances ? (
                         <Loader2 size={16} className="animate-spin" />
@@ -1887,7 +1887,7 @@ export default function Leave() {
                             leave_type: e.target.value,
                           })
                         }
-                        className="bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                        className="bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                       >
                         {BALANCE_TYPES.map((type) => (
                           <option key={type} value={type}>
@@ -1907,7 +1907,7 @@ export default function Leave() {
                             adjustment_days: e.target.value,
                           })
                         }
-                        className="bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                        className="bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
                       />
                     </div>
 
@@ -1921,14 +1921,14 @@ export default function Leave() {
                         })
                       }
                       rows={2}
-                      className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 resize-none mt-3"
+                      className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 resize-none mt-3"
                     />
 
                     <button
                       type="button"
                       onClick={addAdjustment}
                       disabled={savingBalances || !balanceEmployeeId}
-                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 py-2.5 text-sm font-semibold disabled:opacity-60 mt-3 hover:bg-white/10 transition-all"
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#EEF2F9] border border-border py-2.5 text-sm font-semibold disabled:opacity-60 mt-3 hover:bg-primary-soft transition-all"
                     >
                       <Plus size={16} />
                       Add Adjustment
@@ -1950,7 +1950,7 @@ export default function Leave() {
                         {adjustments.map((adjustment) => (
                           <div
                             key={adjustment.id}
-                            className="rounded-xl bg-white/[0.03] border border-white/10 px-3 py-2 text-xs"
+                            className="rounded-xl bg-[#F6F9FE] border border-border px-3 py-2 text-xs"
                           >
                             <div className="flex items-center justify-between gap-3">
                               <p className="font-medium">

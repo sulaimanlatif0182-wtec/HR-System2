@@ -855,7 +855,7 @@ function VerificationStatus({ gps, passkey }: { gps?: boolean | null; passkey?: 
     <div className="flex flex-wrap gap-1.5">
       <span
         className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-          gps ? 'bg-emerald/15 text-emerald' : 'bg-white/10 text-muted'
+          gps ? 'bg-emerald/15 text-emerald' : 'bg-[#EEF2F9] text-muted'
         }`}
       >
         {gps ? <ShieldCheck size={11} /> : <ShieldAlert size={11} />}
@@ -863,7 +863,7 @@ function VerificationStatus({ gps, passkey }: { gps?: boolean | null; passkey?: 
       </span>
       <span
         className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-          passkey ? 'bg-primary/15 text-primary' : 'bg-white/10 text-muted'
+          passkey ? 'bg-primary/15 text-primary' : 'bg-[#EEF2F9] text-muted'
         }`}
       >
         {passkey ? <Fingerprint size={11} /> : <ShieldAlert size={11} />}
@@ -2089,7 +2089,7 @@ export default function Attendance() {
                   ? missingCheckInReport.length === 0
                   : currentReportRows.length === 0
               }
-              className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+              className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50 transition-all"
             >
               <Download size={16} />
               Export CSV
@@ -2136,7 +2136,7 @@ export default function Attendance() {
                         request_date: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -2150,7 +2150,7 @@ export default function Attendance() {
                         status: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   >
                     <option value="">No change</option>
                     {STATUS_OPTIONS.map((status) => (
@@ -2171,7 +2171,7 @@ export default function Attendance() {
                         lunch_status: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   >
                     <option value="">No change</option>
                     {LUNCH_STATUS_OPTIONS.map((status) => (
@@ -2202,7 +2202,7 @@ export default function Attendance() {
                           [key]: e.target.value,
                         })
                       }
-                      className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                      className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                     />
                   </label>
                 ))}
@@ -2226,7 +2226,7 @@ export default function Attendance() {
                           [key]: e.target.value,
                         })
                       }
-                      className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                      className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                     />
                   </label>
                 ))}
@@ -2243,7 +2243,7 @@ export default function Attendance() {
                       reason: e.target.value,
                     })
                   }
-                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
+                  className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
                 />
               </label>
 
@@ -2292,7 +2292,7 @@ export default function Attendance() {
                 {correctionRequests.slice(0, 10).map((request) => (
                   <div
                     key={request.id}
-                    className="rounded-xl border border-white/10 bg-surface px-4 py-3 text-sm"
+                    className="rounded-xl border border-border bg-surface px-4 py-3 text-sm"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -2320,7 +2320,7 @@ export default function Attendance() {
                       <summary className="cursor-pointer text-xs text-primary font-semibold">
                         View requested changes
                       </summary>
-                      <pre className="mt-2 max-h-32 overflow-auto rounded-xl bg-black/20 p-3 text-[10px] text-muted whitespace-pre-wrap">
+                      <pre className="mt-2 max-h-32 overflow-auto rounded-xl bg-[#EDF1F8] p-3 text-[10px] text-muted whitespace-pre-wrap">
                         {JSON.stringify(request.requested_data, null, 2)}
                       </pre>
                     </details>
@@ -2406,7 +2406,7 @@ export default function Attendance() {
                 onChange={(e) =>
                   updateSettingsForm('check_in_start', e.target.value)
                 }
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2420,7 +2420,7 @@ export default function Attendance() {
                 onChange={(e) =>
                   updateSettingsForm('check_in_normal_end', e.target.value)
                 }
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2434,7 +2434,7 @@ export default function Attendance() {
                 onChange={(e) =>
                   updateSettingsForm('check_in_late_end', e.target.value)
                 }
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2448,7 +2448,7 @@ export default function Attendance() {
                 onChange={(e) =>
                   updateSettingsForm('lunch_out_start', e.target.value)
                 }
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2462,7 +2462,7 @@ export default function Attendance() {
                 onChange={(e) =>
                   updateSettingsForm('lunch_out_end', e.target.value)
                 }
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2476,7 +2476,7 @@ export default function Attendance() {
                 onChange={(e) =>
                   updateSettingsForm('lunch_in_start', e.target.value)
                 }
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2490,7 +2490,7 @@ export default function Attendance() {
                 onChange={(e) =>
                   updateSettingsForm('lunch_in_end', e.target.value)
                 }
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2504,7 +2504,7 @@ export default function Attendance() {
                 onChange={(e) =>
                   updateSettingsForm('check_out_normal_start', e.target.value)
                 }
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2518,7 +2518,7 @@ export default function Attendance() {
                 onChange={(e) =>
                   updateSettingsForm('check_out_normal_end', e.target.value)
                 }
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2528,7 +2528,7 @@ export default function Attendance() {
                 type="time"
                 value={settingsForm.ot_start}
                 onChange={(e) => updateSettingsForm('ot_start', e.target.value)}
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2545,7 +2545,7 @@ export default function Attendance() {
                     e.target.value
                   )
                 }
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2559,7 +2559,7 @@ export default function Attendance() {
                 onChange={(e) =>
                   updateSettingsForm('saturday_check_out_end', e.target.value)
                 }
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2575,7 +2575,7 @@ export default function Attendance() {
                 onChange={(e) =>
                   updateSettingsForm('geofence_radius_meters', e.target.value)
                 }
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2594,7 +2594,7 @@ export default function Attendance() {
                     e.target.value
                   )
                 }
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
           </div>
@@ -2647,7 +2647,7 @@ export default function Attendance() {
                         holiday_date: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -2662,7 +2662,7 @@ export default function Attendance() {
                       setHolidayForm({ ...holidayForm, name: e.target.value })
                     }
                     placeholder="Example: Hari Raya Aidilfitri"
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -2680,7 +2680,7 @@ export default function Attendance() {
                             : holidayForm.is_working_day,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   >
                     {HOLIDAY_TYPE_OPTIONS.map((type) => (
                       <option key={type} value={type}>
@@ -2699,11 +2699,11 @@ export default function Attendance() {
                       setHolidayForm({ ...holidayForm, notes: e.target.value })
                     }
                     placeholder="Optional notes"
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
-                <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+                <label className="flex items-center gap-2 bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-muted">
                   <input
                     type="checkbox"
                     checked={holidayForm.is_working_day}
@@ -2723,7 +2723,7 @@ export default function Attendance() {
                   <button
                     type="button"
                     onClick={resetHolidayForm}
-                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold hover:bg-white/10"
+                    className="rounded-xl border border-border bg-[#EEF2F9] px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft"
                   >
                     Cancel Edit
                   </button>
@@ -2761,7 +2761,7 @@ export default function Attendance() {
                   {upcomingHolidays.map((holiday) => (
                     <div
                       key={holiday.id}
-                      className="rounded-xl border border-white/10 bg-surface px-3 py-3"
+                      className="rounded-xl border border-border bg-surface px-3 py-3"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -2792,7 +2792,7 @@ export default function Attendance() {
                           <button
                             type="button"
                             onClick={() => editHoliday(holiday)}
-                            className="rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                            className="rounded-lg border border-border bg-[#EEF2F9] p-2 hover:bg-primary-soft"
                             title="Edit holiday"
                           >
                             <Pencil size={13} />
@@ -2850,7 +2850,7 @@ export default function Attendance() {
             {sites.map((site) => (
               <div
                 key={site.id}
-                className="rounded-xl border border-white/10 bg-surface px-3 py-3"
+                className="rounded-xl border border-border bg-surface px-3 py-3"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -2875,7 +2875,7 @@ export default function Attendance() {
                         });
                         setSiteMessage('');
                       }}
-                      className="rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                      className="rounded-lg border border-border bg-[#EEF2F9] p-2 hover:bg-primary-soft"
                       title="Edit site"
                     >
                       <Pencil size={13} />
@@ -2905,7 +2905,7 @@ export default function Attendance() {
                   setSiteForm({ ...siteForm, name: e.target.value })
                 }
                 placeholder="Example: Factory 1"
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2919,7 +2919,7 @@ export default function Attendance() {
                   setSiteForm({ ...siteForm, latitude: e.target.value })
                 }
                 placeholder="2.9662584"
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2933,7 +2933,7 @@ export default function Attendance() {
                   setSiteForm({ ...siteForm, longitude: e.target.value })
                 }
                 placeholder="101.8372782"
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2949,7 +2949,7 @@ export default function Attendance() {
                   setSiteForm({ ...siteForm, radius_meters: e.target.value })
                 }
                 placeholder="100"
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -2998,7 +2998,7 @@ export default function Attendance() {
             {otWindows.map((window) => (
               <div
                 key={window.id}
-                className="rounded-xl border border-white/10 bg-surface px-3 py-3"
+                className="rounded-xl border border-border bg-surface px-3 py-3"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -3028,7 +3028,7 @@ export default function Attendance() {
                         });
                         setOtMessage('');
                       }}
-                      className="rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                      className="rounded-lg border border-border bg-[#EEF2F9] p-2 hover:bg-primary-soft"
                       title="Edit OT window"
                     >
                       <Pencil size={13} />
@@ -3062,7 +3062,7 @@ export default function Attendance() {
                   setOtForm({ ...otForm, start_minutes: e.target.value })
                 }
                 placeholder="1066"
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -3079,7 +3079,7 @@ export default function Attendance() {
                   setOtForm({ ...otForm, end_minutes: e.target.value })
                 }
                 placeholder="1095"
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -3097,7 +3097,7 @@ export default function Attendance() {
                   setOtForm({ ...otForm, overtime_hours: e.target.value })
                 }
                 placeholder="0.5"
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -3110,7 +3110,7 @@ export default function Attendance() {
                   setOtForm({ ...otForm, label: e.target.value })
                 }
                 placeholder="Optional: e.g. OT 1st hour"
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -3216,7 +3216,7 @@ export default function Attendance() {
             type="button"
             onClick={fetchDevices}
             disabled={deviceLoading}
-            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold hover:bg-white/10 disabled:opacity-50 transition-all"
+            className="flex items-center gap-2 rounded-xl border border-border bg-[#EEF2F9] px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft disabled:opacity-50 transition-all"
           >
             <RefreshCw size={16} />
             Refresh
@@ -3338,7 +3338,7 @@ export default function Attendance() {
               !checkInWindow.allowed ||
               !hasApprovedDevice
             }
-            className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 px-4 py-2.5 text-sm font-semibold shadow-lg disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] transition-all"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-[#15803D] hover:bg-[#166534] text-white px-4 py-2.5 text-sm font-semibold shadow-card disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.02] transition-all"
           >
             {busy ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
             {!hasApprovedDevice ? 'Device Approval Required' : checkInWindow.label}
@@ -3389,7 +3389,7 @@ export default function Attendance() {
               !checkOutWindow.allowed ||
               !hasApprovedDevice
             }
-            className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-[#EEF2F9] border border-border px-4 py-2.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-soft transition-all"
           >
             <LogOut size={16} />
             {!hasApprovedDevice ? 'Device Approval Required' : checkOutWindow.label}
@@ -3414,14 +3414,14 @@ export default function Attendance() {
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+            className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
           />
 
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+            className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
           />
 
           {isAdminOrManager && (
@@ -3429,7 +3429,7 @@ export default function Attendance() {
               <select
                 value={employeeFilter}
                 onChange={(e) => setEmployeeFilter(e.target.value)}
-                className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+                className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
               >
                 <option value="all">All Employees</option>
                 {visibleEmployees.map((employee) => (
@@ -3442,7 +3442,7 @@ export default function Attendance() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+                className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
               >
                 <option value="all">All Status</option>
                 {STATUS_OPTIONS.map((status) => (
@@ -3455,7 +3455,7 @@ export default function Attendance() {
               <select
                 value={lunchStatusFilter}
                 onChange={(e) => setLunchStatusFilter(e.target.value)}
-                className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+                className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
               >
                 <option value="all">All Lunch</option>
                 {LUNCH_STATUS_OPTIONS.map((status) => (
@@ -3465,7 +3465,7 @@ export default function Attendance() {
                 ))}
               </select>
 
-              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+              <label className="flex items-center gap-2 bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-muted">
                 <input
                   type="checkbox"
                   checked={otOnly}
@@ -3474,7 +3474,7 @@ export default function Attendance() {
                 OT only
               </label>
 
-              <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+              <label className="flex items-center gap-2 bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-muted">
                 <input
                   type="checkbox"
                   checked={missingLunchInOnly}
@@ -3488,7 +3488,7 @@ export default function Attendance() {
       </div>
 
       {isAdminOrManager && (
-        <div className="flex gap-1 bg-surface border border-white/10 rounded-xl p-1 mb-6 w-fit overflow-x-auto">
+        <div className="flex gap-1 bg-surface border border-border rounded-xl p-1 mb-6 w-fit overflow-x-auto">
           {reportTabs.map((tab) => {
             const Icon = tab.icon;
 
@@ -3505,7 +3505,7 @@ export default function Attendance() {
               >
                 <Icon size={14} />
                 {tab.label}
-                <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px]">
+                <span className="rounded-full bg-[#EEF2F9] px-1.5 py-0.5 text-[10px]">
                   {tab.count}
                 </span>
               </button>
@@ -3547,7 +3547,7 @@ export default function Attendance() {
           ) : (
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-white/10">
+                <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-border bg-surface-2">
                   <th className="py-3 pr-4">Date</th>
                   <th className="py-3 pr-4">Employee</th>
                   <th className="py-3 pr-4">Department</th>
@@ -3558,7 +3558,7 @@ export default function Attendance() {
                 {missingCheckInReport.map((row) => (
                   <tr
                     key={`${row.employee.id}-${row.date}`}
-                    className="border-b border-white/5 last:border-0"
+                    className="border-b border-border last:border-0 even:bg-[#FAFBFE]"
                   >
                     <td className="py-3 pr-4 whitespace-nowrap">{row.date}</td>
                     <td className="py-3 pr-4 whitespace-nowrap">
@@ -3583,7 +3583,7 @@ export default function Attendance() {
               {recent.map((record) => (
                 <div
                   key={`mobile-${record.id}`}
-                  className="rounded-2xl border border-white/10 bg-surface p-4"
+                  className="rounded-2xl border border-border bg-surface p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -3600,17 +3600,17 @@ export default function Attendance() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 mt-4 text-xs">
-                    <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                    <div className="rounded-xl bg-[#EEF2F9] border border-border p-3">
                       <p className="text-muted">Check In</p>
                       <p className="font-semibold mt-1">{formatTime(record.check_in)}</p>
                       <p className="text-muted mt-1">{formatType(record.check_in_type)}</p>
                     </div>
-                    <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                    <div className="rounded-xl bg-[#EEF2F9] border border-border p-3">
                       <p className="text-muted">Check Out</p>
                       <p className="font-semibold mt-1">{formatTime(record.check_out)}</p>
                       <p className="text-muted mt-1">OT {Number(record.overtime_hours ?? 0)}h</p>
                     </div>
-                    <div className="rounded-xl bg-white/5 border border-white/10 p-3 col-span-2">
+                    <div className="rounded-xl bg-[#EEF2F9] border border-border p-3 col-span-2">
                       <p className="text-muted">Lunch</p>
                       <p className="font-semibold mt-1">
                         Out {formatTime(record.lunch_out)} · In {formatTime(record.lunch_in)}
@@ -3632,7 +3632,7 @@ export default function Attendance() {
                     <button
                       type="button"
                       onClick={() => openCorrection(record)}
-                      className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold hover:bg-white/10 transition-all"
+                      className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold hover:bg-primary-soft transition-all"
                     >
                       <Pencil size={13} />
                       Edit
@@ -3644,7 +3644,7 @@ export default function Attendance() {
 
           <table className="hidden md:table min-w-full text-sm">
             <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-white/10">
+              <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-border bg-surface-2">
                 <th className="py-3 pr-4">Date</th>
                 <th className="py-3 pr-4">Employee</th>
                 <th className="py-3 pr-4">Status</th>
@@ -3660,7 +3660,7 @@ export default function Attendance() {
               {recent.map((record) => (
                 <tr
                   key={record.id}
-                  className="border-b border-white/5 last:border-0 align-top"
+                  className="border-b border-border last:border-0 align-top even:bg-[#FAFBFE]"
                 >
                   <td className="py-3 pr-4 whitespace-nowrap">{record.date}</td>
                   <td className="py-3 pr-4 min-w-[170px]">
@@ -3763,7 +3763,7 @@ export default function Attendance() {
                       <button
                         type="button"
                         onClick={() => openCorrection(record)}
-                        className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold hover:bg-white/10 transition-all"
+                        className="inline-flex items-center gap-2 rounded-lg border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold hover:bg-primary-soft transition-all"
                       >
                         <Pencil size={13} />
                         Edit
@@ -3790,7 +3790,7 @@ export default function Attendance() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-[#14264E]/40 backdrop-blur-sm flex items-center justify-center p-4"
           >
             <motion.form
               initial={{ opacity: 0, scale: 0.96, y: 10 }}
@@ -3817,7 +3817,7 @@ export default function Attendance() {
                     setEditingRecord(null);
                     setCorrectionForm(null);
                   }}
-                  className="rounded-xl border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                  className="rounded-xl border border-border bg-[#EEF2F9] p-2 hover:bg-primary-soft"
                 >
                   <X size={16} />
                 </button>
@@ -3838,7 +3838,7 @@ export default function Attendance() {
                     onChange={(e) =>
                       setCorrectionForm({ ...correctionForm, date: e.target.value })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -3852,7 +3852,7 @@ export default function Attendance() {
                         status: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   >
                     {STATUS_OPTIONS.map((status) => (
                       <option key={status} value={status}>
@@ -3873,7 +3873,7 @@ export default function Attendance() {
                         check_in: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -3888,7 +3888,7 @@ export default function Attendance() {
                         check_out: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -3903,7 +3903,7 @@ export default function Attendance() {
                         lunch_out: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -3920,7 +3920,7 @@ export default function Attendance() {
                         lunch_expected_return: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -3935,7 +3935,7 @@ export default function Attendance() {
                         lunch_in: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -3949,7 +3949,7 @@ export default function Attendance() {
                         lunch_status: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   >
                     {LUNCH_STATUS_OPTIONS.map((status) => (
                       <option key={status} value={status}>
@@ -3972,7 +3972,7 @@ export default function Attendance() {
                         overtime_hours: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -3991,7 +3991,7 @@ export default function Attendance() {
                         lunch_break_minutes: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -4010,7 +4010,7 @@ export default function Attendance() {
                         lunch_late_minutes: e.target.value,
                       })
                     }
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
                   />
                 </label>
 
@@ -4028,7 +4028,7 @@ export default function Attendance() {
                       })
                     }
                     placeholder="Example: HR correction after employee submitted proof."
-                    className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
+                    className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
                   />
                 </label>
               </div>
@@ -4040,7 +4040,7 @@ export default function Attendance() {
                     setEditingRecord(null);
                     setCorrectionForm(null);
                   }}
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold hover:bg-white/10"
+                  className="rounded-xl border border-border bg-[#EEF2F9] px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft"
                 >
                   Cancel
                 </button>

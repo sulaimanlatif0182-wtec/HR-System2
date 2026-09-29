@@ -657,7 +657,7 @@ export default function Evaluation() {
           <button
             type="button"
             onClick={fetchAll}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold"
+            className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold"
           >
             <RefreshCw size={16} /> Refresh
           </button>
@@ -665,7 +665,7 @@ export default function Evaluation() {
       />
 
       {isAdmin && (
-        <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-surface p-1 w-fit mb-6">
+        <div className="flex items-center gap-1 rounded-xl border border-border bg-surface p-1 w-fit mb-6">
           {(
             [
               { key: 'templates', label: 'Templates' },
@@ -679,7 +679,7 @@ export default function Evaluation() {
               onClick={() => setAdminView(item.key)}
               className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
                 adminView === item.key
-                  ? 'bg-gradient-to-r from-primary to-primary-2 text-white shadow-lg shadow-primary/30'
+                  ? 'bg-primary hover:bg-[#0F3475] text-white shadow-lg shadow-primary/30'
                   : 'text-muted hover:text-ink'
               }`}
             >
@@ -723,7 +723,7 @@ export default function Evaluation() {
                 setTemplateForm(EMPTY_TEMPLATE());
                 setShowTemplateForm((prev) => !prev);
               }}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/30"
+              className="inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/30"
             >
               {showTemplateForm ? 'Close editor' : 'New template'}
             </button>
@@ -739,7 +739,7 @@ export default function Evaluation() {
                     value={templateForm.name}
                     onChange={(event) => setTemplateForm({ ...templateForm, name: event.target.value })}
                     placeholder="e.g. Worker performance 2026"
-                    className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm outline-none focus:border-primary/50"
+                    className="w-full rounded-xl border border-border bg-[#F6F9FE] px-4 py-2.5 text-sm outline-none focus:border-primary/50"
                   />
                 </div>
                 <div>
@@ -747,7 +747,7 @@ export default function Evaluation() {
                   <select
                     value={templateForm.category}
                     onChange={(event) => setTemplateForm({ ...templateForm, category: event.target.value })}
-                    className="w-full rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
+                    className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
                   >
                     {CATEGORIES.map((category) => (
                       <option key={category} value={category}>
@@ -761,7 +761,7 @@ export default function Evaluation() {
                   <select
                     value={templateForm.department}
                     onChange={(event) => setTemplateForm({ ...templateForm, department: event.target.value })}
-                    className="w-full rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
+                    className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
                   >
                     <option value="">All departments</option>
                     {departments.map((department) => (
@@ -778,7 +778,7 @@ export default function Evaluation() {
                     onChange={(event) =>
                       setTemplateForm({ ...templateForm, status: event.target.value as 'active' | 'inactive' })
                     }
-                    className="w-full rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
+                    className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
                   >
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
@@ -793,7 +793,7 @@ export default function Evaluation() {
                   value={templateForm.description}
                   onChange={(event) => setTemplateForm({ ...templateForm, description: event.target.value })}
                   placeholder="Short description of this template."
-                  className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm outline-none focus:border-primary/50"
+                  className="w-full rounded-xl border border-border bg-[#F6F9FE] px-4 py-2.5 text-sm outline-none focus:border-primary/50"
                 />
               </div>
 
@@ -811,14 +811,14 @@ export default function Evaluation() {
                         ],
                       })
                     }
-                    className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold"
+                    className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-semibold"
                   >
                     + Add section
                   </button>
                 </div>
 
                 {templateForm.sections.map((section, sectionIndex) => (
-                  <div key={section.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+                  <div key={section.id} className="rounded-xl border border-border bg-[#F6F9FE] p-4 space-y-3">
                     <div className="flex items-center gap-3">
                       <input
                         value={section.name}
@@ -828,7 +828,7 @@ export default function Evaluation() {
                           setTemplateForm({ ...templateForm, sections });
                         }}
                         placeholder="Section name (e.g. Quality of work)"
-                        className="flex-1 rounded-xl border border-white/10 bg-surface px-4 py-2 text-sm outline-none focus:border-primary/50"
+                        className="flex-1 rounded-xl border border-border bg-surface px-4 py-2 text-sm outline-none focus:border-primary/50"
                       />
                       <button
                         type="button"
@@ -860,7 +860,7 @@ export default function Evaluation() {
                               setTemplateForm({ ...templateForm, sections });
                             }}
                             placeholder="Criterion name"
-                            className="rounded-xl border border-white/10 bg-surface px-4 py-2 text-sm outline-none focus:border-primary/50"
+                            className="rounded-xl border border-border bg-surface px-4 py-2 text-sm outline-none focus:border-primary/50"
                           />
                           <input
                             type="number"
@@ -879,7 +879,7 @@ export default function Evaluation() {
                               setTemplateForm({ ...templateForm, sections });
                             }}
                             placeholder="Max"
-                            className="rounded-xl border border-white/10 bg-surface px-4 py-2 text-sm outline-none focus:border-primary/50"
+                            className="rounded-xl border border-border bg-surface px-4 py-2 text-sm outline-none focus:border-primary/50"
                           />
                           <input
                             value={criterion.description}
@@ -894,7 +894,7 @@ export default function Evaluation() {
                               setTemplateForm({ ...templateForm, sections });
                             }}
                             placeholder="Description (optional)"
-                            className="rounded-xl border border-white/10 bg-surface px-4 py-2 text-sm outline-none focus:border-primary/50"
+                            className="rounded-xl border border-border bg-surface px-4 py-2 text-sm outline-none focus:border-primary/50"
                           />
                           <button
                             type="button"
@@ -935,7 +935,7 @@ export default function Evaluation() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/30 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/30 disabled:opacity-60"
                 >
                   {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                   {templateForm.id ? 'Update template' : 'Create template'}
@@ -997,7 +997,7 @@ export default function Evaluation() {
                         setShowTemplateForm(true);
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
-                      className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold"
+                      className="inline-flex items-center gap-2 rounded-lg border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold"
                     >
                       <Pencil size={14} /> Edit
                     </button>
@@ -1041,7 +1041,7 @@ export default function Evaluation() {
               <select
                 value={ruleEmployeeId}
                 onChange={(event) => setRuleEmployeeId(event.target.value ? Number(event.target.value) : '')}
-                className="w-full rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
+                className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
               >
                 <option value="">Select employee…</option>
                 {employees.map((employee) => (
@@ -1057,7 +1057,7 @@ export default function Evaluation() {
               <select
                 value={ruleTemplateId}
                 onChange={(event) => handleRuleTemplateChange(event.target.value ? Number(event.target.value) : '')}
-                className="w-full rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
+                className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
               >
                 <option value="">No template (disabled)</option>
                 {templates.map((template) => (
@@ -1070,7 +1070,7 @@ export default function Evaluation() {
           </div>
 
           {ruleEmployee && rules.find((rule) => rule.employee_id === ruleEmployee.id) && (
-            <p className="text-xs text-muted rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
+            <p className="text-xs text-muted rounded-lg border border-border bg-[#F6F9FE] px-3 py-2">
               This employee already has a rule. Saving will update it.
             </p>
           )}
@@ -1083,7 +1083,7 @@ export default function Evaluation() {
                   (criterion) => (
                     <label
                       key={criterion.id}
-                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-sm cursor-pointer"
+                      className="flex items-center gap-2 rounded-lg border border-border bg-[#F6F9FE] px-3 py-2 text-sm cursor-pointer"
                     >
                       <input
                         type="checkbox"
@@ -1123,7 +1123,7 @@ export default function Evaluation() {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/30 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/30 disabled:opacity-60"
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               Save rule
@@ -1164,7 +1164,7 @@ export default function Evaluation() {
                   <select
                     value={subjectId}
                     onChange={(event) => handleSubjectChange(event.target.value ? Number(event.target.value) : '')}
-                    className="w-full rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
+                    className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
                   >
                     <option value="">Select subject (staff)…</option>
                     {subjects.map((subject) => (
@@ -1181,7 +1181,7 @@ export default function Evaluation() {
                     type="month"
                     value={reviewPeriod}
                     onChange={(event) => setReviewPeriod(event.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
+                    className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
                   />
                 </div>
               </div>
@@ -1195,7 +1195,7 @@ export default function Evaluation() {
                     setEditingId(null);
                     setScores({});
                   }}
-                  className="w-full rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
+                  className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-primary/50"
                 >
                   <option value="">Auto-selected</option>
                   {templates.map((template) => (
@@ -1223,7 +1223,7 @@ export default function Evaluation() {
                     if (!criteria.length) return null;
 
                     return (
-                      <div key={section.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+                      <div key={section.id} className="rounded-xl border border-border bg-[#F6F9FE] p-4 space-y-3">
                         <h4 className="text-sm font-semibold">{section.name}</h4>
                         {criteria.map((criterion) => {
                           const entry = scores[criterion.id] || { score: 0, comment: '' };
@@ -1247,18 +1247,18 @@ export default function Evaluation() {
                                   value={entry.score}
                                   onChange={(event) => setScore(criterion.id, 'score', event.target.value)}
                                   placeholder={`0-${criterion.max_score}`}
-                                  className="rounded-xl border border-white/10 bg-surface px-3 py-2 text-sm outline-none focus:border-primary/50"
+                                  className="rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary/50"
                                 />
                                 <input
                                   value={entry.comment}
                                   onChange={(event) => setScore(criterion.id, 'comment', event.target.value)}
                                   placeholder="Comments (optional)"
-                                  className="rounded-xl border border-white/10 bg-surface px-3 py-2 text-sm outline-none focus:border-primary/50"
+                                  className="rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary/50"
                                 />
                               </div>
-                              <div className="mt-2 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                              <div className="mt-2 h-1.5 rounded-full bg-[#EEF2F9] overflow-hidden">
                                 <div
-                                  className="h-full rounded-full bg-gradient-to-r from-primary to-primary-2"
+                                  className="h-full rounded-full bg-primary"
                                   style={{ width: `${percentage}%` }}
                                 />
                               </div>
@@ -1272,7 +1272,7 @@ export default function Evaluation() {
               )}
 
               {selectedTemplate && (
-                <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                <div className="flex items-center justify-between rounded-xl border border-border bg-[#F6F9FE] px-4 py-3">
                   <div>
                     <p className="text-xs text-muted">Overall score</p>
                     <p className="font-display text-2xl font-bold">{overall}%</p>
@@ -1282,7 +1282,7 @@ export default function Evaluation() {
                       type="button"
                       onClick={() => handleSave('draft')}
                       disabled={saving}
-                      className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+                      className="inline-flex items-center gap-2 rounded-xl border border-border bg-[#EEF2F9] px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
                     >
                       {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                       Save draft
@@ -1290,7 +1290,7 @@ export default function Evaluation() {
                     <button
                       type="submit"
                       disabled={saving}
-                      className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/30 disabled:opacity-60"
+                      className="inline-flex items-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/30 disabled:opacity-60"
                     >
                       {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                       Submit completed
@@ -1367,7 +1367,7 @@ export default function Evaluation() {
                     <button
                       type="button"
                       onClick={() => handlePrint(evaluation)}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold"
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold"
                     >
                       <Printer size={14} /> Print
                     </button>
@@ -1377,7 +1377,7 @@ export default function Evaluation() {
                         <button
                           type="button"
                           onClick={() => handleEdit(evaluation)}
-                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold"
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-[#EEF2F9] px-3 py-2 text-xs font-semibold"
                         >
                           <Pencil size={14} /> Edit
                         </button>
@@ -1396,7 +1396,7 @@ export default function Evaluation() {
                         type="button"
                         onClick={() => handleAcknowledge(evaluation)}
                         disabled={saving}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-primary to-primary-2 px-3 py-2 text-xs font-semibold text-white shadow-lg shadow-primary/30 disabled:opacity-60"
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary hover:bg-[#0F3475] text-white px-3 py-2 text-xs font-semibold text-white shadow-lg shadow-primary/30 disabled:opacity-60"
                       >
                         {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                         Acknowledge

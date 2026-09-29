@@ -10,7 +10,6 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
-  Sparkles,
   UserPlus,
 } from 'lucide-react';
 import supabase from '../lib/supabase';
@@ -378,8 +377,8 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-bg text-ink relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(139,92,246,0.22),transparent_28%),radial-gradient(circle_at_80%_70%,rgba(34,211,238,0.16),transparent_30%)]" />
-      <div className="absolute inset-0 opacity-[0.08] bg-[linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] bg-[size:64px_64px]" />
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #F4F7FC, #E8EFFA)' }} />
+      <div className="absolute inset-0 hex-pattern" />
 
       <main className="relative z-10 min-h-screen flex items-center justify-center px-5 py-10">
         <motion.div
@@ -388,14 +387,12 @@ export default function Login() {
           transition={{ duration: 0.35 }}
           className="w-full max-w-md"
         >
-          <div className="glass-solid rounded-3xl border border-white/10 p-7 sm:p-9 shadow-2xl shadow-black/30">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-accent grid place-items-center shadow-lg shadow-primary/30">
-                <Sparkles size={22} className="text-white" />
-              </div>
+          <div className="bg-surface rounded-3xl border border-border p-7 sm:p-9 shadow-card">
+            <div className="flex flex-col items-center gap-3 mb-8 text-center">
+              <img src="/wtec-logo.svg" alt="WTEC" className="h-12 w-auto" />
 
               <div>
-                <h1 className="font-display text-xl font-bold">WtecHR</h1>
+                <h1 className="font-display text-xl font-bold text-ink">WTEC HR Portal</h1>
                 <p className="text-xs text-muted">
                   Human Resource Management Portal
                 </p>
@@ -431,7 +428,7 @@ export default function Login() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@company.com"
-                        className="w-full bg-surface border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
+                        className="w-full bg-[#F6F9FE] border border-border rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
                       />
                     </div>
                   </div>
@@ -453,7 +450,7 @@ export default function Login() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="w-full bg-surface border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
+                        className="w-full bg-[#F6F9FE] border border-border rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
                       />
                     </div>
                   </div>
@@ -475,7 +472,7 @@ export default function Login() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-3 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white py-3 text-sm font-semibold shadow-card disabled:opacity-60 disabled:cursor-not-allowed transition-all"
                   >
                     {loading ? (
                       <Loader2 size={17} className="animate-spin" />
@@ -500,7 +497,7 @@ export default function Login() {
                   <button
                     type="button"
                     onClick={() => switchMode('worker')}
-                    className="inline-flex items-center justify-center gap-2 text-sm text-primary hover:text-accent transition-all"
+                    className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-accent hover:text-[#A81218] transition-all"
                   >
                     <UserPlus size={15} />
                     Worker sign in (employee ID)
@@ -557,7 +554,7 @@ export default function Login() {
                         value={employeeNo}
                         onChange={(e) => setEmployeeNo(e.target.value)}
                         placeholder="e.g. 1024"
-                        className="w-full bg-surface border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
+                        className="w-full bg-[#F6F9FE] border border-border rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
                       />
                     </div>
                   </div>
@@ -572,7 +569,7 @@ export default function Login() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-3 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-accent hover:bg-[#A81218] text-white py-3 text-sm font-semibold shadow-card disabled:opacity-60 disabled:cursor-not-allowed transition-all"
                   >
                     {loading ? (
                       <Loader2 size={17} className="animate-spin" />
@@ -585,7 +582,7 @@ export default function Login() {
                   </button>
                 </form>
 
-                <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2 mt-5">
+                <p className="text-xs text-muted bg-[#F6F9FE] border border-border rounded-xl px-3 py-2 mt-5">
                   Your employee ID is assigned by HR. If you do not know it,
                   contact HR or IT support.
                 </p>
@@ -631,7 +628,7 @@ export default function Login() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@wtecgroup.com.my"
-                        className="w-full bg-surface border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
+                        className="w-full bg-[#F6F9FE] border border-border rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
                       />
                     </div>
                   </div>
@@ -653,7 +650,7 @@ export default function Login() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Minimum 8 characters"
-                        className="w-full bg-surface border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
+                        className="w-full bg-[#F6F9FE] border border-border rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
                       />
                     </div>
                   </div>
@@ -675,12 +672,12 @@ export default function Login() {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Repeat your password"
-                        className="w-full bg-surface border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
+                        className="w-full bg-[#F6F9FE] border border-border rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
                       />
                     </div>
                   </div>
 
-                  <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2">
+                  <p className="text-xs text-muted bg-[#F6F9FE] border border-border rounded-xl px-3 py-2">
                     Password must include uppercase, lowercase and number.
                   </p>
 
@@ -701,7 +698,7 @@ export default function Login() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-3 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white py-3 text-sm font-semibold shadow-card disabled:opacity-60 disabled:cursor-not-allowed transition-all"
                   >
                     {loading ? (
                       <Loader2 size={17} className="animate-spin" />
@@ -755,7 +752,7 @@ export default function Login() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@company.com"
-                        className="w-full bg-surface border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
+                        className="w-full bg-[#F6F9FE] border border-border rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
                       />
                     </div>
                   </div>
@@ -777,7 +774,7 @@ export default function Login() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-3 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white py-3 text-sm font-semibold shadow-card disabled:opacity-60 disabled:cursor-not-allowed transition-all"
                   >
                     {loading ? (
                       <Loader2 size={17} className="animate-spin" />

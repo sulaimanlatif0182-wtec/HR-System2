@@ -173,7 +173,7 @@ export default function SystemHealth() {
             <button
               type="button"
               onClick={fetchHealth}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-white/[0.05]"
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft"
             >
               <RefreshCw size={16} /> Refresh
             </button>
@@ -247,7 +247,7 @@ export default function SystemHealth() {
           </div>
           <div className="space-y-2">
             {envRows.map(([key, ok]) => (
-              <div key={key} className="flex items-center justify-between rounded-xl bg-surface border border-white/10 px-4 py-3 text-sm">
+              <div key={key} className="flex items-center justify-between rounded-xl bg-surface border border-border px-4 py-3 text-sm">
                 <span>{key.replace(/_/g, ' ')}</span>
                 <StatusBadge ok={Boolean(ok)} />
               </div>
@@ -265,7 +265,7 @@ export default function SystemHealth() {
           </div>
           <div className="space-y-2">
             {health.storage.required_buckets.map((bucket) => (
-              <div key={bucket.name} className="flex items-center justify-between rounded-xl bg-surface border border-white/10 px-4 py-3 text-sm">
+              <div key={bucket.name} className="flex items-center justify-between rounded-xl bg-surface border border-border px-4 py-3 text-sm">
                 <span>{bucket.name}</span>
                 <StatusBadge ok={bucket.exists} />
               </div>
@@ -282,7 +282,7 @@ export default function SystemHealth() {
         </div>
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-white/10">
+            <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-border bg-surface-2">
               <th className="py-3 pr-4">Table</th>
               <th className="py-3 pr-4">Status</th>
               <th className="py-3 pr-4">Rows</th>
@@ -291,7 +291,7 @@ export default function SystemHealth() {
           </thead>
           <tbody>
             {tableRows.map(([table, info]) => (
-              <tr key={table} className="border-b border-white/5 last:border-0">
+              <tr key={table} className="border-b border-border last:border-0 even:bg-[#FAFBFE]">
                 <td className="py-3 pr-4 font-medium">{table}</td>
                 <td className="py-3 pr-4"><StatusBadge ok={info.ok} /></td>
                 <td className="py-3 pr-4">{info.count}</td>
@@ -309,10 +309,10 @@ export default function SystemHealth() {
             <h3 className="font-display font-semibold">Cron / Email Reminder</h3>
           </div>
           <div className="space-y-2 text-sm">
-            <div className="rounded-xl bg-surface border border-white/10 px-4 py-3">
+            <div className="rounded-xl bg-surface border border-border px-4 py-3">
               Cron path: <span className="text-primary">{String(health.app.cron_path)}</span>
             </div>
-            <div className="rounded-xl bg-surface border border-white/10 px-4 py-3">
+            <div className="rounded-xl bg-surface border border-border px-4 py-3">
               Schedule: <span className="text-primary">{String(health.app.cron_schedule)}</span>
             </div>
           </div>
@@ -328,7 +328,7 @@ export default function SystemHealth() {
           ) : (
             <div className="space-y-2">
               {health.reminders.last_logs.map((log, index) => (
-                <div key={String(log.id || index)} className="rounded-xl bg-surface border border-white/10 p-3 text-sm">
+                <div key={String(log.id || index)} className="rounded-xl bg-surface border border-border p-3 text-sm">
                   <p className="font-semibold">{String(log.title || 'Reminder')}</p>
                   <p className="text-xs text-muted mt-1">{String(log.message || '')}</p>
                   <p className="text-[11px] text-muted mt-1">{formatDateTime(String(log.created_at || ''))}</p>

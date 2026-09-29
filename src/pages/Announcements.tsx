@@ -207,7 +207,7 @@ export default function Announcements() {
           <button
             type="button"
             onClick={fetchAll}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-white/[0.05]"
+            className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft"
           >
             <RefreshCw size={16} />
             Refresh
@@ -248,13 +248,13 @@ export default function Announcements() {
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               placeholder="Announcement title"
-              className="md:col-span-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              className="md:col-span-2 bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
             />
 
             <select
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
-              className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+              className="bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
             >
               {['General', 'HR', 'Payroll', 'Holiday', 'Safety', 'Policy'].map(
                 (category) => (
@@ -270,10 +270,10 @@ export default function Announcements() {
               value={form.body}
               onChange={(e) => setForm({ ...form, body: e.target.value })}
               placeholder="Announcement body"
-              className="md:col-span-3 bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
+              className="md:col-span-3 bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50 resize-none"
             />
 
-            <label className="flex items-center gap-2 bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-muted">
+            <label className="flex items-center gap-2 bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-muted">
               <input
                 type="checkbox"
                 checked={form.pinned}
@@ -288,7 +288,7 @@ export default function Announcements() {
                 type="date"
                 value={form.expires_at}
                 onChange={(e) => setForm({ ...form, expires_at: e.target.value })}
-                className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 outline-none focus:border-primary/50"
               />
             </label>
 
@@ -300,7 +300,7 @@ export default function Announcements() {
                     setForm(EMPTY_FORM);
                     setMessage('');
                   }}
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold"
+                  className="rounded-xl border border-border bg-[#EEF2F9] px-4 py-2.5 text-sm font-semibold"
                 >
                   Cancel
                 </button>
@@ -369,7 +369,7 @@ export default function Announcements() {
                       <button
                         type="button"
                         onClick={() => editAnnouncement(item)}
-                        className="rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                        className="rounded-lg border border-border bg-[#EEF2F9] p-2 hover:bg-primary-soft"
                         title="Edit announcement"
                       >
                         <Pencil size={13} />
@@ -397,14 +397,14 @@ export default function Announcements() {
                     href={outlookWebComposeUrl(item)}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-[#EEF2F9] px-3 py-1.5 text-xs font-semibold hover:bg-primary-soft"
                     title="Open this announcement in Outlook on the web"
                   >
                     Open in Outlook
                   </a>
                   <a
                     href={mailtoUrl(item)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-[#EEF2F9] px-3 py-1.5 text-xs font-semibold hover:bg-primary-soft"
                     title="Share via default mail app (Outlook desktop if set as default)"
                   >
                     Share via Email

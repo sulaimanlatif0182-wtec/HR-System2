@@ -1098,7 +1098,7 @@ export default function Employees() {
           placeholder="Full name"
           value={values.name}
           onChange={(e) => setValues({ ...values, name: e.target.value })}
-          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+          className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
         />
 
         {!isWorker && (
@@ -1108,7 +1108,7 @@ export default function Employees() {
             placeholder="Email"
             value={values.email}
             onChange={(e) => setValues({ ...values, email: e.target.value })}
-            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+            className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
           />
         )}
 
@@ -1120,7 +1120,7 @@ export default function Employees() {
             setValues({ ...values, role: r, category: c });
           }}
           disabled={!isAdminOrManager}
-          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink disabled:opacity-60 disabled:cursor-not-allowed"
+          className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <option value="" disabled>
             Select Role
@@ -1137,7 +1137,7 @@ export default function Employees() {
           <select
             value={values.supervisor_id}
             onChange={(e) => setValues({ ...values, supervisor_id: e.target.value })}
-            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+            className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
           >
             <option value="">Working with</option>
 
@@ -1157,7 +1157,7 @@ export default function Employees() {
           placeholder={isWorker ? 'Employee ID (e.g. WT001 or WL001)' : 'Employee ID (numeric)'}
           value={values.employee_no}
           onChange={(e) => setValues({ ...values, employee_no: e.target.value })}
-          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+          className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
         />
 
         {isWorker && (
@@ -1172,7 +1172,7 @@ export default function Employees() {
             required
             value={values.status}
             onChange={(e) => setValues({ ...values, status: e.target.value })}
-            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+            className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
           >
             {STATUS_OPTIONS.map((status) => (
               <option key={status} value={status}>
@@ -1187,7 +1187,7 @@ export default function Employees() {
           placeholder="Job title"
           value={values.title}
           onChange={(e) => setValues({ ...values, title: e.target.value })}
-          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+          className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
         />
 
         <select
@@ -1195,7 +1195,7 @@ export default function Employees() {
           value={departmentValue || ''}
           onChange={(e) => setValues({ ...values, department: e.target.value })}
           disabled={mode === 'add' && !isAdmin}
-          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink disabled:opacity-60 disabled:cursor-not-allowed"
+          className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <option value="" disabled>
             Select Department
@@ -1221,7 +1221,7 @@ export default function Employees() {
         )}
 
         {mode === 'add' && !isAdmin && profile?.department && (
-          <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
+          <p className="text-xs text-muted bg-[#F6F9FE] border border-border rounded-lg px-3 py-2">
             As a manager, you can only add employees to your department:{' '}
             <span className="text-ink font-medium">{profile.department}</span>
           </p>
@@ -1240,7 +1240,7 @@ export default function Employees() {
                 onChange={(e) =>
                   setValues({ ...values, date_of_birth: e.target.value })
                 }
-                className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
               />
             </div>
           )}
@@ -1257,7 +1257,7 @@ export default function Employees() {
                   ? updateFormIdentityType(e.target.value)
                   : updateEditIdentityType(e.target.value)
               }
-              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+              className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
             >
               <option value="IC">Malaysian IC</option>
               <option value="Passport">Passport</option>
@@ -1278,7 +1278,7 @@ export default function Employees() {
               ),
             })
           }
-          className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+          className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
         />
 
         {!isWorker && (
@@ -1289,10 +1289,10 @@ export default function Employees() {
               placeholder="Monthly salary"
               value={values.salary}
               onChange={(e) => setValues({ ...values, salary: e.target.value })}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+              className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
             />
 
-            <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
+            <p className="text-xs text-muted bg-[#F6F9FE] border border-border rounded-lg px-3 py-2">
               Payslip PDF password will be birthday YYMMDD + last 4 digits/chars.
               Example: 9508201234
             </p>
@@ -1305,14 +1305,14 @@ export default function Employees() {
             placeholder="Phone"
             value={values.phone}
             onChange={(e) => setValues({ ...values, phone: e.target.value })}
-            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+            className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
           />
 
           <select
             required
             value={values.location}
             onChange={(e) => setValues({ ...values, location: e.target.value })}
-            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+            className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
           >
             <option value="" disabled>
               Select Location
@@ -1328,7 +1328,7 @@ export default function Employees() {
 
         {!isWorker && (
           <>
-          <div className="grid grid-cols-1 gap-3 border-t border-white/10 pt-3">
+          <div className="grid grid-cols-1 gap-3 border-t border-border pt-3">
             <p className="text-xs font-semibold text-muted uppercase tracking-wide">
               Emergency Contact & Bank Info
             </p>
@@ -1336,20 +1336,20 @@ export default function Employees() {
             placeholder="Address"
             value={values.address}
             onChange={(e) => setValues({ ...values, address: e.target.value })}
-            className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+            className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               placeholder="Bank name"
               value={values.bank_name}
               onChange={(e) => setValues({ ...values, bank_name: e.target.value })}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+              className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
             />
             <input
               placeholder="Bank account no"
               value={values.bank_account_no}
               onChange={(e) => setValues({ ...values, bank_account_no: e.target.value })}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+              className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1357,19 +1357,19 @@ export default function Employees() {
               placeholder="EPF no"
               value={values.epf_no}
               onChange={(e) => setValues({ ...values, epf_no: e.target.value })}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+              className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
             />
             <input
               placeholder="SOCSO no"
               value={values.socso_no}
               onChange={(e) => setValues({ ...values, socso_no: e.target.value })}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+              className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
             />
             <input
               placeholder="Income tax no"
               value={values.income_tax_no}
               onChange={(e) => setValues({ ...values, income_tax_no: e.target.value })}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+              className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1377,26 +1377,26 @@ export default function Employees() {
               placeholder="Emergency contact name"
               value={values.emergency_contact_name}
               onChange={(e) => setValues({ ...values, emergency_contact_name: e.target.value })}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+              className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
             />
             <input
               placeholder="Relationship"
               value={values.emergency_contact_relationship}
               onChange={(e) => setValues({ ...values, emergency_contact_relationship: e.target.value })}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+              className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
             />
             <input
               placeholder="Emergency phone"
               value={values.emergency_contact_phone}
               onChange={(e) => setValues({ ...values, emergency_contact_phone: e.target.value })}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+              className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <select
               value={values.marital_status}
               onChange={(e) => setValues({ ...values, marital_status: e.target.value })}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
+              className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 text-ink"
             >
               <option value="">Marital status</option>
               <option value="single">Single</option>
@@ -1410,12 +1410,12 @@ export default function Employees() {
               placeholder="No. of children"
               value={values.number_of_children}
               onChange={(e) => setValues({ ...values, number_of_children: e.target.value })}
-              className="w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+              className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
             />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 border-t border-white/10 pt-3">
+        <div className="grid grid-cols-1 gap-3 border-t border-border pt-3">
           <p className="text-xs font-semibold text-muted uppercase tracking-wide">
             Expiry / Alert Dates
           </p>
@@ -1435,7 +1435,7 @@ export default function Employees() {
                 onChange={(e) =>
                   setValues({ ...values, [key]: e.target.value })
                 }
-                className="mt-1 w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
+                className="mt-1 w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50"
               />
             </label>
           ))}
@@ -1463,7 +1463,7 @@ export default function Employees() {
       }`;
 
     return (
-      <div className="rounded-xl border border-white/10 bg-surface p-4">
+      <div className="rounded-xl border border-border bg-surface p-4">
         <div className="flex items-center justify-between">
           <p className="text-xs font-semibold text-muted uppercase tracking-wide">
             Feature Access
@@ -1488,17 +1488,17 @@ export default function Employees() {
             return (
               <div
                 key={flag.key}
-                className="flex items-center justify-between py-2 border-b border-white/5 last:border-0"
+                className="flex items-center justify-between py-2 border-b border-border last:border-0"
               >
                 <span className="text-sm text-ink">{flagLabel(flag.key)}</span>
 
-                <div className="flex gap-1 rounded-lg bg-white/5 p-1">
+                <div className="flex gap-1 rounded-lg bg-[#EEF2F9] p-1">
                   <button
                     type="button"
                     onClick={() => setAccess(flag.key, null)}
                     className={segmentClass(
                       current === null,
-                      'bg-white/10 text-ink'
+                      'bg-surface text-ink shadow-sm'
                     )}
                   >
                     Default
@@ -1508,7 +1508,7 @@ export default function Employees() {
                     onClick={() => setAccess(flag.key, true)}
                     className={segmentClass(
                       current === true,
-                      'bg-emerald-500/20 text-emerald-300'
+                      'bg-[#E7F6EC] text-[#16A34A]'
                     )}
                   >
                     Allow
@@ -1518,7 +1518,7 @@ export default function Employees() {
                     onClick={() => setAccess(flag.key, false)}
                     className={segmentClass(
                       current === false,
-                      'bg-rose-500/20 text-rose-300'
+                      'bg-accent-soft text-accent'
                     )}
                   >
                     Block
@@ -1550,7 +1550,7 @@ export default function Employees() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] transition-all"
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-primary-soft transition-all"
                   >
                     <Upload size={16} />
                     Import CSV
@@ -1559,7 +1559,7 @@ export default function Employees() {
                   <button
                     type="button"
                     onClick={downloadEmployeeTemplate}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] transition-all"
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-primary-soft transition-all"
                   >
                     <FileText size={16} />
                     Template
@@ -1579,7 +1579,7 @@ export default function Employees() {
                 type="button"
                 onClick={handleExportCsv}
                 disabled={filtered.length === 0}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-ink hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50 transition-all"
               >
                 <Download size={16} />
                 Export CSV
@@ -1588,7 +1588,7 @@ export default function Employees() {
               <button
                 type="button"
                 onClick={handleOpenAdd}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] transition-all"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white px-4 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] transition-all"
               >
                 <UserPlus size={16} />
                 Add Employee
@@ -1609,14 +1609,14 @@ export default function Employees() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, role, title…"
-            className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
+            className="w-full bg-surface border border-border rounded-xl pl-10 pr-3 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all"
           />
         </div>
 
         <select
           value={deptFilter}
           onChange={(e) => setDeptFilter(e.target.value)}
-          className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50 transition-all"
+          className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50 transition-all"
         >
           {departments.map((d) => (
             <option key={d} value={d}>
@@ -1625,7 +1625,7 @@ export default function Employees() {
           ))}
         </select>
 
-        <div className="flex gap-1 bg-surface border border-white/10 rounded-xl p-1">
+        <div className="flex gap-1 bg-surface border border-border rounded-xl p-1">
           <button
             type="button"
             onClick={() => setView('grid')}
@@ -1670,7 +1670,7 @@ export default function Employees() {
                   }}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent grid place-items-center font-bold shrink-0">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-accent grid place-items-center font-bold text-white shrink-0">
                       {initials(emp.name)}
                     </div>
 
@@ -1712,7 +1712,7 @@ export default function Employees() {
         <div className="glass rounded-2xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-white/5">
+              <tr className="text-left text-muted text-xs uppercase tracking-wider border-b border-border bg-surface-2">
                 <th className="px-5 py-3.5 font-medium">Employee</th>
                 <th className="px-5 py-3.5 font-medium">Role</th>
                 <th className="px-5 py-3.5 font-medium">Department</th>
@@ -1730,11 +1730,11 @@ export default function Employees() {
                     setSelected(emp);
                     setTab('info');
                   }}
-                  className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] cursor-pointer transition-all"
+                  className="border-b border-border last:border-0 hover:bg-primary-soft/50 even:bg-[#FAFBFE] cursor-pointer transition-all"
                 >
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center text-xs font-bold shrink-0">
+                      <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center text-xs font-bold text-white shrink-0">
                         {initials(emp.name)}
                       </div>
 
@@ -1790,7 +1790,7 @@ export default function Employees() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 z-50"
+              className="fixed inset-0 bg-[#14264E]/40 z-50"
               onClick={() => setSelected(null)}
             />
 
@@ -1799,7 +1799,7 @@ export default function Employees() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="fixed right-0 top-0 h-screen w-full max-w-md glass-solid border-l border-white/10 z-50 overflow-y-auto scrollbar-thin"
+              className="fixed right-0 top-0 h-screen w-full max-w-md glass-solid border-l border-border z-50 overflow-y-auto scrollbar-thin"
             >
               <div className="p-6">
                 <button
@@ -1811,7 +1811,7 @@ export default function Employees() {
                 </button>
 
                 <div className="flex flex-col items-center text-center">
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent grid place-items-center text-2xl font-bold shadow-xl shadow-primary/30">
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent grid place-items-center text-2xl font-bold text-white shadow-xl shadow-primary/30">
                     {initials(selected.name)}
                   </div>
 
@@ -1846,7 +1846,7 @@ export default function Employees() {
                       <button
                         type="button"
                         onClick={() => handleOpenEdit(selected)}
-                        className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-ink hover:bg-white/10 transition-all"
+                        className="flex items-center justify-center gap-2 rounded-xl border border-border bg-[#EEF2F9] px-4 py-2.5 text-sm font-semibold text-ink hover:bg-primary-soft transition-all"
                       >
                         <Pencil size={16} />
                         Edit Profile
@@ -1872,7 +1872,7 @@ export default function Employees() {
                   )}
                 </div>
 
-                <div className="flex gap-1 bg-surface border border-white/10 rounded-xl p-1 mt-6">
+                <div className="flex gap-1 bg-surface border border-border rounded-xl p-1 mt-6">
                   {(['info', 'documents', 'performance'] as const).map((t) => (
                     <button
                       type="button"
@@ -1996,13 +1996,13 @@ export default function Employees() {
                               value={documentTitle}
                               onChange={(e) => setDocumentTitle(e.target.value)}
                               placeholder="Document title"
-                              className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+                              className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
                             />
 
                             <select
                               value={documentType}
                               onChange={(e) => setDocumentType(e.target.value)}
-                              className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+                              className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
                             >
                               {DOCUMENT_TYPES.map((type) => (
                                 <option key={type} value={type}>
@@ -2016,7 +2016,7 @@ export default function Employees() {
                               onChange={(e) =>
                                 setDocumentVisibility(e.target.value)
                               }
-                              className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+                              className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
                             >
                               <option value="hr_only">HR/Admin only</option>
                               <option value="employee_visible">Employee visible</option>
@@ -2027,7 +2027,7 @@ export default function Employees() {
                               onChange={(e) =>
                                 setDocumentFile(e.target.files?.[0] ?? null)
                               }
-                              className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+                              className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
                             />
                           </div>
 
@@ -2085,7 +2085,7 @@ export default function Employees() {
                                   <button
                                     type="button"
                                     onClick={() => openEmployeeDocument(doc)}
-                                    className="rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                                    className="rounded-lg border border-border bg-[#EEF2F9] p-2 hover:bg-primary-soft"
                                     title="Open private document"
                                   >
                                     <Download size={13} />
@@ -2114,7 +2114,7 @@ export default function Employees() {
                     <div className="space-y-3">
                       <Link
                         to={`/performance?tab=evaluation&view=rules&employee=${selected.id}`}
-                        className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm hover:border-primary/50 transition-colors"
+                        className="flex items-center justify-between rounded-xl border border-border bg-[#F6F9FE] px-4 py-3 text-sm hover:border-primary/50 transition-colors"
                       >
                         <span className="font-medium">Evaluation rules</span>
                         <span className="text-primary">Configure →</span>
@@ -2135,7 +2135,7 @@ export default function Employees() {
                             </span>
                           </div>
 
-                          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                          <div className="h-1.5 bg-[#EEF2F9] rounded-full overflow-hidden">
                             <motion.div
                               initial={{ width: 0 }}
                               animate={{ width: `${pct}%` }}
@@ -2161,7 +2161,7 @@ export default function Employees() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 z-50"
+              className="fixed inset-0 bg-[#14264E]/40 z-50"
               onClick={() => setShowAdd(false)}
             />
 
@@ -2202,7 +2202,7 @@ export default function Employees() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold mt-2 disabled:opacity-60"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white py-2.5 text-sm font-semibold mt-2 disabled:opacity-60"
                   >
                     {saving ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -2224,7 +2224,7 @@ export default function Employees() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 z-50"
+              className="fixed inset-0 bg-[#14264E]/40 z-50"
               onClick={() => setShowEdit(false)}
             />
 
@@ -2265,7 +2265,7 @@ export default function Employees() {
                   <button
                     type="submit"
                     disabled={savingEdit}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold mt-2 disabled:opacity-60"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white py-2.5 text-sm font-semibold mt-2 disabled:opacity-60"
                   >
                     {savingEdit ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -2290,7 +2290,7 @@ export default function Employees() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 z-50"
+              className="fixed inset-0 bg-[#14264E]/40 z-50"
               onClick={() => setShowImport(false)}
             />
 
@@ -2321,7 +2321,7 @@ export default function Employees() {
                 {importResults ? (
                   <>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                      <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                      <div className="rounded-xl bg-[#EEF2F9] border border-border p-3">
                         <p className="text-xs text-muted">Total</p>
                         <p className="font-bold text-lg">{importResults.total}</p>
                       </div>
@@ -2331,7 +2331,7 @@ export default function Employees() {
                           {importResults.inserted}
                         </p>
                       </div>
-                      <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                      <div className="rounded-xl bg-[#EEF2F9] border border-border p-3">
                         <p className="text-xs text-muted">Skipped</p>
                         <p className="font-bold text-lg">
                           {importResults.skipped}
@@ -2369,7 +2369,7 @@ export default function Employees() {
                               {accountResults.created}
                             </p>
                           </div>
-                          <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                          <div className="rounded-xl bg-[#EEF2F9] border border-border p-3">
                             <p className="text-xs text-muted">Skipped</p>
                             <p className="font-bold text-lg">
                               {accountResults.skipped}
@@ -2389,7 +2389,7 @@ export default function Employees() {
                               Temporary passwords — share these once. Employees
                               can change them after first login.
                             </p>
-                            <div className="rounded-xl bg-white/5 border border-white/10 p-3 max-h-56 overflow-y-auto space-y-1.5">
+                            <div className="rounded-xl bg-[#EEF2F9] border border-border p-3 max-h-56 overflow-y-auto space-y-1.5">
                               {accountResults.createdRows.map((row) => (
                                 <div
                                   key={row.email}
@@ -2449,7 +2449,7 @@ export default function Employees() {
                         setAccountResults(null);
                         setImportRows([]);
                       }}
-                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold"
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white py-2.5 text-sm font-semibold"
                     >
                       Done
                     </button>
@@ -2461,7 +2461,7 @@ export default function Employees() {
                       and confirm import.
                     </p>
 
-                    <div className="rounded-xl bg-white/5 border border-white/10 p-3 mb-4 max-h-48 overflow-y-auto">
+                    <div className="rounded-xl bg-[#EEF2F9] border border-border p-3 mb-4 max-h-48 overflow-y-auto">
                       {importRows.slice(0, 50).map((row, index) => (
                         <p key={index} className="text-xs text-muted py-1">
                           Row {index + 2} · {row.name || row.Name || '—'}
@@ -2481,7 +2481,7 @@ export default function Employees() {
                       type="button"
                       onClick={handleImportSubmit}
                       disabled={importing}
-                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-2.5 text-sm font-semibold disabled:opacity-60"
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white py-2.5 text-sm font-semibold disabled:opacity-60"
                     >
                       {importing ? (
                         <Loader2 size={16} className="animate-spin" />

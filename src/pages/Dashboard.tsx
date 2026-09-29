@@ -304,7 +304,7 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={fetchDashboard}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-white/[0.05]"
+            className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
             Refresh
@@ -328,7 +328,7 @@ export default function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {latestAnnouncements.map((item) => (
-                <div key={item.id} className="rounded-xl bg-surface border border-white/10 p-4">
+                <div key={item.id} className="rounded-xl bg-surface border border-border p-4">
                   <div className="flex flex-wrap gap-2 mb-2">
                     {item.pinned && <Badge tone="warning">Pinned</Badge>}
                     <Badge tone="info">{item.category}</Badge>
@@ -349,7 +349,7 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-2">
               {pendingLeave.slice(0, 6).map((request) => (
-                <div key={request.id} className="rounded-xl bg-surface border border-white/10 p-3">
+                <div key={request.id} className="rounded-xl bg-surface border border-border p-3">
                   <div className="flex justify-between gap-3">
                     <div>
                       <p className="font-semibold text-sm">
@@ -381,7 +381,7 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-2">
               {upcomingHolidays.map((holiday) => (
-                <div key={holiday.id} className="rounded-xl bg-surface border border-white/10 p-3">
+                <div key={holiday.id} className="rounded-xl bg-surface border border-border p-3">
                   <div className="flex justify-between gap-3">
                     <div>
                       <p className="font-semibold text-sm">{holiday.name}</p>
@@ -406,7 +406,7 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-2">
               {upcomingBirthdays.map(({ employee, key }) => (
-                <div key={employee.id} className="rounded-xl bg-surface border border-white/10 p-3 flex items-center gap-3">
+                <div key={employee.id} className="rounded-xl bg-surface border border-border p-3 flex items-center gap-3">
                   <div className="w-9 h-9 rounded-lg bg-primary/15 text-primary grid place-items-center">
                     <Cake size={16} />
                   </div>
@@ -429,7 +429,7 @@ export default function Dashboard() {
               {expiryAlerts.map((item) => (
                 <div
                   key={`${item.employee.id}-${item.label}-${item.date}`}
-                  className="rounded-xl bg-surface border border-white/10 p-3"
+                  className="rounded-xl bg-surface border border-border p-3"
                 >
                   <div className="flex justify-between gap-3">
                     <div>
@@ -457,7 +457,7 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-2">
               {currentPayroll.slice(0, 6).map((record) => (
-                <div key={record.id} className="rounded-xl bg-surface border border-white/10 p-3">
+                <div key={record.id} className="rounded-xl bg-surface border border-border p-3">
                   <div className="flex justify-between gap-3">
                     <div>
                       <p className="font-semibold text-sm">

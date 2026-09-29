@@ -115,7 +115,7 @@ export default function MonthlyReports() {
             <div className="flex gap-2">
               <button
                 onClick={fetchReport}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold"
+                className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold"
               >
                 <RefreshCw size={16} /> Refresh
               </button>
@@ -140,7 +140,7 @@ export default function MonthlyReports() {
             type="month"
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
-            className="no-print bg-surface border border-white/10 rounded-xl px-3 py-2.5 mt-1"
+            className="no-print bg-surface border border-border rounded-xl px-3 py-2.5 mt-1"
           />
           <p className="hidden print:block font-bold text-lg">{period}</p>
         </div>
@@ -165,7 +165,7 @@ export default function MonthlyReports() {
             {report.holidays.map((holiday) => (
               <div
                 key={holiday.id}
-                className="rounded-xl bg-surface border border-white/10 p-3 flex justify-between print-card"
+                className="rounded-xl bg-surface border border-border p-3 flex justify-between print-card"
               >
                 <div>
                   <p className="font-semibold text-sm">{holiday.name}</p>
@@ -183,7 +183,7 @@ export default function MonthlyReports() {
       </div>
 
       <p className="hidden print:block text-xs text-slate-500 mt-6 text-center">
-        This report is generated from WtecHR and is intended for internal management use only.
+        This report is generated from WTEC HR and is intended for internal management use only.
       </p>
     </div>
   );

@@ -256,39 +256,39 @@ export default function HrLetters() {
   if (error) return <ErrorState message={error} onRetry={fetchAll} />;
 
   return <div>
-    <PageHeader title="HR Letters Generator" subtitle="Generate, save, print and email common HR letters." action={<button onClick={fetchAll} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold"><RefreshCw size={16}/>Refresh</button>} />
+    <PageHeader title="HR Letters Generator" subtitle="Generate, save, print and email common HR letters." action={<button onClick={fetchAll} className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold"><RefreshCw size={16}/>Refresh</button>} />
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
       <div className="space-y-6">
         {/* Single letter form */}
         <form onSubmit={saveLetter} className="glass rounded-2xl p-5 space-y-3">
-          <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5"><option value="">Select employee</option>{employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select>
-          <select value={templateType} onChange={(e) => setTemplateType(e.target.value)} className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5">{TEMPLATE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
-          <button type="button" onClick={generate} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold">Generate Template</button>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Letter title" className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5" />
-          <textarea rows={12} value={content} onChange={(e) => setContent(e.target.value)} className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 resize-none" />
+          <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className="w-full bg-surface border border-border rounded-xl px-3 py-2.5"><option value="">Select employee</option>{employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select>
+          <select value={templateType} onChange={(e) => setTemplateType(e.target.value)} className="w-full bg-surface border border-border rounded-xl px-3 py-2.5">{TEMPLATE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
+          <button type="button" onClick={generate} className="rounded-xl border border-border bg-[#EEF2F9] px-4 py-2.5 text-sm font-semibold">Generate Template</button>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Letter title" className="w-full bg-surface border border-border rounded-xl px-3 py-2.5" />
+          <textarea rows={12} value={content} onChange={(e) => setContent(e.target.value)} className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 resize-none" />
           {message && <p className={`text-sm ${message.includes('success') || message.includes('Generated') || message.includes('Sent') || message.includes('detected') ? 'text-emerald' : 'text-rose'}`}>{message}</p>}
-          <div className="flex gap-2 justify-end"><button type="button" onClick={() => printContent()} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5"><Printer size={16}/>Print</button><button disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-white disabled:opacity-50">{saving ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>}Save</button></div>
+          <div className="flex gap-2 justify-end"><button type="button" onClick={() => printContent()} className="inline-flex items-center gap-2 rounded-xl border border-border bg-[#EEF2F9] px-4 py-2.5"><Printer size={16}/>Print</button><button disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-white disabled:opacity-50">{saving ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>}Save</button></div>
         </form>
 
         {/* Salary Increment bulk import */}
         <div className="glass rounded-2xl p-5 space-y-3">
           <h3 className="font-display font-semibold">Bulk Generate — Salary Increment Letters</h3>
           <p className="text-xs text-muted">Upload .xlsx/.csv with columns: <code>employee_no</code> (or <code>email</code>), optional <code>new_salary</code>, <code>effective_date</code>. One row per employee.</p>
-          <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold cursor-pointer hover:bg-white/10">
+          <label className="inline-flex items-center gap-2 rounded-xl border border-border bg-[#EEF2F9] px-4 py-2.5 text-sm font-semibold cursor-pointer hover:bg-primary-soft">
             {importing ? <Loader2 size={16} className="animate-spin"/> : <Upload size={16}/>}
             Choose File
             <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} className="hidden" />
           </label>
 
           {parsedRows.length > 0 && (
-            <div className="rounded-xl border border-white/10 overflow-hidden">
+            <div className="rounded-xl border border-border overflow-hidden">
               <div className="max-h-52 overflow-y-auto text-xs">
                 <table className="w-full">
-                  <thead className="bg-white/5 sticky top-0"><tr><th className="p-2 text-left">Row</th><th className="p-2 text-left">Employee No / Email</th><th className="p-2 text-left">Matched</th><th className="p-2 text-left">New Salary</th><th className="p-2 text-left">Effective</th></tr></thead>
+                  <thead className="bg-surface-2 sticky top-0"><tr><th className="p-2 text-left">Row</th><th className="p-2 text-left">Employee No / Email</th><th className="p-2 text-left">Matched</th><th className="p-2 text-left">New Salary</th><th className="p-2 text-left">Effective</th></tr></thead>
                   <tbody>
                     {parsedRows.map(r => {
                       const emp = findEmployeeForRow(r);
-                      return <tr key={r.rowNumber} className="border-t border-white/5">
+                      return <tr key={r.rowNumber} className="border-t border-border even:bg-[#FAFBFE]">
                         <td className="p-2">{r.rowNumber}</td>
                         <td className="p-2">{r.employee_no || r.email}</td>
                         <td className={`p-2 ${emp ? 'text-emerald' : 'text-rose'}`}>{emp ? emp.name : '✗ not found'}</td>
@@ -332,7 +332,7 @@ export default function HrLetters() {
             </button>
           </div>
         </div>
-        {letters.length===0?<EmptyState label="No letters generated yet."/>:<div className="space-y-2 max-h-[760px] overflow-y-auto">{letters.map(l=><div key={l.id} className={`rounded-xl border p-4 ${selectedIds.has(l.id) ? 'border-primary/50 bg-primary/5' : 'border-white/10 bg-surface'}`}>
+        {letters.length===0?<EmptyState label="No letters generated yet."/>:<div className="space-y-2 max-h-[760px] overflow-y-auto">{letters.map(l=><div key={l.id} className={`rounded-xl border p-4 ${selectedIds.has(l.id) ? 'border-primary/50 bg-primary-soft' : 'border-border bg-surface'}`}>
           <div className="flex justify-between gap-3">
             <div className="flex items-start gap-2">
               <input type="checkbox" checked={selectedIds.has(l.id)} onChange={() => toggleSelect(l.id)} className="mt-1" />
@@ -341,8 +341,8 @@ export default function HrLetters() {
             <Badge tone={l.status === 'sent' ? 'success' : 'info'}>{l.status === 'sent' ? 'Sent' : l.template_type.split(' ')[0]}</Badge>
           </div>
           <div className="flex gap-2 mt-3">
-            <button onClick={()=>sendLetters([l.id])} disabled={sending} title="Email this letter" className="rounded-lg border border-white/10 bg-white/5 p-2 disabled:opacity-50"><Send size={14}/></button>
-            <button onClick={()=>printContent(l)} className="rounded-lg border border-white/10 bg-white/5 p-2"><Printer size={14}/></button>
+            <button onClick={()=>sendLetters([l.id])} disabled={sending} title="Email this letter" className="rounded-lg border border-border bg-[#EEF2F9] p-2 disabled:opacity-50"><Send size={14}/></button>
+            <button onClick={()=>printContent(l)} className="rounded-lg border border-border bg-[#EEF2F9] p-2"><Printer size={14}/></button>
             <button onClick={()=>deleteLetter(l)} className="rounded-lg border border-rose/20 bg-rose/10 p-2 text-rose"><Trash2 size={14}/></button>
           </div>
         </div>)}</div>}

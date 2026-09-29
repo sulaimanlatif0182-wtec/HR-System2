@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Lock, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Lock, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react';
 import supabase from '../lib/supabase';
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 
@@ -57,22 +57,16 @@ export default function ResetPassword() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-bg text-ink flex items-center justify-center px-4 py-10">
-      <div className="absolute inset-0 grid-noise opacity-40" />
-      <div className="absolute -top-40 -left-40 w-[520px] h-[520px] rounded-full bg-primary/30 blur-[140px]" />
-      <div className="absolute -bottom-40 -right-20 w-[480px] h-[480px] rounded-full bg-accent/20 blur-[140px]" />
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #F4F7FC, #E8EFFA)' }} />
+      <div className="absolute inset-0 hex-pattern" />
 
       <motion.div
         initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
-        className="relative z-10 glass rounded-3xl p-7 sm:p-9 shadow-2xl shadow-black/40 w-full max-w-md"
+        className="relative z-10 bg-surface rounded-3xl border border-border p-7 sm:p-9 shadow-card w-full max-w-md"
       >
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent grid place-items-center">
-            <Sparkles size={18} className="text-white" />
-          </div>
-          <span className="font-display text-xl font-bold">
-            Wtec<span className="text-gradient">HR</span>
-          </span>
+        <div className="flex flex-col items-center gap-2 mb-6 text-center">
+          <img src="/wtec-logo.svg" alt="WTEC" className="h-12 w-auto" />
         </div>
 
         {done ? (
@@ -96,7 +90,7 @@ export default function ResetPassword() {
             </p>
             <button
               onClick={() => navigate('/login')}
-              className="rounded-xl bg-gradient-to-r from-primary to-primary-2 px-5 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30"
+              className="rounded-xl bg-primary hover:bg-[#0F3475] text-white px-5 py-2.5 text-sm font-semibold shadow-card transition-all"
             >
               Back to sign in
             </button>
@@ -107,7 +101,7 @@ export default function ResetPassword() {
               <ShieldCheck size={18} className="text-primary" />
               <h2 className="font-display text-xl font-bold">Set a new password</h2>
             </div>
-            <p className="text-muted text-sm mb-6">Choose a strong password for your WtecHR account.</p>
+            <p className="text-muted text-sm mb-6">Choose a strong password for your WTEC account.</p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="text-xs text-muted mb-1.5 block">New password</label>
@@ -118,7 +112,7 @@ export default function ResetPassword() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="At least 6 characters"
-                    className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-3 py-3 text-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all"
+                    className="w-full bg-[#F6F9FE] border border-border rounded-xl pl-10 pr-3 py-3 text-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all"
                   />
                 </div>
               </div>
@@ -131,7 +125,7 @@ export default function ResetPassword() {
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
                     placeholder="Repeat new password"
-                    className="w-full bg-surface border border-white/10 rounded-xl pl-10 pr-3 py-3 text-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all"
+                    className="w-full bg-[#F6F9FE] border border-border rounded-xl pl-10 pr-3 py-3 text-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20 transition-all"
                   />
                 </div>
               </div>
@@ -148,7 +142,7 @@ export default function ResetPassword() {
               <button
                 type="submit"
                 disabled={busy}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 py-3 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-60"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white py-3 text-sm font-semibold shadow-card active:scale-[0.99] transition-all disabled:opacity-60"
               >
                 {busy ? <Loader2 size={16} className="animate-spin" /> : 'Update password'}
               </button>

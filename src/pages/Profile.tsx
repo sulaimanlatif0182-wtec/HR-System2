@@ -163,7 +163,7 @@ export default function Profile() {
   const role = profile?.role ?? 'employee';
 
   const inputCls =
-    'w-full bg-surface border border-white/10 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all';
+    'w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition-all';
 
   return (
     <div>
@@ -174,7 +174,7 @@ export default function Profile() {
         initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}
         className="glass rounded-2xl p-6 mb-6 flex flex-col sm:flex-row items-center gap-5"
       >
-        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent grid place-items-center text-2xl font-bold shadow-xl shadow-primary/30 shrink-0">
+        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent grid place-items-center text-2xl font-bold text-white shadow-xl shadow-primary/30 shrink-0">
           {initials(displayName)}
         </div>
         <div className="text-center sm:text-left">
@@ -305,7 +305,7 @@ export default function Profile() {
               <button
                 type="submit"
                 disabled={savingInfo}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-2 px-5 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] transition-all disabled:opacity-60"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-[#0F3475] text-white px-5 py-2.5 text-sm font-semibold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.01] transition-all disabled:opacity-60"
                 >
                   {savingInfo ? <Loader2 size={15} className="animate-spin" /> : 'Save changes'}
                 </button>
@@ -347,7 +347,7 @@ export default function Profile() {
               </div>
             </div>
 
-            <div className="bg-white/[0.03] border border-white/10 rounded-xl px-3.5 py-3 space-y-1.5">
+            <div className="bg-[#F6F9FE] border border-border rounded-xl px-3.5 py-3 space-y-1.5">
               <p className="text-[11px] text-muted font-medium mb-1 flex items-center gap-1.5">
                 <ShieldCheck size={12} className="text-primary" /> Password requirements
               </p>
@@ -384,7 +384,7 @@ export default function Profile() {
             <button
               type="submit"
               disabled={savingPw}
-              className="flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 px-5 py-2.5 text-sm font-semibold hover:bg-white/10 transition-all disabled:opacity-60"
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#EEF2F9] border border-border px-5 py-2.5 text-sm font-semibold hover:bg-primary-soft transition-all disabled:opacity-60"
             >
               {savingPw ? <Loader2 size={15} className="animate-spin" /> : 'Update password'}
             </button>

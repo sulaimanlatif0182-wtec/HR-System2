@@ -2,23 +2,42 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #07070d;
-  --color-bg-soft: #0d0e1a;
-  --color-surface: #12131f;
-  --color-surface-2: #191a2c;
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-primary: #8b5cf6;
-  --color-primary-2: #6d28d9;
-  --color-accent: #22d3ee;
-  --color-amber: #fbbf24;
-  --color-rose: #fb7185;
-  --color-emerald: #34d399;
-  --color-ink: #f4f3fb;
-  --color-muted: #9391ab;
+  /* Brand */
+  --color-primary:   #17479D;  /* WTEC Blue — buttons, links, active nav */
+  --color-primary-2: #2E6BC4;  /* lighter brand blue — gradients, hover partners */
+  --color-accent:    #D71921;  /* WTEC Red — badges, alerts, key highlights */
+
+  /* Light surfaces */
+  --color-bg:      #F4F7FC;    /* app background: light blue-tinted white */
+  --color-bg-soft: #E8EFFA;    /* soft tinted surface */
+  --color-surface: #FFFFFF;    /* cards, sidebar, tables */
+  --color-surface-2: #F1F5FB;  /* table headers, sunken wells */
+  --color-border:  #E2E8F4;    /* hairline borders & dividers */
+  --color-ink:     #14264E;    /* primary text: deep brand navy */
+  --color-muted:   #5D6C85;    /* secondary text: blue-gray */
+
+  /* Semantic colors (bright-theme friendly) */
+  --color-amber:   #D97706;
+  --color-rose:    #D71921;
+  --color-emerald: #16A34A;
+  --color-success: #16A34A;
+  --color-warning: #D97706;
+  --color-info:    #0EA5E9;
+  --color-danger:  #D71921;
+
+  /* Utility tints */
+  --color-primary-soft: #E8EFFA;  /* active-nav pill / selected row / soft badge bg */
+  --color-accent-soft:  #FDECEC;  /* soft red badge bg */
+
+  --shadow-card: 0 1px 2px rgba(20, 38, 78, 0.05), 0 8px 24px rgba(20, 38, 78, 0.07);
 
   --font-display: 'Sora', sans-serif;
   --font-sans: 'Plus Jakarta Sans', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+}
+
+:root {
+  color-scheme: light;
 }
 
 html, body {
@@ -34,11 +53,18 @@ html, body {
 
 body {
   min-height: 100vh;
-  background-image:
-    radial-gradient(ellipse 80% 50% at 15% -10%, rgba(139, 92, 246, 0.25), transparent),
-    radial-gradient(ellipse 60% 50% at 100% 0%, rgba(34, 211, 238, 0.15), transparent),
-    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(139, 92, 246, 0.08), transparent);
+  background-image: linear-gradient(180deg, #FFFFFF 0%, #F4F7FC 240px);
   background-attachment: fixed;
+}
+
+::selection {
+  background: #17479D;
+  color: #ffffff;
+}
+
+:focus-visible {
+  outline: 2px solid #2E6BC4;
+  outline-offset: 2px;
 }
 
 ::-webkit-scrollbar {
@@ -46,14 +72,14 @@ body {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #EDF1F8;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.35);
+  background: #C6D2E4;
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 92, 246, 0.55);
+  background: #2E6BC4;
 }
 
 .font-display {
@@ -64,7 +90,7 @@ body {
 }
 
 .glass {
-  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
+  background: rgba(255, 255, 255, 0.75);
   border: 1px solid var(--color-border);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -73,19 +99,41 @@ body {
 .glass-solid {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
 }
 
 .text-gradient {
-  background: linear-gradient(120deg, #c4b5fd, #67e8f9 65%, #fbbf24 100%);
+  background: linear-gradient(90deg, #17479D, #3B82D6);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
 .grid-noise {
-  background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(20, 38, 78, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 38, 78, 0.05) 1px, transparent 1px);
   background-size: 42px 42px;
+}
+
+/* Faint brand hexagon texture for auth backdrops (#17479D at ~5% opacity) */
+.hex-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='62' viewBox='0 0 72 62'%3E%3Cg fill='none' stroke='%2317479D' stroke-opacity='0.09' stroke-width='1.5'%3E%3Cpath d='M18 2l14 8v16l-14 8-14-8V10z'/%3E%3Cpath d='M54 28l14 8v16l-14 8-14-8V36z'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 72px 62px;
+}
+
+/* Active sidebar item: soft blue pill + brand-blue left bar */
+.nav-active {
+  position: relative;
+}
+.nav-active::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--color-primary);
 }
 
 .scrollbar-thin {
@@ -93,8 +141,8 @@ body {
 }
 
 input:-webkit-autofill {
-  -webkit-box-shadow: 0 0 0 1000px #12131f inset !important;
-  -webkit-text-fill-color: #f4f3fb !important;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #14264E !important;
 }
 
 @keyframes float-slow {
@@ -147,7 +195,7 @@ input:-webkit-autofill {
     max-width: 100% !important;
   }
 
-  /* Cards: white with light borders instead of dark glass */
+  /* Cards: white with light borders */
   .glass,
   .glass-solid {
     background: #ffffff !important;
@@ -181,53 +229,4 @@ input:-webkit-autofill {
   button, input, select, textarea {
     display: none !important;
   }
-}
-
-/* ── Print styles (Dashboard "Print / Save as PDF" export) ── */
-@media print {
-  body {
-    background: #ffffff !important;
-    background-image: none !important;
-    color: #111 !important;
-  }
-  aside, header, button {
-    display: none !important;
-  }
-  main {
-    padding: 0 !important;
-    max-width: 100% !important;
-  }
-  .glass, .glass-solid {
-    background: #f6f6fa !important;
-    border: 1px solid #ddd !important;
-    box-shadow: none !important;
-    break-inside: avoid;
-  }
-  .text-muted { color: #555 !important; }
-  .text-ink { color: #111 !important; }
-  h1, h2, h3, p, span, div, td, th { color: #111; }
-}
-
-@media print {
-  body {
-    background: #ffffff !important;
-    background-image: none !important;
-    color: #111 !important;
-  }
-  aside, header, button {
-    display: none !important;
-  }
-  main {
-    padding: 0 !important;
-    max-width: 100% !important;
-  }
-  .glass, .glass-solid {
-    background: #f6f6fa !important;
-    border: 1px solid #ddd !important;
-    box-shadow: none !important;
-    break-inside: avoid;
-  }
-  .text-muted { color: #555 !important; }
-  .text-ink { color: #111 !important; }
-  h1, h2, h3, p, span, div, td, th { color: #111; }
 }

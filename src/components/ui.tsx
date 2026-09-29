@@ -41,11 +41,11 @@ export function Badge({
   tone?: string;
 }) {
   const tones: Record<string, string> = {
-    default: 'bg-white/5 text-muted border-white/10',
-    success: 'bg-emerald/10 text-emerald border-emerald/25',
-    warning: 'bg-amber/10 text-amber border-amber/25',
-    danger: 'bg-rose/10 text-rose border-rose/25',
-    info: 'bg-accent/10 text-accent border-accent/25',
+    default: 'bg-[#EEF2F9] text-muted border-border',
+    success: 'bg-[#E7F6EC] text-[#16A34A] border-[#BBE5C9]',
+    warning: 'bg-[#FDF2E3] text-[#D97706] border-[#F5D9A8]',
+    danger: 'bg-accent-soft text-accent border-[#F5C2C4]',
+    info: 'bg-primary-soft text-primary border-[#B9CDEE]',
   };
 
   return (
@@ -92,7 +92,7 @@ export function ErrorState({
         <button
           type="button"
           onClick={onRetry}
-          className="flex items-center gap-2 rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-sm hover:bg-white/10 transition-all"
+          className="flex items-center gap-2 rounded-xl bg-[#EEF2F9] border border-border px-4 py-2 text-sm hover:bg-primary-soft transition-all"
         >
           <RefreshCw size={14} />
           Retry
@@ -147,7 +147,7 @@ export function InfoRow({
 export function GlowCard({
   children,
   className = '',
-  glowColor = '139,92,246',
+  glowColor = '23,71,157',
 }: {
   children: ReactNode;
   className?: string;

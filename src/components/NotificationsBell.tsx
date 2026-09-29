@@ -218,7 +218,7 @@ const ICONS: Record<NotificationType, { icon: LucideIcon; cls: string }> = {
   },
   claim_cancelled: {
     icon: XCircle,
-    cls: 'bg-white/10 text-muted',
+    cls: 'bg-[#EEF2F9] text-muted',
   },
   payroll_review: {
     icon: Wallet,
@@ -599,7 +599,7 @@ export default function NotificationsBell() {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="relative w-10 h-10 rounded-xl grid place-items-center bg-white/5 hover:bg-white/10 transition-all"
+        className="relative w-10 h-10 rounded-xl grid place-items-center bg-[#EEF2F9] hover:bg-primary-soft transition-all"
         title="Notifications"
       >
         <Bell size={18} />
@@ -618,9 +618,9 @@ export default function NotificationsBell() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 mt-2 w-80 sm:w-96 glass-solid border border-white/10 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50"
+            className="absolute right-0 mt-2 w-80 sm:w-96 glass-solid border border-border rounded-xl shadow-2xl shadow-[#14264E]/10 overflow-hidden z-50"
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <p className="font-display font-semibold text-sm">
                 Notifications
               </p>
@@ -653,8 +653,8 @@ export default function NotificationsBell() {
                       type="button"
                       key={notification.id}
                       onClick={() => openItem(notification)}
-                      className={`w-full flex items-start gap-3 px-4 py-3 text-left border-b border-white/5 last:border-0 transition-all hover:bg-white/5 ${
-                        isUnread ? 'bg-primary/[0.06]' : ''
+                      className={`w-full flex items-start gap-3 px-4 py-3 text-left border-b border-border last:border-0 transition-all hover:bg-primary-soft/60 ${
+                        isUnread ? 'bg-primary-soft/60' : ''
                       }`}
                     >
                       <div
@@ -697,7 +697,7 @@ export default function NotificationsBell() {
             </div>
 
             {notifications.length > 0 && (
-              <div className="px-4 py-2 border-t border-white/5 flex items-center gap-2 text-[11px] text-muted">
+              <div className="px-4 py-2 border-t border-border flex items-center gap-2 text-[11px] text-muted">
                 <AlertTriangle size={12} />
                 Showing latest {notifications.length} notifications
               </div>

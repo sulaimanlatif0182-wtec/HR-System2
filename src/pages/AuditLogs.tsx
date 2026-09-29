@@ -233,7 +233,7 @@ export default function AuditLogs() {
             <button
               type="button"
               onClick={fetchAll}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-white/[0.05]"
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft"
             >
               <RefreshCw size={16} />
               Refresh
@@ -298,18 +298,18 @@ export default function AuditLogs() {
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+            className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
           />
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+            className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
           />
           <select
             value={moduleFilter}
             onChange={(e) => setModuleFilter(e.target.value)}
-            className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+            className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
           >
             {modules.map((module) => (
               <option key={module} value={module}>
@@ -320,7 +320,7 @@ export default function AuditLogs() {
           <select
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
-            className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+            className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50"
           >
             {actions.map((action) => (
               <option key={action} value={action}>
@@ -331,7 +331,7 @@ export default function AuditLogs() {
           <select
             value={employeeFilter}
             onChange={(e) => setEmployeeFilter(e.target.value)}
-            className="bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50 xl:col-span-2"
+            className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/50 xl:col-span-2"
           >
             <option value="all">All Employees</option>
             {employees.map((employee) => (
@@ -349,7 +349,7 @@ export default function AuditLogs() {
         ) : (
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-white/10">
+              <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-border bg-surface-2">
                 <th className="py-3 pr-4">Date</th>
                 <th className="py-3 pr-4">Module</th>
                 <th className="py-3 pr-4">Action</th>
@@ -361,7 +361,7 @@ export default function AuditLogs() {
             </thead>
             <tbody>
               {filteredLogs.slice(0, 200).map((log) => (
-                <tr key={log.id} className="border-b border-white/5 last:border-0 align-top">
+                <tr key={log.id} className="border-b border-border last:border-0 align-top even:bg-[#FAFBFE]">
                   <td className="py-3 pr-4 whitespace-nowrap">
                     {formatDateTime(log.created_at)}
                     <p className="text-[10px] text-muted mt-1">{log.source_table}</p>
@@ -385,10 +385,10 @@ export default function AuditLogs() {
                         View data
                       </summary>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                        <pre className="max-h-48 overflow-auto rounded-xl bg-black/30 p-3 text-[10px] text-muted whitespace-pre-wrap">
+                        <pre className="max-h-48 overflow-auto rounded-xl bg-[#EDF1F8] p-3 text-[10px] text-muted whitespace-pre-wrap">
                           {jsonPreview(log.old_data)}
                         </pre>
-                        <pre className="max-h-48 overflow-auto rounded-xl bg-black/30 p-3 text-[10px] text-muted whitespace-pre-wrap">
+                        <pre className="max-h-48 overflow-auto rounded-xl bg-[#EDF1F8] p-3 text-[10px] text-muted whitespace-pre-wrap">
                           {jsonPreview(log.new_data)}
                         </pre>
                       </div>
