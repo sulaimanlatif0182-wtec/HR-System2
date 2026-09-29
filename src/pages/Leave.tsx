@@ -106,6 +106,7 @@ interface LeaveReq {
   manager_remarks?: string | null;
   admin_remarks?: string | null;
   office_remarks?: string | null;
+  rejection_reason?: string | null;
 
   request_mode?: string | null;
   time_off_date?: string | null;
@@ -323,6 +324,10 @@ export default function Leave() {
   const [formError, setFormError] = useState('');
   const [deciding, setDeciding] = useState<number | null>(null);
   const [submittedForEmployeeId, setSubmittedForEmployeeId] = useState('');
+
+  const [rejectTarget, setRejectTarget] = useState<LeaveReq | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectError, setRejectError] = useState('');
 
   const [showBalanceModal, setShowBalanceModal] = useState(false);
   const [balanceEmployeeId, setBalanceEmployeeId] = useState<number | ''>('');
@@ -605,6 +610,11 @@ export default function Leave() {
       Decided_By: request.decided_by ?? '',
       Decided_Role: request.decided_role ?? '',
       Decided_At: request.decided_at ?? '',
+      Rejection_Reason:
+        request.rejection_reason ??
+        request.admin_remarks ??
+        request.manager_remarks ??
+        '',
     }));
 
     downloadCsv('leave-requests.csv', rows);
@@ -746,20 +756,37 @@ export default function Leave() {
     }
   };
 
-  const decide = async (id: number, status: string) => {
+  const decide = async (id: number, status: string, rejectionReason?: string) => {
     if (!profile) return;
+
+    if (status === 'rejected' && !rejectionReason?.trim()) {
+      const target = requests.find((r) => r.id === id) ?? null;
+      setRejectTarget(target);
+      setRejectReason('');
+      setRejectError('');
+      return;
+    }
 
     setDeciding(id);
 
     try {
-      await apiClient.put('/api/leave', {
+      const payload: Record<string, unknown> = {
         id,
         status,
         decided_by: profile.name ?? 'Approver',
         actor_id: profile.id,
         actor_role: profile.role,
         actor_department: profile.department,
-      });
+      };
+
+      if (status === 'rejected' && rejectionReason?.trim()) {
+        const reason = rejectionReason.trim();
+        payload.admin_remarks = reason;
+        payload.manager_remarks = reason;
+        payload.rejection_reason = reason;
+      }
+
+      await apiClient.put('/api/leave', payload);
 
       await fetchAll();
 
@@ -771,6 +798,22 @@ export default function Leave() {
     } finally {
       setDeciding(null);
     }
+  };
+
+  const confirmReject = async () => {
+    if (!rejectTarget || !profile) return;
+
+    if (!rejectReason.trim()) {
+      setRejectError('Please give a reason for rejection.');
+      return;
+    }
+
+    setRejectError('');
+    const targetId = rejectTarget.id;
+    const reason = rejectReason.trim();
+    setRejectTarget(null);
+    setRejectReason('');
+    await decide(targetId, 'rejected', reason);
   };
 
   const openBalanceEditor = async () => {
@@ -1348,9 +1391,21 @@ export default function Leave() {
                 !['pending', 'pending_supervisor', 'pending_manager'].includes(
                   request.status
                 ) && (
-                  <p className="text-xs text-muted mb-3">
+                  <p className="text-xs text-muted mb-1">
                     Decided by: {request.decided_by}
                     {request.decided_role ? ` (${request.decided_role})` : ''}
+                  </p>
+                )}
+
+              {request.status === 'rejected' &&
+                (request.rejection_reason ||
+                  request.admin_remarks ||
+                  request.manager_remarks) && (
+                  <p className="text-xs text-rose bg-rose/10 border border-rose/20 rounded-lg px-3 py-2 mb-3">
+                    Rejection reason:{' '}
+                    {request.rejection_reason ??
+                      request.admin_remarks ??
+                      request.manager_remarks}
                   </p>
                 )}
 
@@ -1987,6 +2042,87 @@ export default function Leave() {
                       {balanceError}
                     </p>
                   )}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {rejectTarget && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-[#14264E]/40 z-50"
+              onClick={() => setRejectTarget(null)}
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+            >
+              <div
+                className="glass-solid rounded-2xl p-6 w-full max-w-md pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-display text-base font-bold">
+                    Reject Leave Request
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setRejectTarget(null)}
+                    className="text-muted hover:text-ink"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <p className="text-xs text-muted mb-3">
+                  Please give a reason so the employee knows why this leave
+                  was rejected. This reason will be shown to the employee.
+                </p>
+
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  rows={4}
+                  placeholder="e.g. Insufficient cover during peak period…"
+                  className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-rose/50 resize-none"
+                />
+
+                {rejectError && (
+                  <p className="text-rose text-xs bg-rose/10 border border-rose/20 rounded-lg px-3 py-2 mt-3">
+                    {rejectError}
+                  </p>
+                )}
+
+                <div className="flex gap-2 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setRejectTarget(null)}
+                    className="flex-1 rounded-xl bg-[#EEF2F9] border border-border py-2.5 text-sm font-semibold text-muted hover:text-ink transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmReject}
+                    disabled={deciding === rejectTarget.id}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-rose hover:bg-rose/90 text-white py-2.5 text-sm font-semibold disabled:opacity-60 transition-all"
+                  >
+                    {deciding === rejectTarget.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <XCircle size={16} />
+                    )}
+                    Confirm Reject
+                  </button>
                 </div>
               </div>
             </motion.div>

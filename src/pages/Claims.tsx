@@ -193,6 +193,10 @@ export default function Claims() {
   const [formError, setFormError] = useState('');
   const [actingId, setActingId] = useState<number | null>(null);
 
+  const [rejectTarget, setRejectTarget] = useState<Claim | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectError, setRejectError] = useState('');
+
   const fetchAll = async () => {
     try {
       const [claimData, empData] = await Promise.all([
@@ -415,26 +419,17 @@ export default function Claims() {
       | 'finance_approve'
       | 'admin_approve'
       | 'reject'
-      | 'cancel'
+      | 'cancel',
+    rejectionReason?: string
   ) => {
     if (!profile) return;
 
-    let rejectionReason = '';
-
-    if (action === 'reject') {
-      rejectionReason = window.prompt('Reason for rejection?') || '';
-
-      if (!rejectionReason.trim()) {
-        alert('Rejection reason is required.');
-        return;
-      }
+    if (action === 'reject' && !rejectionReason?.trim()) {
+      setRejectTarget(claim);
+      setRejectReason('');
+      setRejectError('');
+      return;
     }
-
-    const confirmed = window.confirm(
-      `Confirm action: ${action.replace('_', ' ')}?`
-    );
-
-    if (!confirmed) return;
 
     setActingId(claim.id);
 
@@ -446,7 +441,7 @@ export default function Claims() {
         actor_name: profile.name,
         actor_role: profile.role,
         actor_department: profile.department,
-        rejection_reason: rejectionReason,
+        rejection_reason: rejectionReason?.trim() || '',
       });
 
       await fetchAll();
@@ -455,6 +450,22 @@ export default function Claims() {
     } finally {
       setActingId(null);
     }
+  };
+
+  const confirmReject = async () => {
+    if (!rejectTarget) return;
+
+    if (!rejectReason.trim()) {
+      setRejectError('Please give a reason for rejection.');
+      return;
+    }
+
+    setRejectError('');
+    const target = rejectTarget;
+    const reason = rejectReason.trim();
+    setRejectTarget(null);
+    setRejectReason('');
+    await handleAction(target, 'reject', reason);
   };
 
   const printClaimForm = (claim: Claim) => {
@@ -1122,6 +1133,87 @@ export default function Claims() {
                     )}
                   </button>
                 </form>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {rejectTarget && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-[#14264E]/40 z-50"
+              onClick={() => setRejectTarget(null)}
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+            >
+              <div
+                className="glass-solid rounded-2xl p-6 w-full max-w-md pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-display text-base font-bold">
+                    Reject Claim
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setRejectTarget(null)}
+                    className="text-muted hover:text-ink"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <p className="text-xs text-muted mb-3">
+                  Please give a reason so the employee knows why this claim
+                  was rejected. This reason will be shown to the employee.
+                </p>
+
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  rows={4}
+                  placeholder="e.g. Receipt missing, amount mismatch…"
+                  className="w-full bg-surface border border-border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-rose/50 resize-none"
+                />
+
+                {rejectError && (
+                  <p className="text-rose text-xs bg-rose/10 border border-rose/20 rounded-lg px-3 py-2 mt-3">
+                    {rejectError}
+                  </p>
+                )}
+
+                <div className="flex gap-2 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setRejectTarget(null)}
+                    className="flex-1 rounded-xl bg-[#EEF2F9] border border-border py-2.5 text-sm font-semibold text-muted hover:text-ink transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmReject}
+                    disabled={actingId === rejectTarget.id}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-rose hover:bg-rose/90 text-white py-2.5 text-sm font-semibold disabled:opacity-60 transition-all"
+                  >
+                    {actingId === rejectTarget.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <XCircle size={16} />
+                    )}
+                    Confirm Reject
+                  </button>
+                </div>
               </div>
             </motion.div>
           </>
