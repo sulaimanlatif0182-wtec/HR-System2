@@ -206,12 +206,21 @@ export async function notifyLeaveDecision(leaveRequest) {
 
   if (!applicant?.email) return;
 
+  const rejectionReason =
+    leaveRequest.rejection_reason ??
+    leaveRequest.admin_remarks ??
+    leaveRequest.manager_remarks ??
+    '';
+
   return sendNotificationEmail({
     employeeId: applicant.id,
     to: applicant.email,
     subject: `Leave ${leaveRequest.status}`,
     title: `Your leave request was ${leaveRequest.status}`,
-    message: `Your ${leaveRequest.leave_type} request from ${leaveRequest.start_date} to ${leaveRequest.end_date} was ${leaveRequest.status}.`,
+    message:
+      leaveRequest.status === 'rejected' && rejectionReason
+        ? `Your ${leaveRequest.leave_type} request from ${leaveRequest.start_date} to ${leaveRequest.end_date} was rejected. Reason: ${rejectionReason}`
+        : `Your ${leaveRequest.leave_type} request from ${leaveRequest.start_date} to ${leaveRequest.end_date} was ${leaveRequest.status}.`,
     link: '/leave',
     actionLabel: 'View Leave',
   });
@@ -319,9 +328,14 @@ export async function notifyClaimDecision(claim) {
     to: applicant.email,
     subject: `Claim ${claim.status}`,
     title: `Your claim was ${claim.status}`,
-    message: `Your ${claim.claim_type} claim for RM ${Number(
-      claim.amount || 0
-    ).toFixed(2)} was ${claim.status}.`,
+    message:
+      claim.status === 'rejected' && claim.rejection_reason
+        ? `Your ${claim.claim_type} claim for RM ${Number(
+            claim.amount || 0
+          ).toFixed(2)} was rejected. Reason: ${claim.rejection_reason}`
+        : `Your ${claim.claim_type} claim for RM ${Number(
+            claim.amount || 0
+          ).toFixed(2)} was ${claim.status}.`,
     link: '/claims',
     actionLabel: 'View Claim',
   });
