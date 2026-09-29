@@ -18,7 +18,7 @@ import {
   parseId,
   parsePeriod,
   parseDepartmentCreate,
-} from '../../lib/validators.js';
+} from '../lib/validators.js';
 
 describe('validators', () => {
   describe('parseAccountEmail', () => {

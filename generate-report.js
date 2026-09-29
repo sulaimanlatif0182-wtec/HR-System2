@@ -51,7 +51,7 @@ sec.push(tbl(["Directory", "Purpose"], [
   ["lib/api/", "REST API client functions (employees, leave, payroll, etc.)"],
   ["supabase/", "Database migrations, seed data, SQL scripts"],
   ["public/", "Static assets, favicon, icons"],
-])));
+]));
 sec.push(E());
 
 sec.push(H("3. Pages Overview"));
