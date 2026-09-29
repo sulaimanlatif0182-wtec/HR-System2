@@ -389,7 +389,7 @@ export default function Login() {
         >
           <div className="bg-surface rounded-3xl border border-border p-7 sm:p-9 shadow-card">
             <div className="flex flex-col items-center gap-3 mb-8 text-center">
-              <img src="/wtec-logo.svg" alt="WTEC" className="h-12 w-auto" />
+              <img src="/wtec-logo.svg?v=2" alt="WTEC" className="h-12 w-auto max-w-full object-contain" />
 
               <div>
                 <h1 className="font-display text-xl font-bold text-ink">WTEC HR Portal</h1>

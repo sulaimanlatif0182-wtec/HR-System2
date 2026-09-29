@@ -66,7 +66,7 @@ export default function ResetPassword() {
         className="relative z-10 bg-surface rounded-3xl border border-border p-7 sm:p-9 shadow-card w-full max-w-md"
       >
         <div className="flex flex-col items-center gap-2 mb-6 text-center">
-          <img src="/wtec-logo.svg" alt="WTEC" className="h-12 w-auto" />
+          <img src="/wtec-logo.svg?v=2" alt="WTEC" className="h-12 w-auto max-w-full object-contain" />
         </div>
 
         {done ? (

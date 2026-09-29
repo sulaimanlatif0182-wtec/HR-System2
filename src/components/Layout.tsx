@@ -167,13 +167,17 @@ export default function Layout({ children }: { children: ReactNode }) {
         className={`fixed lg:sticky top-0 z-50 h-screen glass-solid border-r border-border flex flex-col
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} transition-transform duration-300`}
       >
-        <div className="flex items-center gap-3 px-5 h-20 shrink-0">
-          <img src="/wtec-logo.svg" alt="WTEC" className="h-8 w-auto shrink-0" />
+        <div className="flex items-center gap-3 px-5 h-20 shrink-0 overflow-hidden">
+          <img
+            src={collapsed ? '/favicon.svg?v=2' : '/wtec-logo.svg?v=2'}
+            alt="WTEC"
+            className={collapsed ? 'h-8 w-8 object-contain shrink-0' : 'h-7 w-auto max-w-full object-contain shrink-0'}
+          />
           <AnimatePresence>
             {!collapsed && (
               <motion.span
                 initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }}
-                className="font-display font-bold text-lg tracking-tight whitespace-nowrap overflow-hidden text-ink"
+                className="font-display font-bold text-base tracking-tight whitespace-nowrap overflow-hidden text-ink"
               >
                 HR Portal
               </motion.span>
