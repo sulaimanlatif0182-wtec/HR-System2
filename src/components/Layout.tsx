@@ -171,18 +171,8 @@ export default function Layout({ children }: { children: ReactNode }) {
           <img
             src={collapsed ? '/favicon.svg?v=2' : '/wtec-logo.svg?v=2'}
             alt="WTEC"
-            className={collapsed ? 'h-8 w-8 object-contain shrink-0' : 'h-7 w-auto max-w-full object-contain shrink-0'}
+            className={collapsed ? 'h-8 w-8 object-contain shrink-0' : 'h-8 w-auto max-w-full object-contain shrink-0'}
           />
-          <AnimatePresence>
-            {!collapsed && (
-              <motion.span
-                initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }}
-                className="font-display font-bold text-base tracking-tight whitespace-nowrap overflow-hidden text-ink"
-              >
-                HR Portal
-              </motion.span>
-            )}
-          </AnimatePresence>
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="ml-auto hidden lg:grid w-8 h-8 place-items-center rounded-lg text-muted hover:text-ink hover:bg-primary-soft transition-all"
