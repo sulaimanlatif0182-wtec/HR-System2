@@ -343,6 +343,8 @@ export default function Leave() {
   const [balanceReason, setBalanceReason] = useState('');
   const [savingBalances, setSavingBalances] = useState(false);
   const [balanceError, setBalanceError] = useState('');
+  const [balanceViewEmployeeId, setBalanceViewEmployeeId] = useState<number | null>(null);
+  const [editableLoading, setEditableLoading] = useState(false);
 
   const [adjustmentForm, setAdjustmentForm] = useState({
     leave_type: 'Annual Leave',
@@ -381,21 +383,22 @@ export default function Leave() {
   const fetchBalances = async (employeeId?: number | null) => {
     if (!employeeId) return;
 
+    setBalanceLoading(true);
+
     try {
-      const [balanceData, adjustmentData] = await Promise.all([
-        apiClient.get(`/api/leave?balances=true&employee_id=${employeeId}`),
-        apiClient.get(`/api/leave?adjustments=true&employee_id=${employeeId}`),
-      ]);
+      const balanceData = await apiClient.get(
+        `/api/leave?balances=true&employee_id=${employeeId}`
+      );
 
       setBalances(Array.isArray(balanceData) ? balanceData : []);
-      setAdjustments(Array.isArray(adjustmentData) ? adjustmentData : []);
     } catch {
       setBalances([]);
-      setAdjustments([]);
     } finally {
       setBalanceLoading(false);
     }
   };
+
+  const viewedBalanceEmployeeId = balanceViewEmployeeId ?? profile?.id ?? null;
 
   useEffect(() => {
     void (async () => {
@@ -404,12 +407,12 @@ export default function Leave() {
   }, []);
 
   useEffect(() => {
-    if (profile?.id) {
+    if (viewedBalanceEmployeeId) {
       void (async () => {
-        await fetchBalances(profile.id);
+        await fetchBalances(viewedBalanceEmployeeId);
       })();
     }
-  }, [profile?.id]);
+  }, [profile?.id, balanceViewEmployeeId]);
 
   const empMap = useMemo(() => {
     const m: Record<number, Emp> = {};
@@ -787,7 +790,9 @@ export default function Leave() {
       resetForm();
 
       await fetchAll();
-      await fetchBalances(profile.id);
+      if (viewedBalanceEmployeeId) {
+        await fetchBalances(viewedBalanceEmployeeId);
+      }
 
       const submitNotice = submitResult?.notice;
       if (submitNotice) {
@@ -834,8 +839,8 @@ export default function Leave() {
 
       await fetchAll();
 
-      if (profile.id) {
-        await fetchBalances(profile.id);
+      if (viewedBalanceEmployeeId) {
+        await fetchBalances(viewedBalanceEmployeeId);
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to update leave.');
@@ -877,8 +882,8 @@ export default function Leave() {
         actor_id: profile.id,
       });
       await fetchAll();
-      if (profile.id) {
-        await fetchBalances(profile.id);
+      if (viewedBalanceEmployeeId) {
+        await fetchBalances(viewedBalanceEmployeeId);
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to decide cancellation.');
@@ -927,7 +932,7 @@ export default function Leave() {
   const loadEditableBalances = async (employeeId: number | '') => {
     if (!employeeId) return;
 
-    setBalanceLoading(true);
+    setEditableLoading(true);
     setBalanceError('');
 
     try {
@@ -951,7 +956,7 @@ export default function Leave() {
     } catch {
       setBalanceError('Failed to load leave balances.');
     } finally {
-      setBalanceLoading(false);
+      setEditableLoading(false);
     }
   };
 
@@ -970,7 +975,7 @@ export default function Leave() {
       for (const leaveType of BALANCE_TYPES) {
         const entitlement = Number(editableBalances[leaveType] || 0);
 
-      const submitResult = await apiClient.post<{ notice?: string } | null>('/api/leave', {
+        await apiClient.post('/api/leave', {
           action: 'update_entitlement',
           employee_id: Number(balanceEmployeeId),
           leave_type: leaveType,
@@ -981,8 +986,10 @@ export default function Leave() {
         });
       }
 
-      if (profile?.id) {
-        await fetchBalances(profile.id);
+      const editedId = Number(balanceEmployeeId);
+      setBalanceViewEmployeeId(editedId);
+      if (editedId === viewedBalanceEmployeeId) {
+        await fetchBalances(editedId);
       }
 
       await loadEditableBalances(balanceEmployeeId);
@@ -1033,8 +1040,10 @@ export default function Leave() {
         reason: '',
       });
 
-      if (profile.id) {
-        await fetchBalances(profile.id);
+      const editedId = Number(balanceEmployeeId);
+      setBalanceViewEmployeeId(editedId);
+      if (editedId === viewedBalanceEmployeeId) {
+        await fetchBalances(editedId);
       }
 
       await loadEditableBalances(Number(balanceEmployeeId));
@@ -1342,7 +1351,35 @@ export default function Leave() {
       />
 
       {profile && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+        <>
+          {isAdmin && (
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              <label
+                htmlFor="balance-viewer"
+                className="text-xs font-medium text-muted"
+              >
+                Viewing balances for:
+              </label>
+              <select
+                id="balance-viewer"
+                value={viewedBalanceEmployeeId ?? ''}
+                onChange={(e) => {
+                  const id = e.target.value ? Number(e.target.value) : null;
+                  setBalanceViewEmployeeId(id);
+                }}
+                className="bg-surface border border-border rounded-xl px-3 py-2 text-sm outline-none focus:border-primary/50"
+              >
+                <option value="">Select Employee</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.name} · {employee.department ?? '—'}
+                    {employee.id === profile.id ? ' (You)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           {balanceLoading ? (
             <div className="glass rounded-2xl p-5 text-sm text-muted">
               Loading balances…
@@ -1382,6 +1419,7 @@ export default function Leave() {
             })
           )}
         </div>
+        </>
       )}
 
       <div className="flex gap-1 bg-surface border border-border rounded-xl p-1 mb-6 w-fit">
@@ -1999,7 +2037,7 @@ export default function Leave() {
                       Entitlement Days
                     </h4>
 
-                    {balanceLoading ? (
+                    {editableLoading ? (
                       <p className="text-sm text-muted">Loading balances…</p>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
