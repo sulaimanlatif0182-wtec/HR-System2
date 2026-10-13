@@ -588,7 +588,7 @@ export default function Leave() {
     };
   };
 
-  const openLeaveAttachment = async (request: LeaveRequest) => {
+  const openLeaveAttachment = async (request: LeaveReq) => {
     try {
       if (request.attachment_path) {
         const data = await apiClient.get<{ signedUrl?: string; error?: string }>(
@@ -755,7 +755,7 @@ export default function Leave() {
     try {
       const attachment = await uploadAttachment();
 
-      await apiClient.post('/api/leave', {
+      const submitResult = await apiClient.post<{ notice?: string | null }>('/api/leave', {
         employee_id: submittedForEmployeeId
           ? Number(submittedForEmployeeId)
           : profile.id,
@@ -789,7 +789,7 @@ export default function Leave() {
       await fetchAll();
       await fetchBalances(profile.id);
 
-      const submitNotice = (submitResult as { notice?: string } | null)?.notice;
+      const submitNotice = submitResult?.notice;
       if (submitNotice) {
         alert(submitNotice);
       }
