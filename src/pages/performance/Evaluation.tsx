@@ -103,6 +103,13 @@ interface TemplateDraft {
 
 const CATEGORIES = ['worker', 'employee', 'manager'] as const;
 
+// Display labels: the company calls the 'employee' category "Staff".
+// Stored values stay unchanged so template matching keeps working.
+function categoryLabel(category: string): string {
+  if (category === 'employee') return 'Staff';
+  return category.charAt(0).toUpperCase() + category.slice(1);
+}
+
 const uid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 const EMPTY_TEMPLATE = (): TemplateDraft => ({
@@ -180,6 +187,8 @@ export default function Evaluation() {
   const [ruleActive, setRuleActive] = useState(true);
 
   const fetchAll = useCallback(async () => {
+    setLoading(true);
+    setError('');
     try {
       const [emp, templateData, evaluationData, ruleData] = await Promise.all([
         apiClient.get('/api/employees'),
@@ -751,7 +760,7 @@ export default function Evaluation() {
                   >
                     {CATEGORIES.map((category) => (
                       <option key={category} value={category}>
-                        {category.charAt(0).toUpperCase() + category.slice(1)}
+                        {categoryLabel(category)}
                       </option>
                     ))}
                   </select>
@@ -955,7 +964,7 @@ export default function Evaluation() {
                     <div>
                       <h4 className="font-semibold">{template.name}</h4>
                       <p className="text-xs text-muted mt-0.5">
-                        {template.category.charAt(0).toUpperCase() + template.category.slice(1)}
+                        {categoryLabel(template.category)}
                         {template.department ? ` · ${template.department}` : ' · All departments'}
                       </p>
                     </div>
@@ -1062,7 +1071,7 @@ export default function Evaluation() {
                 <option value="">No template (disabled)</option>
                 {templates.map((template) => (
                   <option key={template.id} value={template.id}>
-                    {template.name} ({template.category})
+                    {template.name} ({categoryLabel(template.category)})
                   </option>
                 ))}
               </select>
@@ -1200,7 +1209,7 @@ export default function Evaluation() {
                   <option value="">Auto-selected</option>
                   {templates.map((template) => (
                     <option key={template.id} value={template.id}>
-                      {template.name} ({template.category})
+                      {template.name} ({categoryLabel(template.category)})
                     </option>
                   ))}
                 </select>

@@ -39,6 +39,74 @@ export default function MonthlyReports() {
   const [report, setReport] = useState<MonthlyReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [employees, setEmployees] = useState<Array<{ id: number; name: string }>>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
+
+  const fetchEmployees = useCallback(async () => {
+    try {
+      const data = await apiClient.get('/api/employees');
+      setEmployees(Array.isArray(data) ? data : []);
+    } catch {
+      setEmployees([]);
+    }
+  }, []);
+
+  const escapeCsv = (value: unknown) => {
+    const text = value === null || value === undefined ? '' : String(value);
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+
+  const exportIndividual = async () => {
+    if (!selectedEmployeeId) {
+      setExportError('Select an employee first.');
+      return;
+    }
+    setExporting(true);
+    setExportError('');
+    try {
+      const data = await apiClient.get(
+        `/api/employees?monthly_hr_report=true&period=${period}&employee_id=${selectedEmployeeId}`
+      ) as {
+        employee?: { id: number; name: string };
+        attendance?: Record<string, unknown>[];
+        leave?: Record<string, unknown>[];
+        claims?: Record<string, unknown>[];
+        payroll?: Record<string, unknown>[];
+      };
+      const rows: Record<string, unknown>[] = [];
+      const pushSection = (section: string, items?: Record<string, unknown>[]) => {
+        (items || []).forEach((item) => rows.push({ Section: section, Employee: data.employee?.name ?? '', ...item }));
+      };
+      pushSection('Attendance', data.attendance);
+      pushSection('Leave', data.leave);
+      pushSection('Claims', data.claims);
+      pushSection('Payroll', data.payroll);
+      if (!rows.length) {
+        setExportError('No data for this employee in the selected period.');
+        return;
+      }
+      const headers = Object.keys(rows[0]);
+      const csv = [
+        headers.join(','),
+        ...rows.map((row) => headers.map((h) => escapeCsv(row[h])).join(',')),
+      ].join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `hr-report-${period}-emp${selectedEmployeeId}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError('Failed to export individual report.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const fetchReport = useCallback(async () => {
     try {
@@ -56,6 +124,10 @@ export default function MonthlyReports() {
       await fetchReport();
     })();
   }, [fetchReport]);
+
+  useEffect(() => {
+    void fetchEmployees();
+  }, [fetchEmployees]);
 
   if (!isAdminOrManager) {
     return <ErrorState message="Monthly HR Reports are for Admin/Manager only." onRetry={() => undefined} />;
@@ -95,7 +167,7 @@ export default function MonthlyReports() {
 
       <div className="print-header items-center justify-between border-b-4 border-blue-700 pb-4 mb-6">
         <div className="flex items-center gap-4">
-          <img src="/profile_logo.png" alt="WTEC" className="h-16 object-contain" />
+          <img src={`${import.meta.env.BASE_URL}profile_logo.png`} alt="WTEC" className="h-16 object-contain" />
           <div>
             <h1 className="text-2xl font-bold text-blue-800">Monthly HR Report</h1>
             <p className="text-sm text-slate-600">Human Resource Department</p>
@@ -112,12 +184,33 @@ export default function MonthlyReports() {
           title="Monthly HR Report"
           subtitle="Management report summary for employees, attendance, leave, claims, payroll and holidays."
           action={
+            <>
             <div className="flex gap-2">
               <button
                 onClick={fetchReport}
                 className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold"
               >
                 <RefreshCw size={16} /> Refresh
+              </button>
+              <select
+                value={selectedEmployeeId}
+                onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm outline-none"
+                aria-label="Select employee for individual export"
+              >
+                <option value="">Individual: select staff…</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={exportIndividual}
+                disabled={exporting || !selectedEmployeeId}
+                className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
+              >
+                {exporting ? 'Exporting…' : 'Export Individual CSV'}
               </button>
               <button
                 onClick={() => window.print()}
@@ -126,6 +219,10 @@ export default function MonthlyReports() {
                 <Printer size={16} /> Print / Save PDF
               </button>
             </div>
+            {exportError && (
+              <p className="text-xs text-rose mt-2">{exportError}</p>
+            )}
+            </>
           }
         />
       </div>

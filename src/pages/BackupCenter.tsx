@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Archive, Download, Database, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import apiClient from '../lib/api';
 import { PageHeader, Badge, EmptyState, ErrorState } from '../components/ui';
 
 interface BackupItem {
@@ -82,8 +83,12 @@ export default function BackupCenter() {
   const [message, setMessage] = useState('');
 
   const fetchItem = async (item: BackupItem) => {
-    const data = await fetch(item.endpoint).then((r) => r.json()).catch(() => []);
-    return Array.isArray(data) ? data : data ? [data] : [];
+    try {
+      const data = await apiClient.get(item.endpoint);
+      return Array.isArray(data) ? data : data ? [data] : [];
+    } catch {
+      return [];
+    }
   };
 
   const backupOne = async (item: BackupItem, format: 'json' | 'csv') => {

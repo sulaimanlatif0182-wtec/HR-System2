@@ -164,6 +164,10 @@ export default function Dashboard() {
   const isAdminOrManager = isAdmin || isManager;
   const profileDepartment = String(profile?.department ?? '').trim().toLowerCase();
 
+  // Disabled modules: payroll + expiry/holiday panels stay hidden until re-enabled.
+  // Set to true to bring them back (data fetching is untouched).
+  const SHOW_DISABLED_SECTIONS = false;
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [leave, setLeave] = useState<LeaveRequest[]>([]);
   const [claims, setClaims] = useState<ClaimRecord[]>([]);
@@ -315,8 +319,12 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <StatCard icon={Users} label="Visible Employees" value={visibleEmployees.length} />
         <StatCard icon={CalendarDays} label="Pending Leave" value={pendingLeave.length} tone="accent" />
-        <StatCard icon={ReceiptText} label="Pending Claims" value={pendingClaims.length} tone="amber" />
-        <StatCard icon={CalendarCheck} label="Upcoming Holidays" value={upcomingHolidays.length} tone="emerald" />
+        {SHOW_DISABLED_SECTIONS && (
+          <StatCard icon={ReceiptText} label="Pending Claims" value={pendingClaims.length} tone="amber" />
+        )}
+        {SHOW_DISABLED_SECTIONS && (
+          <StatCard icon={CalendarCheck} label="Upcoming Holidays" value={upcomingHolidays.length} tone="emerald" />
+        )}
         <StatCard icon={Megaphone} label="Announcements" value={latestAnnouncements.length} tone="accent" />
       </div>
 
@@ -374,6 +382,7 @@ export default function Dashboard() {
           )}
         </div>
 
+        {SHOW_DISABLED_SECTIONS && (
         <div className="glass rounded-2xl p-5">
           <h3 className="font-display font-semibold mb-4">Upcoming Holidays</h3>
           {upcomingHolidays.length === 0 ? (
@@ -398,6 +407,7 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+        )}
 
         <div className="glass rounded-2xl p-5">
           <h3 className="font-display font-semibold mb-4">Upcoming Birthdays</h3>
@@ -420,6 +430,7 @@ export default function Dashboard() {
           )}
         </div>
 
+        {SHOW_DISABLED_SECTIONS && (
         <div className="glass rounded-2xl p-5">
           <h3 className="font-display font-semibold mb-4">Probation / Contract / Permit Alerts</h3>
           {expiryAlerts.length === 0 ? (
@@ -449,7 +460,9 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+        )}
 
+        {SHOW_DISABLED_SECTIONS && (
         <div className="glass rounded-2xl p-5">
           <h3 className="font-display font-semibold mb-4">Current Payroll</h3>
           {currentPayroll.length === 0 ? (
@@ -476,6 +489,7 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );

@@ -137,6 +137,8 @@ export default function Performance() {
   const [message, setMessage] = useState('');
 
   const fetchAll = useCallback(async () => {
+    setLoading(true);
+    setError('');
     try {
       const [emp, reviewData] = await Promise.all([
         apiClient.get('/api/employees'),

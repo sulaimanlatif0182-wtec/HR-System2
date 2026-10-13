@@ -35,3 +35,6 @@ dist-ssr
 # Supabase backup SQL (DB contents — never commit)
 supabase/ADD_ADMIN_EMPLOYEE.sql
 supabase/SQL Editor Backup.txt
+
+# Generated report output — never commit
+out.html

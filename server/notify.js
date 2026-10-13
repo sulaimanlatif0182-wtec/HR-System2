@@ -201,6 +201,122 @@ export async function notifyLeaveSubmittedToPeers(leaveRequest) {
   }));
 }
 
+// Company rule: teammates are notified ONLY when a leave is approved —
+// never on submit, never on reject. The notice carries dates + duration
+// only, never the applicant's reason.
+export async function notifyLeaveApprovedToPeers(leaveRequest) {
+  const applicant = await getEmployee(leaveRequest.employee_id);
+
+  if (!applicant?.supervisor_id) return;
+
+  const { data, error } = await supabase
+    .from('employees')
+    .select('id, name, email')
+    .eq('supervisor_id', applicant.supervisor_id)
+    .eq('status', 'active');
+
+  if (error) return;
+
+  // Peers = everyone reporting to the same supervisor, minus the applicant
+  // and the supervisor.
+  const recipients = uniqueRecipients(
+    (data || []).filter(
+      (peer) => peer.id !== applicant.id && peer.id !== applicant.supervisor_id
+    )
+  );
+
+  if (!recipients.length) return;
+
+  const days = Number(leaveRequest.days || 0);
+
+  return emailMany(recipients, () => ({
+    subject: `Team leave approved - ${applicant.name}`,
+    title: 'Team leave approved (no action needed)',
+    message: `${applicant.name} will be on ${leaveRequest.leave_type} leave from ${leaveRequest.start_date} to ${leaveRequest.end_date}${days ? ` (${days} day${days > 1 ? 's' : ''})` : ''}.`,
+    link: '/leave',
+    actionLabel: 'View Leave',
+  }));
+}
+
+// Staff asked to cancel an approved leave — tell the approval chain.
+export async function notifyLeaveCancelRequested(leaveRequest) {
+  const applicant = await getEmployee(leaveRequest.employee_id);
+
+  if (!applicant) return;
+
+  const supervisors = [];
+
+  if (applicant.supervisor_id) {
+    const supervisor = await getEmployee(applicant.supervisor_id);
+
+    if (supervisor && supervisor.email) {
+      supervisors.push(supervisor);
+    }
+  }
+
+  const admins = await getAdmins();
+
+  let recipients;
+  if (applicant.supervisor_id) {
+    recipients = uniqueRecipients([
+      ...supervisors.filter((supervisor) => supervisor.id !== applicant.id),
+      ...admins,
+    ]);
+  } else {
+    const managers = await getManagersByDepartment(applicant.department);
+    recipients = uniqueRecipients([
+      ...managers.filter((manager) => manager.id !== applicant.id),
+      ...admins,
+    ]);
+  }
+
+  if (!recipients.length) return;
+
+  const days = Number(leaveRequest.days || 0);
+
+  return emailMany(recipients, () => ({
+    subject: `Leave cancellation requested - ${applicant.name}`,
+    title: 'Leave cancellation pending approval',
+    message: `${applicant.name} asked to cancel a ${leaveRequest.leave_type} leave from ${leaveRequest.start_date} to ${leaveRequest.end_date}${days ? ` (${days} day${days > 1 ? 's' : ''})` : ''}.`,
+    link: '/leave',
+    actionLabel: 'Review Cancellation',
+  }));
+}
+
+// Teammates hear about a cancellation only once approved — dates and
+// duration only, never the reason.
+export async function notifyLeaveCancelApprovedToPeers(leaveRequest) {
+  const applicant = await getEmployee(leaveRequest.employee_id);
+
+  if (!applicant?.supervisor_id) return;
+
+  const { data, error } = await supabase
+    .from('employees')
+    .select('id, name, email')
+    .eq('supervisor_id', applicant.supervisor_id)
+    .eq('status', 'active');
+
+  if (error) return;
+
+  const recipients = uniqueRecipients(
+    (data || []).filter(
+      (peer) => peer.id !== applicant.id && peer.id !== applicant.supervisor_id
+    )
+  );
+
+  if (!recipients.length) return;
+
+  const days = Number(leaveRequest.days || 0);
+
+  return emailMany(recipients, () => ({
+    subject: `Team leave cancelled - ${applicant.name}`,
+    title: 'Team leave cancelled (no action needed)',
+    message: `${applicant.name}'s ${leaveRequest.leave_type} leave from ${leaveRequest.start_date} to ${leaveRequest.end_date}${days ? ` (${days} day${days > 1 ? 's' : ''})` : ''} was cancelled.`,
+    link: '/leave',
+    actionLabel: 'View Leave',
+  }));
+}
+
 export async function notifyLeaveDecision(leaveRequest) {
   const applicant = await getEmployee(leaveRequest.employee_id);
 

@@ -10,6 +10,7 @@ import {
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import supabase from '../lib/supabase';
+import { apiPath } from '../lib/api';
 import {
   normalizeProfile,
   type EmployeeProfile,
@@ -20,7 +21,7 @@ type AuthMode = 'supabase' | 'worker';
 // Worker kiosk auth uses an httpOnly, Secure, SameSite=Strict cookie set by the
 // API (api/auth/worker-login.js). The token is never exposed to JavaScript,
 // removing the XSS risk of storing it in localStorage.
-const WORKER_LOGIN_PATH = '/api/auth/worker-login';
+const WORKER_LOGIN_PATH = apiPath('/api/auth/worker-login');
 
 async function clearWorkerCookie() {
   try {
@@ -77,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const cleanEmail = email.trim().toLowerCase();
 
       const res = await fetch(
-        `/api/employees?email=${encodeURIComponent(cleanEmail)}`,
+        apiPath(`/api/employees?email=${encodeURIComponent(cleanEmail)}`),
         {
           method: 'GET',
           signal: controller.signal,

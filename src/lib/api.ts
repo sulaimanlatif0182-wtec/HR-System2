@@ -20,6 +20,16 @@ async function getAccessToken(): Promise<string | null> {
  * Refactor pages that currently call `fetch('/api/...')` to use `apiClient`
  * (or this function) so 401/403 handling lives in one place.
  */
+/**
+ * Prefix for absolute /api/... paths when the app is served under a subpath
+ * (internal deploy lives under /hrm via funnel). Local dev + Vercel keep ''.
+ * Use for raw fetch() calls that bypass apiFetch.
+ */
+export function apiPath(path: string): string {
+  const apiPrefix = import.meta.env.VITE_API_PREFIX ?? '';
+  return path.startsWith('/api/') ? `${apiPrefix}${path}` : path;
+}
+
 export async function apiFetch<T = unknown>(
   path: string,
   options: RequestInit = {}
@@ -31,7 +41,8 @@ export async function apiFetch<T = unknown>(
     headers.set('Content-Type', 'application/json');
   }
 
-  const res = await fetch(path, { ...options, headers });
+  const url = apiPath(path);
+  const res = await fetch(url, { ...options, headers });
 
   if (!res.ok) {
     let message = res.statusText;

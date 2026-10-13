@@ -1,4 +1,4 @@
-import apiClient from '../lib/api';
+import apiClient, { apiPath } from '../lib/api';
 import { useState, useEffect, useMemo } from 'react';
 import type { FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -818,7 +818,7 @@ export default function Payroll() {
         return;
       }
 
-      const res = await fetch(`/api/payslip?id=${record.id}`);
+      const res = await fetch(apiPath(`/api/payslip?id=${record.id}`));
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);

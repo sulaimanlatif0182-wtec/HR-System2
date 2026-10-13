@@ -65,6 +65,7 @@ interface Claim {
 
   attachment_url: string | null;
   attachment_name: string | null;
+  attachment_path?: string | null;
 
   status: string;
 
@@ -324,7 +325,7 @@ export default function Claims() {
 
   const uploadAttachment = async () => {
     if (!attachmentFile || !profile) {
-      return { attachment_url: null, attachment_name: null };
+      return { attachment_url: null, attachment_name: null, attachment_path: null };
     }
 
     const safeName = attachmentFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -342,14 +343,29 @@ export default function Claims() {
       throw new Error(uploadError.message || 'Failed to upload receipt.');
     }
 
-    const { data } = supabase.storage
-      .from('claim-attachments')
-      .getPublicUrl(filePath);
-
     return {
-      attachment_url: data.publicUrl,
+      attachment_url: null,
       attachment_name: safeName,
+      attachment_path: filePath,
     };
+  };
+
+  const openClaimAttachment = async (claim: Claim) => {
+    try {
+      if (claim.attachment_path) {
+        const data = await apiClient.get<{ signedUrl?: string; error?: string }>(
+          `/api/claims?claim_attachment_url=true&claim_id=${claim.id}`
+        );
+        if (!data?.signedUrl) {
+          throw new Error(data?.error || 'Failed to open receipt.');
+        }
+        window.open(data.signedUrl as string, '_blank', 'noopener,noreferrer');
+      } else if (claim.attachment_url) {
+        window.open(claim.attachment_url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to open receipt.');
+    }
   };
 
   const submitClaim = async (e: FormEvent) => {
@@ -400,6 +416,7 @@ export default function Claims() {
         receipt_no: form.receipt_no || null,
         attachment_url: attachment.attachment_url,
         attachment_name: attachment.attachment_name,
+        attachment_path: attachment.attachment_path ?? null,
       });
 
       setShowModal(false);
@@ -746,16 +763,15 @@ export default function Claims() {
                 )}
               </div>
 
-              {claim.attachment_url && (
-                <a
-                  href={claim.attachment_url}
-                  target="_blank"
-                  rel="noreferrer"
+              {(claim.attachment_path || claim.attachment_url) && (
+                <button
+                  type="button"
+                  onClick={() => openClaimAttachment(claim)}
                   className="inline-flex items-center gap-1.5 text-xs text-accent hover:underline mb-3"
                 >
                   <Paperclip size={13} />
                   {claim.attachment_name ?? 'View receipt'}
-                </a>
+                </button>
               )}
 
               <div className="text-xs text-muted space-y-1 mb-3">

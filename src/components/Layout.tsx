@@ -169,7 +169,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       >
         <div className="flex items-center gap-3 px-5 h-20 shrink-0 overflow-hidden">
           <img
-            src={collapsed ? '/favicon.svg?v=2' : '/wtec-logo.svg?v=2'}
+            src={collapsed ? `${import.meta.env.BASE_URL}favicon.svg?v=2` : `${import.meta.env.BASE_URL}wtec-logo.svg?v=2`}
             alt="WTEC"
             className={collapsed ? 'h-8 w-8 object-contain shrink-0' : 'h-8 w-auto max-w-full object-contain shrink-0'}
           />

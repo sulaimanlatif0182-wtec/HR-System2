@@ -57,7 +57,7 @@ export function printDocument(options: PrintDocumentOptions): void {
   const headerHtml = header
     ? `
     <div class="header">
-      <img class="logo" src="/profile_logo.png" />
+      <img class="logo" src="${import.meta.env.BASE_URL}profile_logo.png" />
       <div style="text-align:right">
         <h1>${escapeHtml(docTitle || title)}</h1>
         ${subtitle ? `<div class="header-sub">${escapeHtml(subtitle)}</div>` : ''}

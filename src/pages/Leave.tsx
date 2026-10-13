@@ -39,7 +39,9 @@ const LEAVE_TYPES = [
   'Sick Leave',
   'Unpaid Leave',
   'Maternity/Paternity',
-  'EL',
+  'EL (Annual Leave)',
+  'EL (Unpaid Leave)',
+  'Other Leave',
 ] as const;
 
 const BALANCE_TYPES = [
@@ -47,7 +49,7 @@ const BALANCE_TYPES = [
   'Sick Leave',
   'Unpaid Leave',
   'Maternity/Paternity',
-  'EL',
+  'Other Leave',
 ] as const;
 
 const HALF_DAY_OPTIONS = ['Full Day', 'AM', 'PM'] as const;
@@ -57,12 +59,15 @@ const BACKDATE_ALLOWED_LEAVE_TYPES = new Set([
   'Unpaid Leave',
   'Sick Leave',
   'Maternity/Paternity',
+  'EL (Annual Leave)',
+  'EL (Unpaid Leave)',
 ]);
 
 const ATTACHMENT_REQUIRED_LEAVE_TYPES = new Set([
   'Sick Leave',
   'Maternity/Paternity',
-  'EL',
+  'EL (Annual Leave)',
+  'EL (Unpaid Leave)',
 ]);
 
 type LeaveType = (typeof LEAVE_TYPES)[number];
@@ -102,6 +107,7 @@ interface LeaveReq {
   duties_covered_by?: string | null;
   attachment_url?: string | null;
   attachment_name?: string | null;
+  attachment_path?: string | null;
   employee_acknowledged?: boolean | null;
   manager_remarks?: string | null;
   admin_remarks?: string | null;
@@ -557,6 +563,7 @@ export default function Leave() {
       return {
         attachment_url: null,
         attachment_name: null,
+        attachment_path: null,
       };
     }
 
@@ -574,14 +581,29 @@ export default function Leave() {
       throw new Error(uploadError.message || 'Failed to upload attachment.');
     }
 
-    const { data } = supabase.storage
-      .from('leave-attachments')
-      .getPublicUrl(filePath);
-
     return {
-      attachment_url: data.publicUrl,
+      attachment_url: null,
       attachment_name: safeName,
+      attachment_path: filePath,
     };
+  };
+
+  const openLeaveAttachment = async (request: LeaveRequest) => {
+    try {
+      if (request.attachment_path) {
+        const data = await apiClient.get<{ signedUrl?: string; error?: string }>(
+          `/api/leave?leave_attachment_url=true&leave_id=${request.id}`
+        );
+        if (!data?.signedUrl) {
+          throw new Error(data?.error || 'Failed to open attachment.');
+        }
+        window.open(data.signedUrl as string, '_blank', 'noopener,noreferrer');
+      } else if (request.attachment_url) {
+        window.open(request.attachment_url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to open attachment.');
+    }
   };
 
   const handleExportCsv = () => {
@@ -646,6 +668,7 @@ export default function Leave() {
     }
 
     let days = 0;
+    let confirmedLateEl = false;
 
     if (form.request_mode === 'leave') {
       if (!form.start_date || !form.end_date) {
@@ -661,6 +684,21 @@ export default function Leave() {
       if (new Date(form.end_date) < new Date(form.start_date)) {
         setFormError('End date cannot be earlier than start date.');
         return;
+      }
+
+      // Staff rule: Annual Leave must be applied at least 3 days in advance.
+      // Late requests ask first; confirmed ones go in as EL (Annual Leave).
+      if (form.leave_type === 'Annual Leave') {
+        const minStart = new Date(
+          getLocalDateFromString(today).getTime() + 3 * 86400000
+        );
+        if (getLocalDateFromString(form.start_date) < minStart) {
+          const ok = window.confirm(
+            'Annual Leave needs 3 days notice. Submit this as EL (Annual Leave) instead?'
+          );
+          if (!ok) return;
+          confirmedLateEl = true;
+        }
       }
 
       if (
@@ -725,8 +763,8 @@ export default function Leave() {
         submitted_by_name: profile.name,
         submitted_for_employee: Boolean(submittedForEmployeeId),
         request_mode: form.request_mode,
-        leave_type:
-          form.request_mode === 'time_off' ? 'Time Off' : form.leave_type,
+        leave_type: form.request_mode === 'time_off' ? 'Time Off' : form.leave_type,
+        confirmed_late_el: confirmedLateEl,
         start_date:
           form.request_mode === 'time_off' ? form.time_off_date : form.start_date,
         end_date:
@@ -742,6 +780,7 @@ export default function Leave() {
         employee_acknowledged: form.employee_acknowledged,
         attachment_url: attachment.attachment_url,
         attachment_name: attachment.attachment_name,
+        attachment_path: attachment.attachment_path ?? null,
       });
 
       setShowModal(false);
@@ -749,6 +788,11 @@ export default function Leave() {
 
       await fetchAll();
       await fetchBalances(profile.id);
+
+      const submitNotice = (submitResult as { notice?: string } | null)?.notice;
+      if (submitNotice) {
+        alert(submitNotice);
+      }
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
@@ -795,6 +839,49 @@ export default function Leave() {
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to update leave.');
+    } finally {
+      setDeciding(null);
+    }
+  };
+
+  const canDecideCancel = (request: LeaveReq) => {
+    if (!profile) return false;
+    if (request.status !== 'pending_cancel') return false;
+    if (profile.role === 'admin' || profile.role === 'manager') return true;
+    const applicant = empMap[request.employee_id];
+    return Number(applicant?.supervisor_id) === Number(profile.id);
+  };
+
+  const requestCancel = async (id: number) => {
+    if (!profile) return;
+    if (!window.confirm('Request cancellation of this approved leave?')) return;
+    setDeciding(id);
+    try {
+      await apiClient.put('/api/leave', { action: 'request_cancel', id });
+      await fetchAll();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to request cancellation.');
+    } finally {
+      setDeciding(null);
+    }
+  };
+
+  const decideCancel = async (id: number, decision: 'approved' | 'rejected') => {
+    if (!profile) return;
+    setDeciding(id);
+    try {
+      await apiClient.put('/api/leave', {
+        id,
+        action: 'decide_cancel',
+        status: decision,
+        actor_id: profile.id,
+      });
+      await fetchAll();
+      if (profile.id) {
+        await fetchBalances(profile.id);
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to decide cancellation.');
     } finally {
       setDeciding(null);
     }
@@ -883,7 +970,7 @@ export default function Leave() {
       for (const leaveType of BALANCE_TYPES) {
         const entitlement = Number(editableBalances[leaveType] || 0);
 
-        await apiClient.post('/api/leave', {
+      const submitResult = await apiClient.post<{ notice?: string } | null>('/api/leave', {
           action: 'update_entitlement',
           employee_id: Number(balanceEmployeeId),
           leave_type: leaveType,
@@ -1104,7 +1191,8 @@ export default function Leave() {
         <td>${request.leave_type === 'Sick Leave' ? '<span class="selected">Sick Leave</span>' : 'Sick Leave'}</td>
         <td>${request.leave_type === 'Unpaid Leave' ? '<span class="selected">Unpaid Leave</span>' : 'Unpaid Leave'}</td>
         <td>${request.leave_type === 'Maternity/Paternity' ? '<span class="selected">Maternity/Paternity</span>' : 'Maternity/Paternity'}</td>
-        <td>${request.leave_type === 'EL' ? '<span class="selected">EL</span>' : 'EL'}</td>
+        <td>${request.leave_type === 'EL (Annual Leave)' ? '<span class="selected">EL (Annual Leave)</span>' : 'EL (Annual Leave)'}</td>
+        <td>${request.leave_type === 'EL (Unpaid Leave)' ? '<span class="selected">EL (Unpaid Leave)</span>' : 'EL (Unpaid Leave)'}</td>
       </tr>
       <tr>
         <td>${request.leave_type === 'Time Off' ? '<span class="selected">Time Off</span>' : 'Time Off'}</td>
@@ -1375,16 +1463,15 @@ export default function Leave() {
                 </p>
               )}
 
-              {request.attachment_url && (
-                <a
-                  href={request.attachment_url}
-                  target="_blank"
-                  rel="noreferrer"
+              {(request.attachment_path || request.attachment_url) && (
+                <button
+                  type="button"
+                  onClick={() => openLeaveAttachment(request)}
                   className="inline-flex items-center gap-1.5 text-xs text-accent hover:underline mb-3"
                 >
                   <Paperclip size={13} />
                   {request.attachment_name ?? 'View attachment'}
-                </a>
+                </button>
               )}
 
               {request.decided_by &&
@@ -1447,6 +1534,41 @@ export default function Leave() {
                         <XCircle size={13} />
                       )}
                       Reject
+                    </button>
+                  </>
+                )}
+
+                {profile &&
+                  Number(request.employee_id) === Number(profile.id) &&
+                  request.status === 'approved' && (
+                    <button
+                      type="button"
+                      onClick={() => requestCancel(request.id)}
+                      disabled={deciding === request.id}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-surface border border-border py-2 text-xs font-medium text-muted hover:text-ink hover:bg-primary-soft transition-all disabled:opacity-50"
+                    >
+                      Request Cancel
+                    </button>
+                  )}
+
+                {request.status === 'pending_cancel' && canDecideCancel(request) && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => decideCancel(request.id, 'approved')}
+                      disabled={deciding === request.id}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-emerald/15 text-emerald border border-emerald/25 py-2 text-xs font-medium hover:bg-emerald/25 transition-all disabled:opacity-50"
+                    >
+                      Approve Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => decideCancel(request.id, 'rejected')}
+                      disabled={deciding === request.id}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-rose/15 text-rose border border-rose/25 py-2 text-xs font-medium hover:bg-rose/25 transition-all disabled:opacity-50"
+                    >
+                      Keep Leave
                     </button>
                   </>
                 )}
@@ -1522,7 +1644,8 @@ export default function Leave() {
                     </button>
                   </div>
 
-                  {isAdminOrManager && eligibleEmployees.length > 0 && (
+                  {/* Submit-For hidden per company rule (applicants always self). */}
+                  {isAdminOrManager && eligibleEmployees.length > 0 && false && (
                     <div>
                       <label className="text-xs text-muted mb-1 block">
                         Submit for

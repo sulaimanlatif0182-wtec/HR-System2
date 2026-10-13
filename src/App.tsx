@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
 const Login = lazy(() => import('./pages/Login'));
+const Verify = lazy(() => import('./pages/Verify'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Employees = lazy(() => import('./pages/Employees'));
 const Attendance = lazy(() => import('./pages/Attendance'));
@@ -138,6 +139,7 @@ function App() {
           <Suspense fallback={<PageFallback />}>
           <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/verify" element={<Verify />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
           <Route
