@@ -158,6 +158,19 @@ interface LeaveAdjustment {
   created_at: string;
 }
 
+interface LeaveBalanceHistory {
+  id: number;
+  leave_type: string;
+  changed_by_name: string | null;
+  old_entitlement: number | null;
+  new_entitlement: number | null;
+  old_balance: number | null;
+  new_balance: number | null;
+  adjustment_days: number | null;
+  reason: string | null;
+  created_at: string;
+}
+
 interface HolidayRecord {
   id: number;
   holiday_date: string;
@@ -317,6 +330,7 @@ export default function Leave() {
   const [holidays, setHolidays] = useState<HolidayRecord[]>([]);
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
   const [adjustments, setAdjustments] = useState<LeaveAdjustment[]>([]);
+  const [balanceHistory, setBalanceHistory] = useState<LeaveBalanceHistory[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [balanceLoading, setBalanceLoading] = useState(false);
@@ -936,9 +950,10 @@ export default function Leave() {
     setBalanceError('');
 
     try {
-      const [balanceData, adjustmentData] = await Promise.all([
+      const [balanceData, adjustmentData, historyData] = await Promise.all([
         apiClient.get(`/api/leave?balances=true&employee_id=${employeeId}`),
         apiClient.get(`/api/leave?adjustments=true&employee_id=${employeeId}`),
+        apiClient.get(`/api/leave?balance_history=true&employee_id=${employeeId}`),
       ]);
 
       const next: Record<string, string> = {};
@@ -953,6 +968,7 @@ export default function Leave() {
 
       setEditableBalances(next);
       setAdjustments(Array.isArray(adjustmentData) ? adjustmentData : []);
+      setBalanceHistory(Array.isArray(historyData) ? historyData : []);
     } catch {
       setBalanceError('Failed to load leave balances.');
     } finally {
@@ -2191,6 +2207,57 @@ export default function Leave() {
                             <p className="text-muted/70 mt-1">
                               By {adjustment.created_by_name ?? '—'} ·{' '}
                               {new Date(adjustment.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="glass rounded-2xl p-4">
+                    <h4 className="font-display font-semibold text-sm mb-3 flex items-center gap-2">
+                      <History size={15} />
+                      Balance Change History
+                    </h4>
+
+                    {balanceHistory.length === 0 ? (
+                      <p className="text-xs text-muted">
+                        No balance changes for selected employee.
+                      </p>
+                    ) : (
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {balanceHistory.map((entry) => (
+                          <div
+                            key={entry.id}
+                            className="rounded-xl bg-[#F6F9FE] border border-border px-3 py-2 text-xs"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-medium">
+                                {entry.leave_type}
+                              </p>
+                              <p className="text-ink">
+                                {entry.old_entitlement ?? 0} →{' '}
+                                {entry.new_entitlement ?? 0} day(s)
+                              </p>
+                            </div>
+                            {Number(entry.adjustment_days || 0) !== 0 && (
+                              <p
+                                className={
+                                  Number(entry.adjustment_days) >= 0
+                                    ? 'text-emerald'
+                                    : 'text-rose'
+                                }
+                              >
+                                {Number(entry.adjustment_days) > 0 ? '+' : ''}
+                                {entry.adjustment_days} day(s) adjustment
+                              </p>
+                            )}
+                            {entry.reason && (
+                              <p className="text-muted mt-1">{entry.reason}</p>
+                            )}
+                            <p className="text-muted/70 mt-1">
+                              By {entry.changed_by_name ?? '—'} ·{' '}
+                              {new Date(entry.created_at).toLocaleString()}
                             </p>
                           </div>
                         ))}
