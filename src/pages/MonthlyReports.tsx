@@ -39,10 +39,24 @@ export default function MonthlyReports() {
   const [report, setReport] = useState<MonthlyReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [employees, setEmployees] = useState<Array<{ id: number; name: string }>>([]);
+  const [employees, setEmployees] = useState<Array<{ id: number; name: string; department?: string | null }>>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
+
+  const isManagerOnly = profile?.role === 'manager';
+  const managerDepartment = String(profile?.department ?? '').trim();
+
+  // Managers only ever see their own department here; the backend enforces
+  // the same scope authoritatively (cross-department export → 404).
+  const visibleEmployees =
+    isManagerOnly && managerDepartment
+      ? employees.filter(
+          (employee) =>
+            String(employee.department ?? '').trim().toLowerCase() ===
+            managerDepartment.toLowerCase()
+        )
+      : employees;
 
   const fetchEmployees = useCallback(async () => {
     try {
@@ -182,7 +196,11 @@ export default function MonthlyReports() {
       <div className="no-print">
         <PageHeader
           title="Monthly HR Report"
-          subtitle="Management report summary for employees, attendance, leave, claims, payroll and holidays."
+          subtitle={
+            isManagerOnly && managerDepartment
+              ? `Department report for ${managerDepartment} — employees, attendance, leave, claims and payroll.`
+              : 'Management report summary for employees, attendance, leave, claims, payroll and holidays.'
+          }
           action={
             <>
             <div className="flex gap-2">
@@ -199,7 +217,7 @@ export default function MonthlyReports() {
                 aria-label="Select employee for individual export"
               >
                 <option value="">Individual: select staff…</option>
-                {employees.map((employee) => (
+                {visibleEmployees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employee.name}
                   </option>
