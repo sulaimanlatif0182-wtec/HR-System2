@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canonPair, validateSwapPayload, isInCircle } from '../lib/api/org-chart.js';
+import { canonPair, validateSwapPayload, isInCircle, diffCirclePairs } from '../lib/api/org-chart.js';
 
 describe('canonPair', () => {
   it('orders pairs', () => {
@@ -68,5 +68,56 @@ describe('isInCircle', () => {
       [2, 1],
     ]);
     expect(isInCircle(cyclic, 66, 1)).toBe(false);
+  });
+});
+
+describe('diffCirclePairs', () => {
+  it('inserts only genuinely new pairs and deletes nothing when growing', () => {
+    const d = diffCirclePairs(
+      [
+        [74, 92],
+      ],
+      [
+        [74, 92],
+        [77, 88],
+      ]
+    );
+    expect(d.toInsert).toEqual([[77, 88]]);
+    expect(d.toDeleteFirst).toEqual([]);
+    expect(d.toDeleteRest).toEqual([]);
+  });
+  it('deletes all old pairs when clearing', () => {
+    const d = diffCirclePairs(
+      [
+        [74, 92],
+      ],
+      []
+    );
+    expect(d.toInsert).toEqual([]);
+    expect(d.toDeleteFirst).toEqual([]);
+    expect(d.toDeleteRest).toEqual([[74, 92]]);
+  });
+  it('deletes conflicting stale rows first so the member-reuse trigger cannot fire', () => {
+    // Old [74,92] shares member 74 with new [74,88]: [74,92] must go
+    // before the insert, while unrelated stale [77,69] can go after.
+    const d = diffCirclePairs(
+      [
+        [74, 92],
+        [77, 69],
+      ],
+      [[74, 88]]
+    );
+    expect(d.toInsert).toEqual([[74, 88]]);
+    expect(d.toDeleteFirst).toEqual([[74, 92]]);
+    expect(d.toDeleteRest).toEqual([[77, 69]]);
+  });
+  it('is a no-op when old and new match', () => {
+    const d = diffCirclePairs(
+      [
+        [74, 92],
+      ],
+      [[74, 92]]
+    );
+    expect(d).toEqual({ toInsert: [], toDeleteFirst: [], toDeleteRest: [] });
   });
 });
