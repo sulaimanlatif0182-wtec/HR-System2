@@ -39,4 +39,30 @@ describe('toggleSwapPair', () => {
       [10, 11],
     ]);
   });
+
+  it('moves a member to a new partner, dropping the old pair', () => {
+    expect(
+      toggleSwapPair(
+        [
+          [7, 9],
+          [10, 11],
+        ],
+        7,
+        10
+      )
+    ).toEqual([[7, 10]]);
+  });
+
+  it('drops conflicting pairs on both sides', () => {
+    expect(
+      toggleSwapPair(
+        [
+          [7, 9],
+          [10, 11],
+        ],
+        9,
+        11
+      )
+    ).toEqual([[9, 11]]);
+  });
 });

@@ -19,7 +19,10 @@ export type SeatSwapMap = Record<number, Array<readonly [number, number]>>;
 
 /**
  * Toggle a seat-swap pair in a circle's draft list: picking the same two
- * members again removes the pair (swap back to normal), otherwise it is added.
+ * members again removes the pair (swap back to normal). Picking a new partner
+ * for an already-swapped member moves them — the conflicting old pair is
+ * dropped so the draft can never hold overlapping pairs (the server rejects
+ * those with 400, which surfaces as an unhelpful alert on Save).
  * Order-insensitive; never mutates the input list.
  */
 export function toggleSwapPair(
@@ -27,13 +30,15 @@ export function toggleSwapPair(
   a: number,
   b: number,
 ): Array<readonly [number, number]> {
-  const next = [...list];
-  const idx = next.findIndex(
+  const idx = list.findIndex(
     ([x, y]) => (x === a && y === b) || (x === b && y === a),
   );
-  if (idx >= 0) next.splice(idx, 1);
-  else next.push([a, b]);
-  return next;
+  if (idx >= 0) {
+    const next = [...list];
+    next.splice(idx, 1);
+    return next;
+  }
+  return [...list.filter(([x, y]) => x !== a && x !== b && y !== a && y !== b), [a, b]];
 }
 
 function applyVisualSwaps(
