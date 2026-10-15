@@ -5,7 +5,7 @@ import { PageHeader, LoadingState, ErrorState } from '../components/Shared';
 import type { Employee } from '../types';
 import apiClient from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { computeCirclePositions, type SeatSwapMap } from '../lib/circleLayout';
+import { computeCirclePositions, toggleSwapPair, type SeatSwapMap } from '../lib/circleLayout';
 
 interface SeatSwapRow {
   manager_id: number;
@@ -460,14 +460,10 @@ export default function OrgChart() {
     }
     const a = selected.id;
     const b = id;
-    setDraftSwaps((d) => {
-      const list = [...(d[mgrId] ?? [])];
-      const dup = list.some(
-        ([x, y]) => (x === a && y === b) || (x === b && y === a)
-      );
-      if (!dup) list.push([a, b]);
-      return { ...d, [mgrId]: list };
-    });
+    setDraftSwaps((d) => ({
+      ...d,
+      [mgrId]: toggleSwapPair(d[mgrId] ?? [], a, b),
+    }));
     setSelected(null);
   };
 

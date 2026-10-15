@@ -17,6 +17,25 @@ export interface Xy {
 // unknown/missing ids a no-op.
 export type SeatSwapMap = Record<number, Array<readonly [number, number]>>;
 
+/**
+ * Toggle a seat-swap pair in a circle's draft list: picking the same two
+ * members again removes the pair (swap back to normal), otherwise it is added.
+ * Order-insensitive; never mutates the input list.
+ */
+export function toggleSwapPair(
+  list: Array<readonly [number, number]>,
+  a: number,
+  b: number,
+): Array<readonly [number, number]> {
+  const next = [...list];
+  const idx = next.findIndex(
+    ([x, y]) => (x === a && y === b) || (x === b && y === a),
+  );
+  if (idx >= 0) next.splice(idx, 1);
+  else next.push([a, b]);
+  return next;
+}
+
 function applyVisualSwaps(
   mgrId: number | null | undefined,
   pos: Map<number, Xy>,
