@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canonPair, validateSwapPayload } from '../lib/api/org-chart.js';
+import { canonPair, validateSwapPayload, isInCircle } from '../lib/api/org-chart.js';
 
 describe('canonPair', () => {
   it('orders pairs', () => {
@@ -39,5 +39,34 @@ describe('validateSwapPayload', () => {
   });
   it('rejects non-array swaps', () => {
     expect(validateSwapPayload(66, 'nope').ok).toBe(false);
+  });
+});
+
+describe('isInCircle', () => {
+  // Henry (66) -> Stephannie (70) -> Muhamad Afiq (95); 999 reports elsewhere.
+  const chain = new Map([
+    [66, null],
+    [70, 66],
+    [95, 70],
+    [999, 1000],
+  ]);
+  it('accepts a direct report', () => {
+    expect(isInCircle(chain, 66, 70)).toBe(true);
+  });
+  it('accepts an indirect report deeper in the subtree', () => {
+    expect(isInCircle(chain, 66, 95)).toBe(true);
+  });
+  it('rejects a member of another tree', () => {
+    expect(isInCircle(chain, 66, 999)).toBe(false);
+  });
+  it('rejects an unknown id', () => {
+    expect(isInCircle(chain, 66, 12345)).toBe(false);
+  });
+  it('terminates on a supervisor cycle', () => {
+    const cyclic = new Map([
+      [1, 2],
+      [2, 1],
+    ]);
+    expect(isInCircle(cyclic, 66, 1)).toBe(false);
   });
 });
