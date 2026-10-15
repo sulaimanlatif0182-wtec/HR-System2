@@ -47,10 +47,16 @@ CREATE INDEX IF NOT EXISTS idx_seat_swaps_member_b
 
 -- Reads are public; writes go through the service-role backend, which
 -- bypasses RLS, so no write policy is created (authZ is hand-coded in API).
+-- NOTE: RLS policies do not grant privileges on their own — the roles the
+-- API connects as still need table rights (same convention as employees/
+-- departments). Without these GRANTs every query fails with 42501.
 ALTER TABLE public.org_chart_seat_swaps ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS seat_swaps_read ON public.org_chart_seat_swaps;
 CREATE POLICY seat_swaps_read ON public.org_chart_seat_swaps
   FOR SELECT USING (true);
+GRANT ALL ON public.org_chart_seat_swaps TO authenticated, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.org_chart_seat_swaps_id_seq
+  TO authenticated, service_role;
 
 -- Seed: the one surviving hardcoded swap (Henry Hoo circle).
 INSERT INTO public.org_chart_seat_swaps (manager_id, member_a_id, member_b_id, created_by)
