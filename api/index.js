@@ -6,6 +6,7 @@ import payrollHandler from '../lib/api/payroll.js';
 import departmentsHandler from '../lib/api/departments.js';
 import deviceAuthHandler from '../lib/api/device-auth.js';
 import attendanceHandler from '../lib/api/attendance.js';
+import orgChartHandler from '../lib/api/org-chart.js';
 import authWorkerLoginHandler from '../lib/api/worker-login.js';
 import payslipHandler from '../lib/api/payslip.js';
 import { supabase } from '../lib/db-client.js';
@@ -103,6 +104,11 @@ export default async function handler(req, res) {
     if (url.startsWith('/api/attendance')) {
       req.url = url.replace('/api/attendance', '') || '/';
       return attendanceHandler(req, res);
+    }
+
+    if (url.startsWith('/api/org-chart')) {
+      req.url = url.replace('/api/org-chart', '') || '/';
+      return orgChartHandler(req, res);
     }
 
     if (url.startsWith('/api/auth/worker-login')) {
