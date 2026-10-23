@@ -17,6 +17,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import supabase from '../lib/supabase';
 import { escapeHtml, printDocument } from '../lib/print';
+import { useFeatureFlags } from '../lib/featureFlags';
 import {
   PageHeader,
   Badge,
@@ -160,6 +161,8 @@ export default function Claims() {
 
   const isAdminOrManager =
     profile?.role === 'admin' || profile?.role === 'manager';
+  const { adminCapability } = useFeatureFlags();
+  const canManage = isAdmin && adminCapability('claims_approval');
 
   const profileDepartment = String(profile?.department ?? '')
     .trim()
@@ -233,7 +236,7 @@ export default function Claims() {
   const visible = useMemo(() => {
     let list = claims;
 
-    if (isAdmin) {
+    if (canManage) {
       list = claims;
     } else if (isFinanceManager) {
       list = claims.filter(
@@ -264,7 +267,7 @@ export default function Claims() {
   }, [
     claims,
     filter,
-    isAdmin,
+    canManage,
     isFinanceManager,
     isManagerOnly,
     profile?.id,
@@ -540,7 +543,7 @@ export default function Claims() {
   const canManagerApprove = (claim: Claim) => {
     if (!profile || claim.status !== 'pending_manager') return false;
 
-    if (isAdmin) return true;
+    if (canManage) return true;
 
     if (!isManagerOnly) return false;
 
@@ -556,17 +559,17 @@ export default function Claims() {
   const canFinanceApprove = (claim: Claim) => {
     if (claim.status !== 'pending_finance') return false;
 
-    return Boolean(isAdmin || isFinanceManager);
+    return Boolean(canManage || isFinanceManager);
   };
 
   const canCancel = (claim: Claim) => {
     if (claim.status !== 'pending_manager') return false;
 
-    return Boolean(isAdmin || Number(profile?.id) === Number(claim.employee_id));
+    return Boolean(canManage || Number(profile?.id) === Number(claim.employee_id));
   };
 
   const canAdminApprove = (claim: Claim) => {
-    if (!isAdmin || claim.status !== 'pending_admin') return false;
+    if (!canManage || claim.status !== 'pending_admin') return false;
 
     return true;
   };
@@ -622,7 +625,7 @@ export default function Claims() {
         }
         action={
           <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-2">
-            {isAdminOrManager && (
+            {(canManage || isManagerOnly) && (
               <button
                 type="button"
                 onClick={handleExportCsv}
@@ -851,7 +854,7 @@ export default function Claims() {
 
                 {(canManagerApprove(claim) ||
                   canFinanceApprove(claim) ||
-                  isAdmin) &&
+                  canManage) &&
                   claim.status !== 'approved' &&
                   claim.status !== 'rejected' &&
                   claim.status !== 'cancelled' && (

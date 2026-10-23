@@ -5,6 +5,7 @@ import { PageHeader, LoadingState, ErrorState } from '../components/Shared';
 import type { Employee } from '../types';
 import apiClient from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useFeatureFlags } from '../lib/featureFlags';
 import { computeCirclePositions, toggleSwapPair, type SeatSwapMap } from '../lib/circleLayout';
 
 interface SeatSwapRow {
@@ -373,6 +374,8 @@ function ManagerCircles({
 export default function OrgChart() {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
+  const { adminCapability } = useFeatureFlags();
+  const canEditLayout = isAdmin && adminCapability('org_chart');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -531,7 +534,7 @@ export default function OrgChart() {
               </>
             ) : (
               <>
-                {isAdmin && (
+                {canEditLayout && (
                   <button
                     type="button"
                     onClick={startEdit}

@@ -18,6 +18,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import supabase from '../lib/supabase';
 import { printDocument } from '../lib/print';
+import { useFeatureFlags } from '../lib/featureFlags';
 import {
   PageHeader,
   Badge,
@@ -69,6 +70,9 @@ const ATTACHMENT_REQUIRED_LEAVE_TYPES = new Set([
   'EL (Annual Leave)',
   'EL (Unpaid Leave)',
 ]);
+
+// Admin-only approval override: keep in sync with lib/api/leave.js
+const ADMIN_ONLY_LEAVE_IDS = new Set([75, 76, 80]);
 
 type LeaveType = (typeof LEAVE_TYPES)[number];
 type HalfDayPeriod = (typeof HALF_DAY_OPTIONS)[number];
@@ -320,6 +324,8 @@ export default function Leave() {
   const isManagerOnly = profile?.role === 'manager';
   const isAdminOrManager =
     profile?.role === 'admin' || profile?.role === 'manager';
+  const { adminCapability } = useFeatureFlags();
+  const canManage = isAdmin && adminCapability('leave_approval');
 
   const profileDepartment = String(profile?.department ?? '')
     .trim()
@@ -463,7 +469,7 @@ export default function Leave() {
   const visible = useMemo(() => {
     let list = requests;
 
-    if (isAdmin) {
+    if (canManage) {
       list = requests;
     } else if (isManagerOnly) {
       list = requests.filter((request) => {
@@ -498,7 +504,7 @@ export default function Leave() {
   }, [
     requests,
     filter,
-    isAdmin,
+    canManage,
     isManagerOnly,
     profile?.id,
     profileDepartment,
@@ -511,8 +517,13 @@ export default function Leave() {
       return false;
     }
 
-    if (isAdmin) {
+    if (canManage) {
       return true;
+    }
+
+    // Admin-only override: 75,76,80 decided by admin only.
+    if (ADMIN_ONLY_LEAVE_IDS.has(Number(request.employee_id))) {
+      return false;
     }
 
     const applicant = empMap[request.employee_id];
@@ -866,7 +877,12 @@ export default function Leave() {
   const canDecideCancel = (request: LeaveReq) => {
     if (!profile) return false;
     if (request.status !== 'pending_cancel') return false;
-    if (profile.role === 'admin' || profile.role === 'manager') return true;
+    // Admin-only override: 75,76,80 cancellations decided by admin only.
+    if (ADMIN_ONLY_LEAVE_IDS.has(Number(request.employee_id))) {
+      return profile.role === 'admin' && canManage;
+    }
+    if (profile.role === 'manager') return true;
+    if (profile.role === 'admin') return canManage;
     const applicant = empMap[request.employee_id];
     return Number(applicant?.supervisor_id) === Number(profile.id);
   };
@@ -1331,7 +1347,7 @@ export default function Leave() {
         }
         action={
           <div className="flex flex-wrap items-center gap-2">
-            {isAdmin && (
+            {canManage && (
               <button
                 type="button"
                 onClick={openBalanceEditor}
@@ -1368,7 +1384,7 @@ export default function Leave() {
 
       {profile && (
         <>
-          {isAdmin && (
+          {canManage && (
             <div className="flex flex-wrap items-center gap-2 mb-4">
               <label
                 htmlFor="balance-viewer"

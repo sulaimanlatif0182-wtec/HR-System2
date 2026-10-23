@@ -11,6 +11,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useFeatureFlags } from '../lib/featureFlags';
 import {
   PageHeader,
   Badge,
@@ -82,6 +83,8 @@ function mailtoUrl(item: Announcement) {
 export default function Announcements() {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
+  const { adminCapability } = useFeatureFlags();
+  const canManage = isAdmin && adminCapability('announcements');
 
   const [items, setItems] = useState<Announcement[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -91,6 +94,8 @@ export default function Announcements() {
   const [message, setMessage] = useState('');
 
   const fetchAll = async () => {
+    setLoading(true);
+    setError('');
     try {
       const data = await apiClient.get(`/api/employees?announcements=true&t=${Date.now()}`);
 
@@ -115,15 +120,15 @@ export default function Announcements() {
     });
 
     // Admin must see expired announcements too, so they can edit/delete them.
-    if (isAdmin) return sorted;
+    if (canManage) return sorted;
 
     return sorted.filter((item) => !isExpired(item));
-  }, [items, isAdmin]);
+  }, [items, canManage]);
 
   const saveAnnouncement = async (event: FormEvent) => {
     event.preventDefault();
 
-    if (!isAdmin || !profile) return;
+    if (!canManage || !profile) return;
 
     if (!form.title.trim() || !form.body.trim()) {
       setMessage('Title and announcement body are required.');
@@ -155,7 +160,7 @@ export default function Announcements() {
   };
 
   const deleteAnnouncement = async (item: Announcement) => {
-    if (!isAdmin || !profile) return;
+    if (!canManage || !profile) return;
 
     if (!window.confirm(`Delete announcement "${item.title}"?`)) return;
 
@@ -215,7 +220,7 @@ export default function Announcements() {
         }
       />
 
-      {isAdmin && (
+      {canManage && (
         <form onSubmit={saveAnnouncement} className="glass rounded-2xl p-5 mb-6 space-y-3">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-primary/15 text-primary grid place-items-center">
@@ -326,7 +331,7 @@ export default function Announcements() {
 
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-display font-semibold">
-          {isAdmin ? 'All Announcements' : 'Active Announcements'}
+          {canManage ? 'All Announcements' : 'Active Announcements'}
         </h3>
         <div className="flex gap-2">
           <Badge tone="info">{items.length} total</Badge>
@@ -339,7 +344,7 @@ export default function Announcements() {
       {displayedItems.length === 0 ? (
         <EmptyState
           label={
-            isAdmin
+            canManage
               ? 'No announcements created yet.'
               : 'No active announcements.'
           }
@@ -364,7 +369,7 @@ export default function Announcements() {
                     </p>
                   </div>
 
-                  {isAdmin && (
+                  {canManage && (
                     <div className="flex gap-1">
                       <button
                         type="button"

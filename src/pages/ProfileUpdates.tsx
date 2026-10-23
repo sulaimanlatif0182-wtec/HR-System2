@@ -10,6 +10,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useFeatureFlags } from '../lib/featureFlags';
 import { PageHeader, Badge, LoadingState, ErrorState, EmptyState } from '../components/ui';
 
 interface Employee {
@@ -94,6 +95,8 @@ function statusTone(status: string) {
 export default function ProfileUpdates() {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
+  const { adminCapability } = useFeatureFlags();
+  const canManage = isAdmin && adminCapability('profile_updates');
 
   const [myEmployee, setMyEmployee] = useState<Employee | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -112,7 +115,7 @@ export default function ProfileUpdates() {
       const [me, req, emp] = await Promise.all([
         apiClient.get<Employee>(`/api/employees?id=${profile.id}`),
         apiClient.get(
-          isAdmin
+          canManage
             ? '/api/employees?profile_update_requests=true'
             : `/api/employees?profile_update_requests=true&employee_id=${profile.id}`
         ),
@@ -146,7 +149,7 @@ export default function ProfileUpdates() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, profile]);
+  }, [canManage, profile]);
 
   useEffect(() => {
     void (async () => {
@@ -234,7 +237,7 @@ export default function ProfileUpdates() {
       <PageHeader
         title="Profile Update Requests"
         subtitle={
-          isAdmin
+          canManage
             ? 'Review and approve employee profile update requests.'
             : 'Submit changes to your HR profile for admin approval.'
         }
@@ -329,7 +332,7 @@ export default function ProfileUpdates() {
 
         <div className="glass rounded-2xl p-5">
           <h3 className="font-display font-semibold mb-4">
-            {isAdmin ? 'All Requests' : 'My Requests'}
+            {canManage ? 'All Requests' : 'My Requests'}
           </h3>
 
           {requests.length === 0 ? (
@@ -361,7 +364,7 @@ export default function ProfileUpdates() {
                     <p className="text-xs text-muted mt-1">Admin: {request.admin_remarks}</p>
                   )}
 
-                  {isAdmin && request.status === 'pending' && (
+                  {canManage && request.status === 'pending' && (
                     <div className="grid grid-cols-1 sm:flex gap-2 mt-3">
                       <button
                         type="button"

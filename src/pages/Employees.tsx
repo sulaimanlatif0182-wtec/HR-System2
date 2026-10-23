@@ -898,9 +898,9 @@ export default function Employees() {
         join_date: new Date().toISOString().slice(0, 10),
       });
 
-      const featureEntries = Object.entries(form.featureAccess).filter(
-        ([, value]) => value !== null
-      );
+      // NOTE: null (Default) must be sent so the backend deletes the
+      // override row; filtering nulls makes Default a no-op.
+      const featureEntries = Object.entries(form.featureAccess);
 
       if (featureEntries.length && profile) {
         apiClient
@@ -972,9 +972,9 @@ export default function Employees() {
         await fetchEmployees();
       }
 
-      const featureEntries = Object.entries(editForm.featureAccess).filter(
-        ([, value]) => value !== null
-      );
+      // NOTE: null (Default) must be sent so the backend deletes the
+      // override row; filtering nulls makes Default a no-op.
+      const featureEntries = Object.entries(editForm.featureAccess);
 
       if (featureEntries.length && profile) {
         apiClient
