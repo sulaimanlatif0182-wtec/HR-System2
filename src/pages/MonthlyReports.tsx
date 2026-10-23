@@ -43,6 +43,7 @@ export default function MonthlyReports() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
+  const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
 
   const isManagerOnly = profile?.role === 'manager';
   const managerDepartment = String(profile?.department ?? '').trim();
@@ -123,9 +124,12 @@ export default function MonthlyReports() {
   };
 
   const fetchReport = useCallback(async () => {
+    setLoading(true);
+    setError('');
     try {
       const data = await apiClient.get(`/api/employees?monthly_hr_report=true&period=${period}`);
       setReport(data as MonthlyReport);
+      setRefreshedAt(new Date());
     } catch {
       setError('Failed to load monthly HR report.');
     } finally {
@@ -205,11 +209,17 @@ export default function MonthlyReports() {
             <>
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={fetchReport}
-                className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold"
+                className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold hover:bg-primary-soft"
               >
                 <RefreshCw size={16} /> Refresh
               </button>
+              {refreshedAt && (
+                <span className="self-center text-[11px] text-muted">
+                  Last refreshed {refreshedAt.toLocaleTimeString()}
+                </span>
+              )}
               <select
                 value={selectedEmployeeId}
                 onChange={(e) => setSelectedEmployeeId(e.target.value)}

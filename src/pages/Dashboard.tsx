@@ -178,6 +178,8 @@ export default function Dashboard() {
   const [error, setError] = useState('');
 
   const fetchDashboard = async () => {
+    setLoading(true);
+    setError('');
     try {
       const period = currentPeriod();
       // Ask the server for only what this screen renders: pending

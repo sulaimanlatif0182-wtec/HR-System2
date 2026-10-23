@@ -232,6 +232,8 @@ export default function AdminConfig() {
   const [roleDefaultsMessage, setRoleDefaultsMessage] = useState('');
 
   const fetchAll = async () => {
+    setLoading(true);
+    setError('');
     try {
       const [configData, checklistData, ruleData, logData, accessData] = await Promise.all([
         apiClient.get('/api/employees?admin_config=true'),
