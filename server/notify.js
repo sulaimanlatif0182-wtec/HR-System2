@@ -1,6 +1,9 @@
 import { supabase } from '../lib/db-client.js';
 import { sendNotificationEmail } from './email.js';
 
+// Admin-only approval override: keep in sync with lib/api/leave.js
+const ADMIN_ONLY_LEAVE_EMPLOYEE_IDS = new Set([75, 76, 80]);
+
 function sameDepartment(a, b) {
   return (
     String(a || '').trim().toLowerCase() ===
@@ -101,8 +104,22 @@ export async function notifyLeaveSubmitted(leaveRequest) {
 
   if (!applicant) return;
 
-  const managers = await getManagersByDepartment(applicant.department);
   const admins = await getAdmins();
+
+  // Admin-only override: managers are out of the chain for 75,76,80.
+  if (ADMIN_ONLY_LEAVE_EMPLOYEE_IDS.has(Number(applicant.id))) {
+    const recipients = uniqueRecipients([...admins]);
+
+    return emailMany(recipients, () => ({
+      subject: `Leave request pending - ${applicant.name}`,
+      title: 'Leave request pending approval',
+      message: `${applicant.name} submitted a ${leaveRequest.leave_type} request from ${leaveRequest.start_date} to ${leaveRequest.end_date}.`,
+      link: '/leave',
+      actionLabel: 'Review Leave',
+    }));
+  }
+
+  const managers = await getManagersByDepartment(applicant.department);
 
   const recipients = uniqueRecipients([
     ...managers.filter((manager) => manager.id !== applicant.id),
@@ -140,8 +157,11 @@ export async function notifyLeaveSubmittedToApproverSafe(leaveRequest) {
   // When a supervisor (Working with) is assigned, only the supervisor plus
   // admins are notified for approval — department managers are out of the
   // chain. Applicants without a supervisor keep manager + admin routing.
+  // Admin-only override: 75,76,80 notify admins only (skip supervisor).
   let recipients;
-  if (applicant.supervisor_id) {
+  if (ADMIN_ONLY_LEAVE_EMPLOYEE_IDS.has(Number(applicant.id))) {
+    recipients = uniqueRecipients([...admins]);
+  } else if (applicant.supervisor_id) {
     recipients = uniqueRecipients([
       ...supervisors.filter((supervisor) => supervisor.id !== applicant.id),
       ...admins,
@@ -192,10 +212,14 @@ export async function notifyLeaveSubmittedToPeers(leaveRequest) {
 
   const days = Number(leaveRequest.days || 0);
 
+  const approverLabel = ADMIN_ONLY_LEAVE_EMPLOYEE_IDS.has(Number(applicant.id))
+    ? 'an admin'
+    : (supervisor?.name || 'their supervisor');
+
   return emailMany(recipients, () => ({
     subject: `Team leave notice - ${applicant.name}`,
     title: 'Team leave notice (no action needed)',
-    message: `${applicant.name} submitted a ${leaveRequest.leave_type} request from ${leaveRequest.start_date} to ${leaveRequest.end_date}${days ? ` (${days} day${days > 1 ? 's' : ''})` : ''}. This is for your information only — approval is by ${supervisor?.name || 'their supervisor'}.`,
+    message: `${applicant.name} submitted a ${leaveRequest.leave_type} request from ${leaveRequest.start_date} to ${leaveRequest.end_date}${days ? ` (${days} day${days > 1 ? 's' : ''})` : ''}. This is for your information only — approval is by ${approverLabel}.`,
     link: '/leave',
     actionLabel: 'View Leave',
   }));
@@ -257,7 +281,9 @@ export async function notifyLeaveCancelRequested(leaveRequest) {
   const admins = await getAdmins();
 
   let recipients;
-  if (applicant.supervisor_id) {
+  if (ADMIN_ONLY_LEAVE_EMPLOYEE_IDS.has(Number(applicant.id))) {
+    recipients = uniqueRecipients([...admins]);
+  } else if (applicant.supervisor_id) {
     recipients = uniqueRecipients([
       ...supervisors.filter((supervisor) => supervisor.id !== applicant.id),
       ...admins,
